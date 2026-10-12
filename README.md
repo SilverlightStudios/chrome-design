@@ -20,7 +20,7 @@ The toolbar is one row: **Close · Select · Comment · Pencil · Shapes · Text
 | Shapes | `R` `O` `A` `L` | Rectangle, ellipse, arrow and line. The button shows the last shape you used; press and hold (or right-click) it for the others. `⇧` makes squares and circles and snaps lines to 45°. After drawing, you're back in Select with the new shape selected, ready to adjust. |
 | Text | `T` | Click to place a text label. |
 | Style bar | | Appears above the toolbar while drawing or when a drawing is selected: colour, stroke width, dashed, eraser, delete, undo and redo. Changes apply to the selected drawing. |
-| More ⋯ | | Comments list (`F`, filter by open or resolved, click to jump to one), Use the page (pauses the tools so the page works normally), Rulers (`M`, drag from a ruler to add a guide), Columns (`G`, a layout grid you can adjust), Shortcuts (`?`), Quick tour, Settings and Clear this page. |
+| More ⋯ | | Comments list (`F`, filter by open or resolved, click to jump to one), Use the page (pauses the tools so the page works normally), Rulers (`M`, drag from a ruler to add a guide), Columns (`G`, a layout grid: count stepper and presets, Stretch / Left / Center / Right / Space between / around / evenly, sliders for width, gutter, margin and opacity, colour swatches), Shortcuts (`?`), Quick tour, Settings and Clear this page. |
 | Send to AI | `⇧E` | Shows what will be included, takes an optional note for the assistant, and downloads the file. |
 | Undo / redo | `⌘Z` / `⇧⌘Z` | Applies to every change: comments, drawings, guides, moves and deletes. |
 | Step back | `Esc` | Each press goes back one level: closes bubbles and panels, deselects, returns to Select, then pauses the tools. While paused the page gets all its keys back. |

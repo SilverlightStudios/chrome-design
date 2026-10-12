@@ -15,6 +15,10 @@ extension (including a phone-width bottom-sheet test). Verified on the demo page
   plain-language element names (`src/content/describe.ts`) + floating selection bar + Details;
   comment bubble with send button; More sheet of tiles; contextual style bar; phone bottom sheets on
   the Remote Desktop drawer physics; exit animations everywhere (bubble, bars, sheets, whole UI).
+- R3.1: Columns panel rebuilt for touch: −/+ stepper (hold to repeat) with count presets, a number
+  box you type over (deleting no longer snaps to 1), layout tiles with Space between / around /
+  evenly (`GridSettings.spacing`, math in `gridColumns`), custom sliders (tap to jump, sideways drag,
+  vertical swipes still scroll), colour swatches. Switching to fixed columns narrows them to fit.
 
 ## Architecture decisions
 - Content script = single IIFE (`dist/content.js`) injected on demand via `chrome.scripting` (activeTab). UI is React inside an open Shadow DOM host `<chrome-design-root>` shown as a manual popover (top layer); removed entirely on close after a 240ms exit.

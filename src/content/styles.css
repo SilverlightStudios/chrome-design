@@ -462,6 +462,8 @@ svg {
   border-radius: 999px;
   transition:
     translate var(--duration-settle) var(--ease-settle),
+    opacity var(--duration) var(--ease),
+    scale var(--duration) var(--ease),
     background-color var(--duration) var(--ease);
 }
 .seg button {
@@ -1793,95 +1795,329 @@ p.muted {
 }
 
 .grid-panel {
-  width: min(300px, calc(100vw - 16px));
+  width: min(320px, calc(100vw - 16px));
+  gap: 16px;
 }
-.grid-fields {
+.grid-panel .panel-head {
+  align-items: center;
+}
+.grid-panel .toggle-row {
+  padding: 0;
+  font-size: 12.5px;
+}
+.grid-section {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  gap: 8px;
 }
-.scrub {
+.grid-section.sliders {
+  gap: 12px;
+}
+.slider-label {
+  font: 550 12.5px / 1.2 var(--font);
+  color: var(--ink-muted);
+  padding-left: 2px;
+}
+.count-row {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 0 12px;
-  height: 38px;
-  border-radius: 14px;
+  justify-content: space-between;
+  gap: 8px;
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
   background: var(--chip);
 }
-.scrub-label {
-  color: var(--ink-muted);
-  cursor: ew-resize;
-  user-select: none;
-  touch-action: none;
-  flex: none;
-}
-.scrub input {
-  flex: 1;
-  min-width: 0;
-  width: 100%;
+.step-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 32px;
   border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-touch-callout: none;
+  transition:
+    scale 0.12s var(--ease),
+    background-color var(--duration) var(--ease);
+}
+.step-btn:active {
+  scale: 0.9;
+  background: var(--card-hover);
+}
+@media (hover: hover) and (pointer: fine) {
+  .step-btn:hover {
+    background: var(--card-hover);
+  }
+}
+.numbox {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
+  min-width: 48px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 10px;
+  cursor: text;
+  transition:
+    background-color var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
+}
+.numbox[data-editing] {
+  background: var(--raised);
+  box-shadow:
+    0 0 0 1.5px var(--accent),
+    0 0 0 4px var(--accent-soft);
+}
+.numbox input {
+  width: 4ch;
+  min-width: 0;
+  field-sizing: content;
+  border: 0;
+  padding: 0;
   background: transparent;
   color: var(--ink);
-  font: 600 13px var(--font);
+  font: 600 14px / 30px var(--font);
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  text-align: center;
   outline: none;
-  appearance: textfield;
 }
-.scrub input::-webkit-inner-spin-button {
-  appearance: none;
+.numbox input::selection {
+  background: var(--accent-soft);
 }
-.scrub-unit,
-.scrub-auto {
+.numbox-unit {
   color: var(--ink-faint);
   font-size: 12px;
 }
-.scrub-auto {
-  margin-left: auto;
+.stepper .numbox {
+  min-width: 44px;
 }
-.scrub[data-disabled] .scrub-label {
-  cursor: default;
-  color: var(--ink-faint);
+.seg.count-presets {
+  font-size: 13px;
 }
-.grid-color {
+.seg.count-presets button {
+  padding: 7px 0;
+  font-variant-numeric: tabular-nums;
+}
+.seg[data-none] .seg-loz {
+  opacity: 0;
+  scale: 0.6;
+}
+.layout-tiles {
   display: grid;
-  grid-template-columns: auto 1fr 96px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
-  align-items: center;
-  padding-left: 12px;
+}
+.layout-tile {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 8px 2px 6px;
+  border: 0;
   border-radius: 14px;
   background: var(--chip);
+  color: var(--ink-muted);
+  font: 500 11.5px / 1.1 var(--font);
+  touch-action: manipulation;
+  transition:
+    background-color var(--duration) var(--ease),
+    color var(--duration) var(--ease),
+    scale 0.14s var(--ease);
 }
-.color-chip {
+.layout-tile:active {
+  scale: 0.96;
+}
+.layout-tile .lp-frame {
+  fill: none;
+  stroke: currentColor;
+  stroke-opacity: 0.35;
+}
+.layout-tile .lp-col {
+  fill: currentColor;
+  fill-opacity: 0.45;
+}
+.layout-tile[data-active] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.layout-tile[data-active] .lp-col {
+  fill-opacity: 0.9;
+}
+@media (hover: hover) and (pointer: fine) {
+  .layout-tile:not([data-active]):hover {
+    background: var(--card-hover);
+    color: var(--ink);
+  }
+}
+.layout-hint {
+  margin: 0;
+  padding: 0 2px;
+  min-height: 1lh;
+  text-wrap: pretty;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .layout-hint {
+    animation: hint-in 0.2s var(--ease) both;
+  }
+}
+@keyframes hint-in {
+  from {
+    opacity: 0;
+    translate: 0 3px;
+  }
+}
+.slider-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  row-gap: 2px;
+}
+.slider-row .slider {
+  grid-column: 1 / -1;
+}
+.slider-row .numbox {
+  justify-content: flex-end;
+  padding-right: 4px;
+}
+.slider-row .numbox input {
+  text-align: right;
+}
+.slider-off {
+  height: 30px;
+  line-height: 30px;
+  padding-right: 4px;
+  color: var(--ink-faint);
+  font-size: 12.5px;
+}
+.slider {
+  --thumb: 22px;
   position: relative;
-  width: 20px;
-  height: 20px;
+  height: 30px;
+  touch-action: pan-y;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
 }
-.color-chip input {
+.slider-track {
+  position: absolute;
+  inset: 50% calc(var(--thumb) / 2) auto;
+  height: 4px;
+  translate: 0 -50%;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: clip;
+}
+.slider-fill {
   position: absolute;
   inset: 0;
+  transform-origin: left;
+  scale: var(--p) 1;
+  background: var(--accent);
+}
+.slider-thumb {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--p) * (100% - var(--thumb)));
+  width: var(--thumb);
+  height: var(--thumb);
+  translate: 0 -50%;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 0.5px hsl(0 0% 0% / 0.12),
+    0 2px 6px hsl(0 0% 0% / 0.22);
+  transition:
+    scale 0.16s var(--ease-bounce),
+    opacity 0.16s var(--ease);
+}
+.slider:not([data-dragging]) .slider-thumb {
+  transition:
+    scale 0.16s var(--ease-bounce),
+    opacity 0.16s var(--ease),
+    left 0.16s var(--ease);
+}
+.slider:not([data-dragging]) .slider-fill {
+  transition:
+    scale 0.16s var(--ease),
+    opacity 0.16s var(--ease);
+}
+.slider[data-dragging] .slider-thumb {
+  scale: 1.15;
+}
+.slider:focus-visible .slider-thumb {
+  box-shadow:
+    0 0 0 0.5px hsl(0 0% 0% / 0.12),
+    0 2px 6px hsl(0 0% 0% / 0.22),
+    0 0 0 4px var(--accent-soft);
+}
+.slider[aria-disabled] {
+  cursor: default;
+}
+.slider[aria-disabled] .slider-fill {
+  opacity: 0;
+}
+.slider[aria-disabled] .slider-thumb {
+  opacity: 0;
+  scale: 0.5;
+}
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px;
+}
+.swatch {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: inset 0 0 0 1px hsl(0 0% 0% / 0.12);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: scale 0.14s var(--ease);
+}
+.swatch::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  opacity: 0;
+  scale: 0.85;
+  transition:
+    opacity var(--duration) var(--ease),
+    scale var(--duration-settle) var(--ease-settle);
+}
+.swatch[data-active]::after {
+  opacity: 1;
+  scale: 1;
+}
+.swatch:active {
+  scale: 0.92;
+}
+.swatch.custom {
+  background:
+    radial-gradient(circle, var(--c) 0 38%, transparent 40%),
+    conic-gradient(from 0deg, #f43f5e, #f59e0b, #84cc16, #06b6d4, #6366f1, #d946ef, #f43f5e);
+}
+.swatch.custom input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   opacity: 0;
   cursor: pointer;
-}
-.color-chip span {
-  display: block;
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
-  box-shadow: inset 0 0 0 1px hsl(0 0% 0% / 0.12);
-}
-.hex {
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-  font: 600 12.5px var(--mono);
-  text-transform: uppercase;
-  outline: none;
-  min-width: 0;
-}
-.grid-color .scrub {
-  background: transparent;
 }
 
 .thread-list {
@@ -2957,9 +3193,12 @@ details.options .checks {
   .field textarea,
   .stack textarea,
   .text-editor,
-  .scrub input,
-  .hex {
+  .numbox input {
     font-size: 16px;
+  }
+  .slider {
+    --thumb: 28px;
+    height: 36px;
   }
 }
 

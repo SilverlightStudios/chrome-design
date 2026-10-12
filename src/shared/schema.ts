@@ -75,6 +75,7 @@ export const handoffSchema = {
         mode: { enum: ['stretch', 'fixed'] },
         count: { type: 'integer', minimum: 1 },
         columnWidth: num,
+        spacing: { enum: ['start', 'center', 'end', 'between', 'around', 'evenly'] },
         margin: num,
         gutter: num,
         color: str,

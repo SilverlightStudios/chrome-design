@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { restrictedReason } from '../src/background/inject';
 import { describePath, uniqueSelector } from '../src/capture/anchor';
 import { isDangerousUrl } from '../src/capture/sanitize';
+import { chooseLayout } from '../src/content/ui/GridPanel';
 import { exportFilename } from '../src/export/build';
 import { gridColumns, measureBetween } from '../src/shared/measure';
+import { DEFAULT_GRID, type GridSpacing } from '../src/shared/model';
 
 describe('restricted pages', () => {
   it('allows http(s) and explains blocked schemes', () => {
@@ -71,6 +73,42 @@ describe('measurement', () => {
       { x: 390, width: 100 },
       { x: 510, width: 100 },
     ]);
+  });
+
+  it('spreads fixed columns like flexbox justify-content', () => {
+    const base = { mode: 'fixed' as const, count: 3, columnWidth: 100, margin: 50, gutter: 10 };
+    const xs = (spacing: GridSpacing) => gridColumns(1000, { ...base, spacing }).map((c) => c.x);
+    expect(xs('start')).toEqual([50, 160, 270]);
+    expect(xs('end')).toEqual([630, 740, 850]);
+    expect(xs('center')).toEqual([340, 450, 560]);
+    // 900px inside the margins, 300 of columns, 600 free.
+    expect(xs('between')).toEqual([50, 450, 850]);
+    expect(xs('around')).toEqual([150, 450, 750]);
+    expect(xs('evenly')).toEqual([200, 450, 700]);
+    // A single column centres; columns wider than the room lose their gaps and centre.
+    expect(gridColumns(1000, { ...base, count: 1, spacing: 'between' })[0]!.x).toBe(450);
+    const tight = gridColumns(300, { ...base, spacing: 'evenly' });
+    expect(tight.map((c) => c.x)).toEqual([0, 100, 200]);
+  });
+
+  it('narrows fixed columns that would not fit when switching layout', () => {
+    // 12 × 72px + 11 × 24px gutters is far wider than a 393px phone.
+    expect(chooseLayout(DEFAULT_GRID, 'center', 393)).toEqual({
+      mode: 'fixed',
+      spacing: 'center',
+      columnWidth: 8,
+    });
+    const four = { ...DEFAULT_GRID, count: 4 };
+    expect(chooseLayout(four, 'start', 393).columnWidth).toBe(68);
+    // Spread layouts ignore the gutter, so four columns still fit; six don't and get gaps.
+    expect(chooseLayout(four, 'between', 393).columnWidth).toBeUndefined();
+    expect(chooseLayout({ ...DEFAULT_GRID, count: 6 }, 'between', 393).columnWidth).toBe(28);
+    // Plenty of room: the width is left alone.
+    expect(chooseLayout(DEFAULT_GRID, 'evenly', 1440)).toEqual({
+      mode: 'fixed',
+      spacing: 'evenly',
+    });
+    expect(chooseLayout(DEFAULT_GRID, 'stretch', 393)).toEqual({ mode: 'stretch' });
   });
 });
 

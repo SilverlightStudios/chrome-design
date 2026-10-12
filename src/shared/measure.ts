@@ -1,4 +1,4 @@
-import type { Rect } from './model';
+import type { GridSpacing, Rect } from './model';
 
 export interface MeasureLine {
   x1: number;
@@ -68,19 +68,42 @@ export function gridColumns(
     mode: 'stretch' | 'fixed';
     count: number;
     columnWidth: number;
+    spacing?: GridSpacing;
     margin: number;
     gutter: number;
   },
 ): { x: number; width: number }[] {
   const count = Math.max(1, Math.round(grid.count));
-  const gutter = Math.max(0, grid.gutter);
-  if (grid.mode === 'fixed') {
-    const width = Math.max(1, grid.columnWidth);
-    const total = count * width + (count - 1) * gutter;
-    const start = (viewportWidth - total) / 2;
-    return Array.from({ length: count }, (_, i) => ({ x: start + i * (width + gutter), width }));
-  }
   const margin = Math.max(0, grid.margin);
-  const width = Math.max(0, (viewportWidth - margin * 2 - gutter * (count - 1)) / count);
-  return Array.from({ length: count }, (_, i) => ({ x: margin + i * (width + gutter), width }));
+  const columns = (start: number, width: number, gap: number) =>
+    Array.from({ length: count }, (_, i) => ({ x: start + i * (width + gap), width }));
+  if (grid.mode === 'stretch') {
+    const gutter = Math.max(0, grid.gutter);
+    const width = Math.max(0, (viewportWidth - margin * 2 - gutter * (count - 1)) / count);
+    return columns(margin, width, gutter);
+  }
+  const width = Math.max(1, grid.columnWidth);
+  const spacing = grid.spacing ?? 'center';
+  const free = viewportWidth - margin * 2 - count * width;
+  let gap = Math.max(0, grid.gutter);
+  let start: number;
+  if (spacing === 'between' || spacing === 'around' || spacing === 'evenly') {
+    const slots = spacing === 'between' ? count - 1 : spacing === 'around' ? count : count + 1;
+    gap = slots > 0 ? free / slots : 0;
+    start = spacing === 'between' ? margin : spacing === 'around' ? margin + gap / 2 : margin + gap;
+    // One column has nothing to spread against; too little room means no gaps at all.
+    if (slots === 0 || gap < 0) {
+      gap = Math.max(0, gap);
+      start = (viewportWidth - count * width - (count - 1) * gap) / 2;
+    }
+  } else {
+    const total = count * width + (count - 1) * gap;
+    start =
+      spacing === 'start'
+        ? margin
+        : spacing === 'end'
+          ? viewportWidth - margin - total
+          : (viewportWidth - total) / 2;
+  }
+  return columns(start, width, gap);
 }

@@ -118,12 +118,21 @@ export interface Guide {
   position: number;
 }
 
+/**
+ * How fixed-width columns sit inside the margins: packed to one side or the centre with the
+ * gutter between them, or spread out with the gaps worked out from the free space (CSS
+ * `space-between` / `space-around` / `space-evenly`).
+ */
+export type GridSpacing = 'start' | 'center' | 'end' | 'between' | 'around' | 'evenly';
+
 export interface GridSettings {
   visible: boolean;
   mode: 'stretch' | 'fixed';
   count: number;
   /** Column width in px, used when mode is `fixed`. */
   columnWidth: number;
+  /** Where fixed-width columns sit, used when mode is `fixed`. */
+  spacing: GridSpacing;
   margin: number;
   gutter: number;
   color: string;
@@ -237,6 +246,7 @@ export const DEFAULT_GRID: GridSettings = {
   mode: 'stretch',
   count: 12,
   columnWidth: 72,
+  spacing: 'center',
   margin: 24,
   gutter: 24,
   color: '#008BFF',

@@ -200,6 +200,16 @@ export const Icon = {
       <path d="M6.5 8.2 10 11.7l3.5-3.5" />
     </Svg>
   ),
+  minus: () => (
+    <Svg>
+      <path d="M5 10h10" strokeWidth="2" />
+    </Svg>
+  ),
+  plus: () => (
+    <Svg>
+      <path d="M10 5v10M5 10h10" strokeWidth="2" />
+    </Svg>
+  ),
   pause: () => (
     <Svg>
       <path d="M7.5 5.5v9M12.5 5.5v9" strokeWidth="2" />
