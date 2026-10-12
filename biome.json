@@ -37,7 +37,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "a11y": {
         "noStaticElementInteractions": "off",
         "useKeyWithClickEvents": "off",
@@ -70,6 +70,12 @@
             "noThenProperty": "off"
           }
         }
+      }
+    },
+    {
+      "includes": ["demo/index.html", "tests/e2e/fixture.html"],
+      "linter": {
+        "enabled": false
       }
     }
   ]

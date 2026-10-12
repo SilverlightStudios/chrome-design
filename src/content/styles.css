@@ -1266,6 +1266,12 @@ kbd {
       translate: -50% 6px;
     }
   }
+  /* Matches the reference: the drawing bar fades/scales in without rising. */
+  .subbar {
+    @starting-style {
+      translate: 0 0;
+    }
+  }
   .toasts .toast {
     @starting-style {
       translate: 0 -6px;
