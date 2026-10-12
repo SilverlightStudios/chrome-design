@@ -5,14 +5,17 @@ import {
   type CommentThread,
   DEFAULT_GRID,
   DEFAULT_STYLE,
-  type ElementAnchor,
   type GridSettings,
   type Guide,
   isComment,
+  type Point,
+  type Rect,
+  type Shape,
   type ShapeStyle,
 } from '../shared/model';
 
-export type ToolId = 'select' | 'comment' | 'draw' | 'measure';
+/** `browse` leaves the page fully interactive (no capture layer). */
+export type ToolId = 'browse' | 'select' | 'comment' | 'draw';
 export type DrawToolId = 'pen' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'text' | 'eraser';
 export type PanelId = 'none' | 'grid' | 'list' | 'export' | 'help';
 
@@ -34,7 +37,19 @@ export interface EditorState {
   openThreadId: string | null;
   draft: DraftComment | null;
   /** Element picked with the select tool (live inspector). */
-  pickedElement: ElementAnchor | null;
+  pickedEl: Element | null;
+  // ---- transient interaction state (never persisted, not in history) ----
+  hoverEl: Element | null;
+  /** Shape being drawn. */
+  preview: Shape | null;
+  /** Selected shape being dragged. */
+  moving: { id: string; dx: number; dy: number } | null;
+  /** Shapes hidden while the eraser drag is in progress. */
+  erasing: string[];
+  /** Region being dragged with the select tool (page space). */
+  region: Rect | null;
+  /** Text label being typed (page space). */
+  textEdit: { point: Point } | null;
   grid: GridSettings;
   rulers: boolean;
   panel: PanelId;
@@ -46,7 +61,10 @@ export function emptyDoc(url: string, title: string): AnnotationDoc {
   return { url, title, brief: '', annotations: [], guides: [], updatedAt: nowIso() };
 }
 
-export function createInitialState(doc: AnnotationDoc, grid: GridSettings = DEFAULT_GRID): EditorState {
+export function createInitialState(
+  doc: AnnotationDoc,
+  grid: GridSettings = DEFAULT_GRID,
+): EditorState {
   return {
     tool: 'select',
     drawTool: 'pen',
@@ -57,7 +75,13 @@ export function createInitialState(doc: AnnotationDoc, grid: GridSettings = DEFA
     selectedId: null,
     openThreadId: null,
     draft: null,
-    pickedElement: null,
+    pickedEl: null,
+    hoverEl: null,
+    preview: null,
+    moving: null,
+    erasing: [],
+    region: null,
+    textEdit: null,
     grid,
     rulers: false,
     panel: 'none',
@@ -213,6 +237,11 @@ export class EditorStore {
       ...doc,
       guides: doc.guides.map((g) => (g.id === id ? { ...g, position } : g)),
     }));
+  }
+
+  clearGuides(): void {
+    if (this.state.doc.guides.length === 0) return;
+    this.commit((doc) => ({ ...doc, guides: [] }));
   }
 
   removeGuide(id: string): void {

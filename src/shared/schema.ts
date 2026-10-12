@@ -140,7 +140,12 @@ export const handoffSchema = {
     rect: {
       type: 'object',
       required: ['x', 'y', 'width', 'height'],
-      properties: { x: num, y: num, width: { type: 'number', minimum: 0 }, height: { type: 'number', minimum: 0 } },
+      properties: {
+        x: num,
+        y: num,
+        width: { type: 'number', minimum: 0 },
+        height: { type: 'number', minimum: 0 },
+      },
     },
     pageMeta: {
       type: 'object',
@@ -169,7 +174,8 @@ export const handoffSchema = {
     },
     anchor: {
       type: 'object',
-      description: 'Pointer to a DOM element. `ref` matches a data-cd-ref attribute in the snapshot.',
+      description:
+        'Pointer to a DOM element. `ref` matches a data-cd-ref attribute in the snapshot.',
       required: ['selector', 'path', 'tagName', 'classList', 'rect', 'styles'],
       properties: {
         selector: str,
@@ -188,11 +194,25 @@ export const handoffSchema = {
     style: {
       type: 'object',
       required: ['color', 'width', 'dashed'],
-      properties: { color: str, width: { type: 'number', minimum: 0 }, dashed: { type: 'boolean' } },
+      properties: {
+        color: str,
+        width: { type: 'number', minimum: 0 },
+        dashed: { type: 'boolean' },
+      },
     },
     comment: {
       type: 'object',
-      required: ['id', 'type', 'number', 'intent', 'status', 'target', 'messages', 'createdAt', 'updatedAt'],
+      required: [
+        'id',
+        'type',
+        'number',
+        'intent',
+        'status',
+        'target',
+        'messages',
+        'createdAt',
+        'updatedAt',
+      ],
       properties: {
         id: str,
         type: { const: 'comment' },
@@ -204,12 +224,20 @@ export const handoffSchema = {
             {
               type: 'object',
               required: ['type', 'point'],
-              properties: { type: { const: 'point' }, point: { $ref: '#/$defs/point' }, anchor: { $ref: '#/$defs/anchor' } },
+              properties: {
+                type: { const: 'point' },
+                point: { $ref: '#/$defs/point' },
+                anchor: { $ref: '#/$defs/anchor' },
+              },
             },
             {
               type: 'object',
               required: ['type', 'point', 'anchor'],
-              properties: { type: { const: 'element' }, point: { $ref: '#/$defs/point' }, anchor: { $ref: '#/$defs/anchor' } },
+              properties: {
+                type: { const: 'element' },
+                point: { $ref: '#/$defs/point' },
+                anchor: { $ref: '#/$defs/anchor' },
+              },
             },
             {
               type: 'object',
@@ -254,9 +282,18 @@ export const handoffSchema = {
       },
       allOf: [
         { if: { properties: { kind: { const: 'pen' } } }, then: { required: ['points'] } },
-        { if: { properties: { kind: { enum: ['line', 'arrow'] } } }, then: { required: ['from', 'to'] } },
-        { if: { properties: { kind: { enum: ['rect', 'ellipse'] } } }, then: { required: ['rect'] } },
-        { if: { properties: { kind: { const: 'text' } } }, then: { required: ['point', 'text', 'fontSize'] } },
+        {
+          if: { properties: { kind: { enum: ['line', 'arrow'] } } },
+          then: { required: ['from', 'to'] },
+        },
+        {
+          if: { properties: { kind: { enum: ['rect', 'ellipse'] } } },
+          then: { required: ['rect'] },
+        },
+        {
+          if: { properties: { kind: { const: 'text' } } },
+          then: { required: ['point', 'text', 'fontSize'] },
+        },
       ],
     },
     annotation: {

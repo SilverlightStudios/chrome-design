@@ -53,11 +53,15 @@ function withRef(anchor: ElementAnchor, refs: ReadonlyMap<string, string>): Elem
 }
 
 /** Copy annotations, attaching snapshot refs to every anchor. */
-export function linkAnnotations(annotations: Annotation[], refs: ReadonlyMap<string, string>): Annotation[] {
+export function linkAnnotations(
+  annotations: Annotation[],
+  refs: ReadonlyMap<string, string>,
+): Annotation[] {
   return annotations.map((a) => {
     if (!isComment(a)) return a;
     const t = a.target;
-    if (t.type === 'region') return { ...a, target: { ...t, anchors: t.anchors.map((x) => withRef(x, refs)) } };
+    if (t.type === 'region')
+      return { ...a, target: { ...t, anchors: t.anchors.map((x) => withRef(x, refs)) } };
     if (t.type === 'element') return { ...a, target: { ...t, anchor: withRef(t.anchor, refs) } };
     return t.anchor ? { ...a, target: { ...t, anchor: withRef(t.anchor, refs) } } : a;
   });
@@ -75,6 +79,9 @@ export function summarize(annotations: Annotation[]): HandoffPayload['summary'] 
   };
 }
 
+const pad2 = (v: number) => String(v).padStart(2, '0');
+const at = (x: number, y: number) => `at (${Math.round(x)}, ${Math.round(y)})`;
+
 export function exportFilename(url: string, date: Date): string {
   let host = 'page';
   try {
@@ -82,8 +89,7 @@ export function exportFilename(url: string, date: Date): string {
   } catch {
     // keep default
   }
-  const pad = (v: number) => String(v).padStart(2, '0');
-  const stamp = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}`;
+  const stamp = `${date.getFullYear()}${pad2(date.getMonth() + 1)}${pad2(date.getDate())}-${pad2(date.getHours())}${pad2(date.getMinutes())}`;
   return `chrome-design-${host.replace(/[^a-z0-9.-]+/gi, '-')}-${stamp}.html`;
 }
 
@@ -97,7 +103,6 @@ async function sha256Base64(text: string): Promise<string> {
 
 function targetDescription(thread: CommentThread): string {
   const t = thread.target;
-  const at = (x: number, y: number) => `at (${Math.round(x)}, ${Math.round(y)})`;
   if (t.type === 'region') {
     const r = t.rect;
     const inside = t.anchors.length
@@ -119,7 +124,10 @@ function anchorDetails(thread: CommentThread): string {
   if (!anchor) return '';
   const rows = [
     ['path', anchor.path],
-    ['box', `${Math.round(anchor.rect.width)}×${Math.round(anchor.rect.height)} at (${Math.round(anchor.rect.x)}, ${Math.round(anchor.rect.y)})`],
+    [
+      'box',
+      `${Math.round(anchor.rect.width)}×${Math.round(anchor.rect.height)} at (${Math.round(anchor.rect.x)}, ${Math.round(anchor.rect.y)})`,
+    ],
     ...Object.entries(anchor.styles),
   ]
     .map(([k, v]) => `<dt>${escapeHtml(k ?? '')}</dt><dd>${escapeHtml(v ?? '')}</dd>`)
@@ -134,7 +142,10 @@ function changeItem(thread: CommentThread): string {
         `<div class="msg"><time datetime="${escapeHtml(m.createdAt)}">${i === 0 ? 'Designer' : 'Reply'} · ${escapeHtml(m.createdAt.replace('T', ' ').slice(0, 16))}</time><p>${escapeHtml(m.body)}</p></div>`,
     )
     .join('');
-  const status = thread.status === 'resolved' ? '<span class="chip status-chip-resolved">Resolved</span>' : '<span class="chip">Open</span>';
+  const status =
+    thread.status === 'resolved'
+      ? '<span class="chip status-chip-resolved">Resolved</span>'
+      : '<span class="chip">Open</span>';
   return `<li class="change intent-${thread.intent} status-${thread.status}" id="change-${thread.number}" data-cd-change data-annotation-id="${escapeHtml(thread.id)}" tabindex="0">
 <div class="change-head"><span class="num">${thread.number}</span><span class="chip intent-chip-${thread.intent}">${INTENT_LABEL[thread.intent]}</span>${status}</div>
 <p class="target">${targetDescription(thread)}</p>
@@ -149,10 +160,18 @@ function describeShape(shape: Shape, comments: CommentThread[]): string {
   const near = comments
     .filter((c) => {
       const p = threadPoint(c);
-      return rectsIntersect({ x: b.x - pad, y: b.y - pad, width: b.width + pad * 2, height: b.height + pad * 2 }, { x: p.x, y: p.y, width: 1, height: 1 });
+      return rectsIntersect(
+        { x: b.x - pad, y: b.y - pad, width: b.width + pad * 2, height: b.height + pad * 2 },
+        { x: p.x, y: p.y, width: 1, height: 1 },
+      );
     })
     .map((c) => `#${c.number}`);
-  const label = shape.kind === 'text' ? `text “${escapeHtml(shape.text)}”` : shape.kind === 'pen' ? 'freehand mark' : shape.kind;
+  const label =
+    shape.kind === 'text'
+      ? `text “${escapeHtml(shape.text)}”`
+      : shape.kind === 'pen'
+        ? 'freehand mark'
+        : shape.kind;
   return `<li>${label} (${escapeHtml(shape.style.color)}) around ${Math.round(b.width)}×${Math.round(b.height)} at (${Math.round(b.x)}, ${Math.round(b.y)})${near.length ? ` — near comment ${near.join(', ')}` : ''}</li>`;
 }
 
@@ -162,7 +181,7 @@ export async function buildHandoff(input: BuildInput): Promise<BuildOutput> {
   const refs = input.refs ?? new Map<string, string>();
   const exportedAt = input.exportedAt ?? new Date().toISOString();
   const annotations = linkAnnotations(doc.annotations, refs);
-  const comments = annotations.filter(isComment).sort((a, b) => a.number - b.number);
+  const comments = annotations.filter(isComment).toSorted((a, b) => a.number - b.number);
   const shapes = annotations.filter(isShape);
   const agentPrompt = buildAgentPrompt(doc, meta);
 
@@ -191,7 +210,11 @@ export async function buildHandoff(input: BuildInput): Promise<BuildOutput> {
         escaping: SCRIPT_TEXT_ESCAPING,
         bytes: byteLength(capture.snapshotHtml),
       },
-      source: { elementId: BLOCK_IDS.source, mediaType: 'application/json', bytes: byteLength(capture.sourceHtml) },
+      source: {
+        elementId: BLOCK_IDS.source,
+        mediaType: 'application/json',
+        bytes: byteLength(capture.sourceHtml),
+      },
       schema: { elementId: BLOCK_IDS.schema },
     },
   };
@@ -223,7 +246,9 @@ export async function buildHandoff(input: BuildInput): Promise<BuildOutput> {
   const pageW = meta.viewport.width;
   const pageH = meta.document.height;
   const warnings = capture.warnings;
-  const assetWarnings = warnings.filter((w) => w.code === 'asset-not-embedded' || w.code === 'asset-too-large');
+  const assetWarnings = warnings.filter(
+    (w) => w.code === 'asset-not-embedded' || w.code === 'asset-too-large',
+  );
 
   const warningsSection = warnings.length
     ? `<section class="card warnings" id="capture-warnings" aria-labelledby="warnings-title">
@@ -246,13 +271,19 @@ export async function buildHandoff(input: BuildInput): Promise<BuildOutput> {
     ['Captured', meta.capturedAt],
     ['Exported', exportedAt],
     ['Time zone', meta.timeZone],
-    ['Viewport', `${meta.viewport.width}×${meta.viewport.height} @${meta.viewport.devicePixelRatio}x`],
+    [
+      'Viewport',
+      `${meta.viewport.width}×${meta.viewport.height} @${meta.viewport.devicePixelRatio}x`,
+    ],
     ['Document', `${meta.document.width}×${meta.document.height}`],
     ['Scroll position', `${meta.scroll.x}, ${meta.scroll.y}`],
     ['Color scheme', meta.colorScheme],
     ['Language', meta.lang || '—'],
     ['User agent', meta.userAgent],
-    ['Embedded assets', `${capture.assets.embedded} (${(capture.assets.embeddedBytes / 1024).toFixed(0)} KB), ${capture.assets.failed} failed`],
+    [
+      'Embedded assets',
+      `${capture.assets.embedded} (${(capture.assets.embeddedBytes / 1024).toFixed(0)} KB), ${capture.assets.failed} failed`,
+    ],
     [
       'Removed for safety',
       `${capture.sanitize.scripts} scripts, ${capture.sanitize.eventHandlers} event handlers, ${capture.sanitize.javascriptUrls} javascript: URLs, ${capture.sanitize.frames} frames, ${capture.sanitize.embeds} embeds, ${capture.sanitize.other} other`,

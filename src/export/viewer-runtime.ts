@@ -5,8 +5,10 @@
  */
 export function viewerRuntime(): void {
   const doc = document;
-  const $ = <T extends Element>(sel: string, root: ParentNode = doc): T | null => root.querySelector<T>(sel);
-  const $$ = <T extends Element>(sel: string, root: ParentNode = doc): T[] => Array.from(root.querySelectorAll<T>(sel));
+  const $ = <T extends Element>(sel: string, root: ParentNode = doc): T | null =>
+    root.querySelector<T>(sel);
+  const $$ = <T extends Element>(sel: string, root: ParentNode = doc): T[] =>
+    Array.from(root.querySelectorAll<T>(sel));
 
   interface PinPoint {
     x: number;
@@ -16,10 +18,19 @@ export function viewerRuntime(): void {
     id: string;
     type: string;
     number: number;
-    target: { type: string; point?: PinPoint; rect?: { x: number; y: number; width: number; height: number }; anchor?: { ref?: string }; anchors?: { ref?: string }[] };
+    target: {
+      type: string;
+      point?: PinPoint;
+      rect?: { x: number; y: number; width: number; height: number };
+      anchor?: { ref?: string };
+      anchors?: { ref?: string }[];
+    };
   }
   interface PayloadLike {
-    page: { viewport: { width: number; height: number }; document: { width: number; height: number } };
+    page: {
+      viewport: { width: number; height: number };
+      document: { width: number; height: number };
+    };
     annotations: ThreadLike[];
   }
 
@@ -72,7 +83,7 @@ export function viewerRuntime(): void {
     scale = s;
     apply();
   };
-  const fit = () => {
+  const fitToWidth = () => {
     const w = stage.clientWidth;
     scale = clampScale(Math.min(1, (w - 32) / pageW));
     tx = Math.max(16, (w - pageW * scale) / 2);
@@ -87,10 +98,10 @@ export function viewerRuntime(): void {
   };
   canvas.style.width = `${pageW}px`;
   canvas.style.height = `${pageH}px`;
-  fit();
+  fitToWidth();
   let userZoomed = false;
   new ResizeObserver(() => {
-    if (!userZoomed) fit();
+    if (!userZoomed) fitToWidth();
   }).observe(stage);
 
   const center = () => ({ x: stage.clientWidth / 2, y: stage.clientHeight / 2 });
@@ -99,7 +110,7 @@ export function viewerRuntime(): void {
     const c = center();
     if (action === 'zoom-in') zoomAt(scale * 1.25, c.x, c.y);
     else if (action === 'zoom-out') zoomAt(scale / 1.25, c.x, c.y);
-    else if (action === 'fit') fit();
+    else if (action === 'fit') fitToWidth();
     else if (action === 'actual') actual();
   };
   for (const btn of $$<HTMLButtonElement>('[data-cd-action]')) {
@@ -144,7 +155,11 @@ export function viewerRuntime(): void {
       const [a, b] = Array.from(pointers.values());
       const rect = stage.getBoundingClientRect();
       const dist = Math.hypot(a!.x - b!.x, a!.y - b!.y);
-      zoomAt((pinchStart.scale * dist) / pinchStart.dist, (a!.x + b!.x) / 2 - rect.left, (a!.y + b!.y) / 2 - rect.top);
+      zoomAt(
+        (pinchStart.scale * dist) / pinchStart.dist,
+        (a!.x + b!.x) / 2 - rect.left,
+        (a!.y + b!.y) / 2 - rect.top,
+      );
       return;
     }
     tx += e.clientX - prev.x;
@@ -170,7 +185,8 @@ export function viewerRuntime(): void {
 
   // ---- layer toggles --------------------------------------------------------
   for (const input of $$<HTMLInputElement>('[data-cd-toggle]')) {
-    const update = () => doc.documentElement.classList.toggle(`cd-hide-${input.dataset.cdToggle}`, !input.checked);
+    const update = () =>
+      doc.documentElement.classList.toggle(`cd-hide-${input.dataset.cdToggle}`, !input.checked);
     input.addEventListener('change', update);
     update();
   }
@@ -178,7 +194,8 @@ export function viewerRuntime(): void {
   // ---- linking list <-> pins -------------------------------------------------
   const byId = new Map(payload.annotations.map((a) => [a.id, a]));
   const pointOf = (a: ThreadLike): PinPoint | null => {
-    if (a.target.type === 'region' && a.target.rect) return { x: a.target.rect.x, y: a.target.rect.y };
+    if (a.target.type === 'region' && a.target.rect)
+      return { x: a.target.rect.x, y: a.target.rect.y };
     return a.target.point ?? null;
   };
   const refsOf = (a: ThreadLike): string[] => {
@@ -192,11 +209,14 @@ export function viewerRuntime(): void {
     for (const el of $$(`[data-annotation-id="${CSS.escape(id)}"]`)) el.classList.add('is-active');
     const fdoc = frame.contentDocument;
     if (fdoc) {
-      for (const el of Array.from(fdoc.querySelectorAll('[data-cd-highlight]'))) el.removeAttribute('data-cd-highlight');
+      for (const el of Array.from(fdoc.querySelectorAll('[data-cd-highlight]')))
+        el.removeAttribute('data-cd-highlight');
       const a = byId.get(id);
       if (a) {
         for (const ref of refsOf(a)) {
-          fdoc.querySelector(`[data-cd-ref="${CSS.escape(ref)}"]`)?.setAttribute('data-cd-highlight', '');
+          fdoc
+            .querySelector(`[data-cd-ref="${CSS.escape(ref)}"]`)
+            ?.setAttribute('data-cd-highlight', '');
         }
       }
     }

@@ -1,6 +1,8 @@
 import { guessMime, toDataUrl } from '../shared/base64';
 
-export type FetchResult = { ok: true; dataUrl: string; bytes: number; mime: string } | { ok: false; error: string };
+export type FetchResult =
+  | { ok: true; dataUrl: string; bytes: number; mime: string }
+  | { ok: false; error: string };
 
 /** A strategy for turning a URL into a data URL (page fetch, background fetch, …). */
 export type AssetFetcher = (url: string, maxBytes: number) => Promise<FetchResult>;
@@ -107,7 +109,8 @@ export const pageFetcher: AssetFetcher = async (url, maxBytes) => {
     const declared = Number(response.headers.get('content-length') ?? '0');
     if (declared > maxBytes) return { ok: false, error: `too large (${declared} bytes)` };
     const buffer = await response.arrayBuffer();
-    if (buffer.byteLength > maxBytes) return { ok: false, error: `too large (${buffer.byteLength} bytes)` };
+    if (buffer.byteLength > maxBytes)
+      return { ok: false, error: `too large (${buffer.byteLength} bytes)` };
     const mime = guessMime(url, response.headers.get('content-type'));
     return { ok: true, dataUrl: toDataUrl(buffer, mime), bytes: buffer.byteLength, mime };
   } catch (error) {

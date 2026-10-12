@@ -9,7 +9,12 @@ export function fakeFetcher(files: Record<string, { body: string; mime: string }
     const file = files[url];
     if (!file) return { ok: false, error: 'blocked (CORS)' };
     const b64 = Buffer.from(file.body, 'utf8').toString('base64');
-    return { ok: true, dataUrl: `data:${file.mime};base64,${b64}`, bytes: file.body.length, mime: file.mime };
+    return {
+      ok: true,
+      dataUrl: `data:${file.mime};base64,${b64}`,
+      bytes: file.body.length,
+      mime: file.mime,
+    };
   };
 }
 
@@ -70,5 +75,12 @@ export function sampleDoc(url: string): AnnotationDoc {
     style: { color: '#3b82f6', width: 2, dashed: true },
     createdAt: AT,
   };
-  return { url, title: 'Fixture', brief: 'Tighten the hero.', annotations: [comment, decision, arrow, pen], guides: [], updatedAt: AT };
+  return {
+    url,
+    title: 'Fixture',
+    brief: 'Tighten the hero.',
+    annotations: [comment, decision, arrow, pen],
+    guides: [],
+    updatedAt: AT,
+  };
 }

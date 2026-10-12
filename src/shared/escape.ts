@@ -36,7 +36,8 @@ export function jsonForScript(value: unknown, space?: number): string {
  * Existing `<\…script` / `<\…!--` runs get one extra backslash, making it bijective.
  * Reverse with `unescapeScriptText`.
  */
-export const SCRIPT_TEXT_ESCAPING = 'chrome-design/script-text-v1: "<" + N backslashes + ("/script" | "script" | "!--") is stored with N+1 backslashes; remove one backslash to restore.';
+export const SCRIPT_TEXT_ESCAPING =
+  'chrome-design/script-text-v1: "<" + N backslashes + ("/script" | "script" | "!--") is stored with N+1 backslashes; remove one backslash to restore.';
 
 const ESCAPE_RE = /<(\\*)(\/?script|!--)/gi;
 const UNESCAPE_RE = /<(\\*)\\(\/?script|!--)/gi;

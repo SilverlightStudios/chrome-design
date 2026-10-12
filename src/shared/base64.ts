@@ -16,7 +16,11 @@ export function toDataUrl(buffer: ArrayBuffer, mime: string): string {
 /** Best-effort MIME type from the response header or URL extension. */
 export function guessMime(url: string, header: string | null): string {
   const fromHeader = header?.split(';')[0]?.trim().toLowerCase();
-  if (fromHeader && fromHeader !== 'application/octet-stream' && fromHeader !== 'binary/octet-stream') {
+  if (
+    fromHeader &&
+    fromHeader !== 'application/octet-stream' &&
+    fromHeader !== 'binary/octet-stream'
+  ) {
     return fromHeader;
   }
   const ext = url.split(/[?#]/)[0]?.split('.').pop()?.toLowerCase() ?? '';

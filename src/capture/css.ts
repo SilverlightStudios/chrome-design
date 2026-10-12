@@ -32,16 +32,23 @@ export function extractCssUrls(css: string, base: string): string[] {
  * Rewrite every `url()` to an absolute URL, or to its embedded data URL when present in `assets`.
  * Fragment-only references (`url(#clip)`) are left alone.
  */
-export function rewriteCssUrls(css: string, base: string, assets: ReadonlyMap<string, string>): string {
-  return css.replace(URL_RE, (whole, dq: string | undefined, sq: string | undefined, bare: string | undefined) => {
-    const raw = (dq ?? sq ?? bare ?? '').trim();
-    if (!raw || raw.startsWith('#') || /^data:/i.test(raw)) return whole;
-    if (/^javascript:/i.test(raw)) return 'url("")';
-    const abs = resolveUrl(raw, base);
-    if (!abs) return whole;
-    const embedded = assets.get(abs);
-    return `url("${(embedded ?? abs).replace(/"/g, '%22')}")`;
-  });
+export function rewriteCssUrls(
+  css: string,
+  base: string,
+  assets: ReadonlyMap<string, string>,
+): string {
+  return css.replace(
+    URL_RE,
+    (whole, dq: string | undefined, sq: string | undefined, bare: string | undefined) => {
+      const raw = (dq ?? sq ?? bare ?? '').trim();
+      if (!raw || raw.startsWith('#') || /^data:/i.test(raw)) return whole;
+      if (/^javascript:/i.test(raw)) return 'url("")';
+      const abs = resolveUrl(raw, base);
+      if (!abs) return whole;
+      const embedded = assets.get(abs);
+      return `url("${(embedded ?? abs).replace(/"/g, '%22')}")`;
+    },
+  );
 }
 
 export interface CssImport {
@@ -120,7 +127,10 @@ function splitTopLevel(value: string): string[] {
  * as the whole document, so `100vh` would otherwise stretch to the full page height.
  * Width units are rewritten too so the snapshot keeps its layout when the viewer is narrower.
  */
-export function rewriteViewportUnits(css: string, viewport: { width: number; height: number }): string {
+export function rewriteViewportUnits(
+  css: string,
+  viewport: { width: number; height: number },
+): string {
   if (!/\d(?:s|l|d)?v(?:h|w|min|max|b|i)\b/i.test(css)) return css;
   // Only declaration values are rewritten; selectors and at-rule preludes stay untouched
   // (e.g. Tailwind's `.h-\[100vh\]` selector must keep matching its class).
@@ -160,7 +170,10 @@ export function rewriteViewportUnits(css: string, viewport: { width: number; hei
 }
 
 /** Rewrite viewport units in a declaration list (`a: 1vh; b: 2vw`), e.g. a style attribute. */
-export function rewriteDeclarations(text: string, viewport: { width: number; height: number }): string {
+export function rewriteDeclarations(
+  text: string,
+  viewport: { width: number; height: number },
+): string {
   const colon = text.indexOf(':');
   if (colon === -1) return text;
   if (text.includes(';')) {
@@ -182,7 +195,13 @@ function replaceUnits(value: string, viewport: { width: number; height: number }
       const n = Number.parseFloat(num);
       const u = unit.toLowerCase();
       const basis =
-        u === 'vh' || u === 'vb' ? height : u === 'vw' || u === 'vi' ? width : u === 'vmin' ? vmin : vmax;
+        u === 'vh' || u === 'vb'
+          ? height
+          : u === 'vw' || u === 'vi'
+            ? width
+            : u === 'vmin'
+              ? vmin
+              : vmax;
       const px = Math.round(((n * basis) / 100) * 100) / 100;
       return `${pre}${px}px`;
     },

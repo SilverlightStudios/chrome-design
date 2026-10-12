@@ -11,7 +11,9 @@ export type ToBackgroundMessage =
   | { type: 'cd:capture-visible-tab' }
   | { type: 'cd:fetch-asset'; url: string; maxBytes: number };
 
-export type CaptureVisibleTabResponse = { ok: true; dataUrl: string } | { ok: false; error: string };
+export type CaptureVisibleTabResponse =
+  | { ok: true; dataUrl: string }
+  | { ok: false; error: string };
 
 export type FetchAssetResponse =
   | { ok: true; dataUrl: string; bytes: number; mime: string }

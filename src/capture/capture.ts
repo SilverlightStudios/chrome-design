@@ -1,6 +1,11 @@
 import type { CaptureWarning, ElementAnchor, PageCapture, PageMeta } from '../shared/model';
 import { resolveAnchor } from './anchor';
-import { type AssetFetcher, AssetEmbedder, DEFAULT_EMBED_LIMITS, decodeDataUrlText } from './assets';
+import {
+  AssetEmbedder,
+  type AssetFetcher,
+  DEFAULT_EMBED_LIMITS,
+  decodeDataUrlText,
+} from './assets';
 import {
   extractCssUrls,
   extractImports,
@@ -79,7 +84,11 @@ export function collectPageMeta(doc: Document): PageMeta {
   };
 }
 
-function collectRoots(doc: Document, skip: (n: Node) => boolean, shadowRootOf: (el: Element) => ShadowRoot | null) {
+function collectRoots(
+  doc: Document,
+  skip: (n: Node) => boolean,
+  shadowRootOf: (el: Element) => ShadowRoot | null,
+) {
   const roots: (Document | ShadowRoot)[] = [doc];
   const visit = (root: Document | ShadowRoot) => {
     const walker = doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, {
@@ -134,7 +143,11 @@ async function inlineImports(
   for (const imp of imports) {
     let text = depth < 4 ? await fetchCssText(imp.url, fetchers) : null;
     if (text === null) {
-      warnings.push({ code: 'stylesheet-unreadable', message: 'Imported stylesheet could not be read.', url: imp.url });
+      warnings.push({
+        code: 'stylesheet-unreadable',
+        message: 'Imported stylesheet could not be read.',
+        url: imp.url,
+      });
       result = result.replace(imp.statement, '');
       continue;
     }
@@ -165,11 +178,15 @@ async function gatherStylesheets(
   const adopted = new Map<Document | ShadowRoot, SheetSource[]>();
   const base = doc.baseURI;
   for (const root of roots) {
-    const owners = Array.from(root.querySelectorAll('style, link[rel~="stylesheet" i]')).filter((n) => !skip(n));
+    const owners = Array.from(root.querySelectorAll('style, link[rel~="stylesheet" i]')).filter(
+      (n) => !skip(n),
+    );
     for (const owner of owners) {
       if (owner.localName === 'style') {
         const text = owner.textContent ?? '';
-        const css = text.trim() ? text : (rulesText((owner as HTMLStyleElement).sheet as CSSStyleSheet) ?? '');
+        const css = text.trim()
+          ? text
+          : (rulesText((owner as HTMLStyleElement).sheet as CSSStyleSheet) ?? '');
         sheets.push({ owner, css: await inlineImports(css, base, fetchers, warnings), base });
         continue;
       }
@@ -182,7 +199,8 @@ async function gatherStylesheets(
       if (css === null) {
         warnings.push({
           code: 'stylesheet-unreadable',
-          message: 'Stylesheet could not be read (cross-origin without CORS). The snapshot may look unstyled in places.',
+          message:
+            'Stylesheet could not be read (cross-origin without CORS). The snapshot may look unstyled in places.',
           url: href,
         });
         continue;
@@ -190,15 +208,24 @@ async function gatherStylesheets(
       css = await inlineImports(css, href, fetchers, warnings);
       sheets.push({ owner, css: wrapMedia(css, link.media), base: href });
     }
-    const adoptedSheets = (root as Document & { adoptedStyleSheets?: CSSStyleSheet[] }).adoptedStyleSheets ?? [];
+    const adoptedSheets =
+      (root as Document & { adoptedStyleSheets?: CSSStyleSheet[] }).adoptedStyleSheets ?? [];
     const texts = adoptedSheets.map((s) => rulesText(s)).filter((t): t is string => !!t);
-    if (texts.length) adopted.set(root, texts.map((css) => ({ owner: root, css, base })));
+    if (texts.length)
+      adopted.set(
+        root,
+        texts.map((css) => ({ owner: root, css, base })),
+      );
   }
   for (const s of sheets) s.css = simplifyFontFaceSources(s.css);
   return { sheets, adopted };
 }
 
-function collectDomAssetUrls(roots: (Document | ShadowRoot)[], skip: (n: Node) => boolean, base: string): string[] {
+function collectDomAssetUrls(
+  roots: (Document | ShadowRoot)[],
+  skip: (n: Node) => boolean,
+  base: string,
+): string[] {
   const urls: string[] = [];
   const add = (raw: string | null | undefined) => {
     if (!raw || raw.startsWith('data:')) return;
@@ -206,7 +233,9 @@ function collectDomAssetUrls(roots: (Document | ShadowRoot)[], skip: (n: Node) =
     if (abs && /^(https?|blob):/i.test(abs)) urls.push(abs);
   };
   for (const root of roots) {
-    for (const el of Array.from(root.querySelectorAll('img, input[type="image" i], video[poster], image, [style*="url("]'))) {
+    for (const el of Array.from(
+      root.querySelectorAll('img, input[type="image" i], video[poster], image, [style*="url("]'),
+    )) {
       if (skip(el)) continue;
       const tag = el.localName.toLowerCase();
       if (tag === 'img') add(currentImageUrl(el as HTMLImageElement, base));
@@ -233,12 +262,20 @@ function canvasFromImage(img: HTMLImageElement): string | null {
   }
 }
 
-function mediaFrame(el: Element, embedded: Map<string, string>, base: string, warnings: CaptureWarning[]): string | null {
+function mediaFrame(
+  el: Element,
+  embedded: Map<string, string>,
+  base: string,
+  warnings: CaptureWarning[],
+): string | null {
   if (el instanceof HTMLCanvasElement) {
     try {
       return el.toDataURL('image/png');
     } catch {
-      warnings.push({ code: 'canvas-tainted', message: 'A <canvas> contains cross-origin pixels and was replaced by a placeholder.' });
+      warnings.push({
+        code: 'canvas-tainted',
+        message: 'A <canvas> contains cross-origin pixels and was replaced by a placeholder.',
+      });
       return null;
     }
   }
@@ -250,7 +287,10 @@ function mediaFrame(el: Element, embedded: Map<string, string>, base: string, wa
         canvas.height = el.videoHeight;
         canvas.getContext('2d')?.drawImage(el, 0, 0);
         const data = canvas.toDataURL('image/jpeg', 0.85);
-        warnings.push({ code: 'media-flattened', message: 'A <video> was flattened to its current frame.' });
+        warnings.push({
+          code: 'media-flattened',
+          message: 'A <video> was flattened to its current frame.',
+        });
         return data;
       } catch {
         // fall through to poster
@@ -258,7 +298,10 @@ function mediaFrame(el: Element, embedded: Map<string, string>, base: string, wa
     }
     const poster = resolveUrl(el.getAttribute('poster') ?? '', base);
     if (poster && embedded.has(poster)) return embedded.get(poster)!;
-    warnings.push({ code: 'media-flattened', message: 'A <video> could not be captured and was replaced by a placeholder.' });
+    warnings.push({
+      code: 'media-flattened',
+      message: 'A <video> could not be captured and was replaced by a placeholder.',
+    });
   }
   return null;
 }
@@ -303,7 +346,8 @@ export async function capturePage(options: CaptureOptions): Promise<CaptureResul
   options.onProgress?.('assets');
   const domUrls = collectDomAssetUrls(roots, skip, base);
   const cssUrls = sheets.flatMap((s) => extractCssUrls(s.css, s.base));
-  for (const list of adopted.values()) for (const s of list) cssUrls.push(...extractCssUrls(s.css, s.base));
+  for (const list of adopted.values())
+    for (const s of list) cssUrls.push(...extractCssUrls(s.css, s.base));
   const embedder = new AssetEmbedder({
     fetchers: options.fetchers,
     ...DEFAULT_EMBED_LIMITS,
@@ -332,7 +376,8 @@ export async function capturePage(options: CaptureOptions): Promise<CaptureResul
   }
 
   const viewport = { width: meta.viewport.width, height: meta.viewport.height };
-  const finalCss = (s: SheetSource) => rewriteViewportUnits(rewriteCssUrls(s.css, s.base, embedder.embedded), viewport);
+  const finalCss = (s: SheetSource) =>
+    rewriteViewportUnits(rewriteCssUrls(s.css, s.base, embedder.embedded), viewport);
   const stylesheetText = new Map<Node, string>(sheets.map((s) => [s.owner, finalCss(s)]));
   const adoptedCss = new Map<Document | ShadowRoot, string>();
   for (const [root, list] of adopted) adoptedCss.set(root, list.map(finalCss).join('\n'));
@@ -369,7 +414,10 @@ export async function capturePage(options: CaptureOptions): Promise<CaptureResul
 
   for (const [url, reason] of embedder.failures) {
     warnings.push({
-      code: reason.startsWith('too large') || reason.includes('budget') ? 'asset-too-large' : 'asset-not-embedded',
+      code:
+        reason.startsWith('too large') || reason.includes('budget')
+          ? 'asset-too-large'
+          : 'asset-not-embedded',
       message: `Asset not embedded: ${reason}. It will be missing from the offline snapshot.`,
       url,
     });
@@ -380,7 +428,11 @@ export async function capturePage(options: CaptureOptions): Promise<CaptureResul
     options.onProgress?.('screenshot');
     const shot = await options.screenshot().catch(() => null);
     if (shot) screenshot = shot;
-    else warnings.push({ code: 'screenshot-unavailable', message: 'Viewport screenshot could not be taken on this page.' });
+    else
+      warnings.push({
+        code: 'screenshot-unavailable',
+        message: 'Viewport screenshot could not be taken on this page.',
+      });
   }
 
   options.onProgress?.('done');
@@ -389,7 +441,11 @@ export async function capturePage(options: CaptureOptions): Promise<CaptureResul
     snapshotHtml,
     sourceHtml: options.includeSource ? serializeSource(doc, skip) : '',
     sanitize: report,
-    assets: { embedded: embedder.embedded.size, embeddedBytes: embedder.bytes, failed: embedder.failures.size },
+    assets: {
+      embedded: embedder.embedded.size,
+      embeddedBytes: embedder.bytes,
+      failed: embedder.failures.size,
+    },
     warnings: dedupeWarnings(warnings),
   };
   if (screenshot) capture.screenshot = screenshot;

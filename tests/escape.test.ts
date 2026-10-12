@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { escapeHtml, escapeScriptText, jsonForScript, unescapeScriptText } from '../src/shared/escape';
+import {
+  escapeHtml,
+  escapeScriptText,
+  jsonForScript,
+  unescapeScriptText,
+} from '../src/shared/escape';
 
 describe('script text escaping', () => {
   const samples = [
@@ -26,7 +31,12 @@ describe('script text escaping', () => {
 
 describe('jsonForScript', () => {
   it('cannot close the script element and parses back to the same value', () => {
-    const value = { html: '</script><script>alert(1)</script>', amp: 'a&b', ls: '\u2028\u2029', n: 1 };
+    const value = {
+      html: '</script><script>alert(1)</script>',
+      amp: 'a&b',
+      ls: '\u2028\u2029',
+      n: 1,
+    };
     const text = jsonForScript(value);
     expect(text).not.toMatch(/<\/script/i);
     expect(text).not.toContain('<');
@@ -36,6 +46,8 @@ describe('jsonForScript', () => {
 
 describe('escapeHtml', () => {
   it('escapes markup characters', () => {
-    expect(escapeHtml(`<a href="x">'&'</a>`)).toBe('&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
+    expect(escapeHtml(`<a href="x">'&'</a>`)).toBe(
+      '&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;',
+    );
   });
 });

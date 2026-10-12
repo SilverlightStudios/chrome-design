@@ -4,6 +4,5 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     environment: 'node',
-    environmentMatchGlobs: undefined,
   },
 });

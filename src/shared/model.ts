@@ -245,7 +245,15 @@ export const DEFAULT_GRID: GridSettings = {
 
 export const DEFAULT_STYLE: ShapeStyle = { color: '#3B82F6', width: 3, dashed: false };
 
-export const PALETTE = ['#3B82F6', '#EF4444', '#F59E0B', '#22C55E', '#A855F7', '#111827', '#FFFFFF'];
+export const PALETTE = [
+  '#3B82F6',
+  '#EF4444',
+  '#F59E0B',
+  '#22C55E',
+  '#A855F7',
+  '#111827',
+  '#FFFFFF',
+];
 
 export const INTENT_LABEL: Record<CommentIntent, string> = {
   change: 'Change request',

@@ -10,7 +10,12 @@ export function rectFromPoints(a: Point, b: Point): Rect {
 }
 
 export function rectContains(r: Rect, p: Point, pad = 0): boolean {
-  return p.x >= r.x - pad && p.x <= r.x + r.width + pad && p.y >= r.y - pad && p.y <= r.y + r.height + pad;
+  return (
+    p.x >= r.x - pad &&
+    p.x <= r.x + r.width + pad &&
+    p.y >= r.y - pad &&
+    p.y <= r.y + r.height + pad
+  );
 }
 
 export function rectsIntersect(a: Rect, b: Rect): boolean {
@@ -80,19 +85,19 @@ export function simplifyPath(points: Point[], tolerance = 0.8): Point[] {
 export function pointsToPath(points: Point[]): string {
   if (points.length === 0) return '';
   const p0 = points[0]!;
-  if (points.length === 1) return `M${r(p0.x)} ${r(p0.y)}l0.01 0`;
-  let d = `M${r(p0.x)} ${r(p0.y)}`;
+  if (points.length === 1) return `M${round1(p0.x)} ${round1(p0.y)}l0.01 0`;
+  let d = `M${round1(p0.x)} ${round1(p0.y)}`;
   for (let i = 1; i < points.length - 1; i++) {
     const p = points[i]!;
     const n = points[i + 1]!;
-    d += ` Q${r(p.x)} ${r(p.y)} ${r((p.x + n.x) / 2)} ${r((p.y + n.y) / 2)}`;
+    d += ` Q${round1(p.x)} ${round1(p.y)} ${round1((p.x + n.x) / 2)} ${round1((p.y + n.y) / 2)}`;
   }
   const last = points[points.length - 1]!;
-  d += ` L${r(last.x)} ${r(last.y)}`;
+  d += ` L${round1(last.x)} ${round1(last.y)}`;
   return d;
 }
 
-function r(n: number): number {
+function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
@@ -114,7 +119,12 @@ export function shapeBounds(shape: Shape): Rect {
     case 'text': {
       const lines = shape.text.split('\n');
       const width = Math.max(...lines.map((l) => l.length)) * shape.fontSize * 0.6;
-      return { x: shape.point.x, y: shape.point.y, width, height: lines.length * shape.fontSize * 1.25 };
+      return {
+        x: shape.point.x,
+        y: shape.point.y,
+        width,
+        height: lines.length * shape.fontSize * 1.25,
+      };
     }
   }
 }

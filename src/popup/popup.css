@@ -1,0 +1,116 @@
+:root {
+  color-scheme: light dark;
+  --bg: light-dark(#ffffff, #18191c);
+  --ink: light-dark(#111318, #f4f5f7);
+  --muted: light-dark(#5d6470, #a3a8b3);
+  --line: light-dark(#e5e7eb, #2d2e33);
+  --accent: #3b82f6;
+  --warn-bg: light-dark(#fff7ed, #2a2010);
+  --warn-ink: light-dark(#9a3412, #fcd34d);
+  font:
+    13px / 1.45 ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  width: 320px;
+  background: var(--bg);
+  color: var(--ink);
+}
+main {
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+h1 {
+  margin: 0;
+  font-size: 15px;
+}
+p {
+  margin: 0;
+}
+.logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background:
+    url("/icons/icon-128.png") center / cover,
+    #18191c;
+  flex: none;
+}
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 12px;
+}
+button.primary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font: 600 13px / 1.2 inherit;
+  font-family: inherit;
+  cursor: pointer;
+  transition: scale 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+button.primary:active {
+  scale: 0.98;
+}
+button.primary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+kbd {
+  font:
+    600 11px ui-monospace,
+    Menlo,
+    monospace;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.2);
+}
+.notice {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  display: grid;
+  gap: 4px;
+}
+.option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--line);
+}
+.option > span {
+  display: grid;
+  gap: 2px;
+}
+.option input {
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+footer {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}

@@ -19,7 +19,15 @@ export const DROP_ELEMENTS = new Set([
 ]);
 
 /** Embedded browsing contexts / plugins replaced with a same-size placeholder box. */
-export const FRAME_ELEMENTS = new Set(['iframe', 'frame', 'frameset', 'object', 'embed', 'portal', 'fencedframe']);
+export const FRAME_ELEMENTS = new Set([
+  'iframe',
+  'frame',
+  'frameset',
+  'object',
+  'embed',
+  'portal',
+  'fencedframe',
+]);
 
 /** Attributes that can carry a URL (subject to scheme checks and absolutisation). */
 export const URL_ATTRIBUTES = new Set([
@@ -68,8 +76,12 @@ export function isEventHandlerAttribute(name: string): boolean {
  * characters are stripped first, matching how browsers parse URL schemes.
  */
 export function isDangerousUrl(value: string): boolean {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: browsers ignore these in schemes
-  const normalised = value.replace(/[\u0000- \u007f-\u009f]/g, '').toLowerCase();
+  let normalised = '';
+  for (const ch of value) {
+    const code = ch.charCodeAt(0);
+    if (code > 0x20 && (code < 0x7f || code > 0x9f)) normalised += ch;
+  }
+  normalised = normalised.toLowerCase();
   if (/^(javascript|vbscript|livescript|mocha):/.test(normalised)) return true;
   // Document-like data URLs could render active content; image/font data URLs are inert.
   return /^data:(text\/html|application\/xhtml|text\/xml|application\/xml|text\/javascript|application\/javascript)/.test(

@@ -1,6 +1,11 @@
-import { escapeHtml } from '../shared/escape';
 import type { CaptureWarning, SanitizeReport } from '../shared/model';
-import { FREEZE_CSS, resolveUrl, rewriteCssUrls, rewriteDeclarations, rewriteViewportUnits } from './css';
+import {
+  FREEZE_CSS,
+  resolveUrl,
+  rewriteCssUrls,
+  rewriteDeclarations,
+  rewriteViewportUnits,
+} from './css';
 import {
   DROP_ATTRIBUTES,
   DROP_ELEMENTS,
@@ -81,11 +86,18 @@ function emitNode(node: Node, ctx: SnapshotContext, out: string[]): void {
 }
 
 function escapeText(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/ /g, '&nbsp;');
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\u00a0/g, '&nbsp;');
 }
 
 function escapeAttr(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/ /g, '&nbsp;');
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/\u00a0/g, '&nbsp;');
 }
 
 function absolutize(value: string, base: string): string {
@@ -125,7 +137,11 @@ function emitElement(el: Element, ctx: SnapshotContext, out: string[]): void {
     else ctx.report.other++;
     return;
   }
-  if (!html && (lower === 'animate' || lower === 'set') && /href/i.test(el.getAttribute('attributeName') ?? '')) {
+  if (
+    !html &&
+    (lower === 'animate' || lower === 'set') &&
+    /href/i.test(el.getAttribute('attributeName') ?? '')
+  ) {
     ctx.report.other++;
     return;
   }
@@ -137,7 +153,8 @@ function emitElement(el: Element, ctx: SnapshotContext, out: string[]): void {
       emitLink(el, ctx, out);
       return;
     } else if (lower === 'style') {
-      const css = ctx.stylesheetText.get(el) ?? rewriteSheetText(el.textContent ?? '', ctx.baseUrl, ctx);
+      const css =
+        ctx.stylesheetText.get(el) ?? rewriteSheetText(el.textContent ?? '', ctx.baseUrl, ctx);
       const media = el.getAttribute('media');
       out.push(`<style${media ? ` media="${escapeAttr(media)}"` : ''}>${styleCss(css)}</style>`);
       return;
@@ -162,7 +179,8 @@ function emitElement(el: Element, ctx: SnapshotContext, out: string[]): void {
   if (ref) attrs.set('data-cd-ref', ref);
 
   out.push(`<${name}`);
-  for (const [k, v] of attrs) out.push(v === '' && k !== 'value' && k !== 'alt' ? ` ${k}` : ` ${k}="${escapeAttr(v)}"`);
+  for (const [k, v] of attrs)
+    out.push(v === '' && k !== 'value' && k !== 'alt' ? ` ${k}` : ` ${k}="${escapeAttr(v)}"`);
   out.push('>');
 
   if (html && VOID_ELEMENTS.has(lower)) return;
@@ -225,7 +243,9 @@ function collectAttributes(el: Element, ctx: SnapshotContext): Map<string, strin
     }
     if (lower.startsWith('data-cd-')) continue;
     if (lower === 'style') {
-      value = sanitizeInlineCss(rewriteDeclarations(rewriteCssUrls(value, ctx.baseUrl, ctx.assets), ctx.viewport));
+      value = sanitizeInlineCss(
+        rewriteDeclarations(rewriteCssUrls(value, ctx.baseUrl, ctx.assets), ctx.viewport),
+      );
     } else if (URL_ATTRIBUTES.has(lower)) {
       if (isDangerousUrl(value)) {
         ctx.report.javascriptUrls++;
@@ -281,7 +301,8 @@ function applyLiveState(el: Element, attrs: Map<string, string>, ctx: SnapshotCo
   }
   if (tag !== 'html' && tag !== 'body') {
     const { scrollTop, scrollLeft } = el;
-    if (scrollTop > 0 || scrollLeft > 0) attrs.set('data-cd-scroll', `${Math.round(scrollTop)},${Math.round(scrollLeft)}`);
+    if (scrollTop > 0 || scrollLeft > 0)
+      attrs.set('data-cd-scroll', `${Math.round(scrollTop)},${Math.round(scrollLeft)}`);
   }
 }
 

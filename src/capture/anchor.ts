@@ -29,7 +29,12 @@ export function pageRect(el: Element): Rect {
   const view = el.ownerDocument.defaultView;
   const sx = view?.scrollX ?? 0;
   const sy = view?.scrollY ?? 0;
-  return { x: round(r.left + sx), y: round(r.top + sy), width: round(r.width), height: round(r.height) };
+  return {
+    x: round(r.left + sx),
+    y: round(r.top + sy),
+    width: round(r.width),
+    height: round(r.height),
+  };
 }
 
 function round(n: number): number {
@@ -110,7 +115,9 @@ export function describePath(el: Element, depth = 4): string {
   let node: Element | null = el;
   while (node && parts.length < depth && node.localName !== 'html') {
     const cls = Array.from(node.classList).filter(isStableClass).slice(0, 1);
-    parts.unshift(node.localName + (node.id ? `#${node.id}` : '') + cls.map((c) => `.${c}`).join(''));
+    parts.unshift(
+      node.localName + (node.id ? `#${node.id}` : '') + cls.map((c) => `.${c}`).join(''),
+    );
     node = node.parentElement;
   }
   return parts.join(' > ');
@@ -135,7 +142,13 @@ export function styleSummary(el: Element): Record<string, string> {
   const out: Record<string, string> = {};
   for (const prop of STYLE_SUMMARY_PROPS) {
     const value = cs.getPropertyValue(prop).trim();
-    if (prop === 'width' || prop === 'height' || prop === 'font-family' || prop === 'font-size' || prop === 'color') {
+    if (
+      prop === 'width' ||
+      prop === 'height' ||
+      prop === 'font-family' ||
+      prop === 'font-size' ||
+      prop === 'color'
+    ) {
       if (value) out[prop] = value;
     } else if (!SKIP_VALUES.has(value) && !(prop === 'border' && value.startsWith('0px'))) {
       out[prop] = value;
@@ -175,7 +188,11 @@ export function resolveAnchor(anchor: ElementAnchor, doc: Document = document): 
  * Where a pin attached to an element should be drawn now: the stored point, shifted by
  * however far the element moved since the anchor was taken (layout changes, resizes).
  */
-export function currentAnchorPoint(point: Point, anchor: ElementAnchor | undefined, doc: Document = document): Point {
+export function currentAnchorPoint(
+  point: Point,
+  anchor: ElementAnchor | undefined,
+  doc: Document = document,
+): Point {
   if (!anchor) return point;
   const el = resolveAnchor(anchor, doc);
   if (!el) return point;

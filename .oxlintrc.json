@@ -1,15 +1,47 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "react", "react-perf", "import", "unicorn", "vitest"],
-  "categories": { "correctness": "error", "suspicious": "warn", "perf": "warn" },
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
   "rules": {
-    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "no-console": [
+      "warn",
+      {
+        "allow": ["warn", "error"]
+      }
+    ],
     "react/react-in-jsx-scope": "off",
     "react-perf/jsx-no-new-function-as-prop": "off",
     "react-perf/jsx-no-new-object-as-prop": "off",
     "react-perf/jsx-no-new-array-as-prop": "off",
     "unicorn/prefer-add-event-listener": "off",
-    "import/no-unassigned-import": "off"
+    "import/no-unassigned-import": "off",
+    "no-await-in-loop": "off",
+    "no-underscore-dangle": "off"
   },
-  "ignorePatterns": ["dist/**", "demo-dist/**", "test-results/**", "playwright-report/**"]
+  "ignorePatterns": ["dist/**", "demo-dist/**", "test-results/**", "playwright-report/**"],
+  "overrides": [
+    {
+      "files": ["src/export/viewer-runtime.ts"],
+      "rules": {
+        "unicorn/consistent-function-scoping": "off"
+      }
+    },
+    {
+      "files": ["src/shared/schema.ts"],
+      "rules": {
+        "unicorn/no-thenable": "off"
+      }
+    },
+    {
+      "files": ["scripts/**"],
+      "rules": {
+        "no-console": "off",
+        "unicorn/consistent-function-scoping": "off"
+      }
+    }
+  ]
 }

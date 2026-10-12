@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { capturePage } from '../src/capture/capture';
 import { buildHandoff } from '../src/export/build';
 import { unescapeScriptText } from '../src/shared/escape';
-import { SCHEMA_VERSION } from '../src/shared/model';
+import { type CommentThread, SCHEMA_VERSION } from '../src/shared/model';
 import { handoffSchema } from '../src/shared/schema';
 import { AT, fakeFetcher, sampleDoc } from './helpers';
 
@@ -39,14 +39,28 @@ function setupPage() {
   (document.getElementById('pw') as HTMLInputElement).value = 'hunter2';
   const original = Element.prototype.getBoundingClientRect;
   Element.prototype.getBoundingClientRect = function (this: Element) {
-    if (this.localName === 'iframe') return { x: 0, y: 0, left: 0, top: 0, right: 300, bottom: 150, width: 300, height: 150, toJSON() {} } as DOMRect;
+    if (this.localName === 'iframe')
+      return {
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 300,
+        bottom: 150,
+        width: 300,
+        height: 150,
+        toJSON() {},
+      } as DOMRect;
     return original.call(this);
   };
 }
 
 const fetchers = [
   fakeFetcher({
-    'https://example.com/site.css': { body: 'body{color:#111;padding-top:10vh}.logo{background:url(img/icon.svg)}', mime: 'text/css' },
+    'https://example.com/site.css': {
+      body: 'body{color:#111;padding-top:10vh}.logo{background:url(img/icon.svg)}',
+      mime: 'text/css',
+    },
     'https://example.com/img/bg.png': { body: 'PNGDATA', mime: 'image/png' },
     'https://example.com/img/logo.png': { body: 'LOGO', mime: 'image/png' },
     'https://example.com/img/icon.svg': { body: '<svg/>', mime: 'image/svg+xml' },
@@ -61,7 +75,10 @@ describe('capture → export pipeline', () => {
     setupPage();
     result = await capturePage({
       skip: (n) => n instanceof Element && n.id === 'cd-host',
-      anchors: [(sampleDoc(PAGE_URL).annotations[0] as { target: { anchor: never } }).target.anchor],
+      anchors: [
+        (sampleDoc(PAGE_URL).annotations[0] as CommentThread & { target: { type: 'element' } })
+          .target.anchor,
+      ],
       fetchers,
       includeSource: true,
       shadowRootOf: (el) => el.shadowRoot,
@@ -89,9 +106,15 @@ describe('capture → export pipeline', () => {
 
   it('inlines stylesheets, assets and rewrites viewport units', () => {
     expect(snapshot).toContain('data-cd-from="https://example.com/site.css"');
-    expect(snapshot).toContain(`padding-top:${Math.round(result.capture.meta.viewport.height * 10) / 100}px`);
-    expect(snapshot).toContain(`url("data:image/png;base64,${Buffer.from('PNGDATA').toString('base64')}")`);
-    expect(snapshot).toContain(`src="data:image/png;base64,${Buffer.from('LOGO').toString('base64')}"`);
+    expect(snapshot).toContain(
+      `padding-top:${Math.round(result.capture.meta.viewport.height * 10) / 100}px`,
+    );
+    expect(snapshot).toContain(
+      `url("data:image/png;base64,${Buffer.from('PNGDATA').toString('base64')}")`,
+    );
+    expect(snapshot).toContain(
+      `src="data:image/png;base64,${Buffer.from('LOGO').toString('base64')}"`,
+    );
     expect(snapshot).not.toContain('logo@2x');
     expect(snapshot).toContain('href="https://example.com/pricing"');
   });
@@ -116,7 +139,12 @@ describe('capture → export pipeline', () => {
 
   it('builds one self-contained HTML file with prompt, schema-valid payload and recoverable blocks', async () => {
     const doc = sampleDoc(PAGE_URL);
-    const out = await buildHandoff({ capture: result.capture, doc, refs: result.refs, exportedAt: AT });
+    const out = await buildHandoff({
+      capture: result.capture,
+      doc,
+      refs: result.refs,
+      exportedAt: AT,
+    });
     const parsed = new DOMParser().parseFromString(out.html, 'text/html');
 
     // Prominent agent prompt
@@ -134,7 +162,12 @@ describe('capture → export pipeline', () => {
     expect(ajv.errors ?? []).toEqual([]);
     expect(valid).toBe(true);
     expect(payload.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(payload.summary).toMatchObject({ comments: 2, decisions: 1, shapes: 2, openComments: 2 });
+    expect(payload.summary).toMatchObject({
+      comments: 2,
+      decisions: 1,
+      shapes: 2,
+      openComments: 2,
+    });
     expect(payload.annotations[0].target.anchor.ref).toBe('cd-1');
 
     // Snapshot and source are recoverable byte-for-byte
@@ -148,7 +181,9 @@ describe('capture → export pipeline', () => {
     expect(parsed.getElementById('change-1')?.textContent).toContain('</script> bolder');
 
     // Strict CSP with a hash for the single inline script
-    const csp = parsed.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content') ?? '';
+    const csp =
+      parsed.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content') ??
+      '';
     expect(csp).toContain("default-src 'none'");
     expect(csp).toContain("connect-src 'none'");
     const inline = parsed.querySelector('script:not([type])')?.textContent ?? '';

@@ -44,7 +44,10 @@ export function shapeToSvg(shape: Shape): string {
     case 'text': {
       const lines = shape.text.split('\n');
       const tspans = lines
-        .map((line, i) => `<tspan x="${n(shape.point.x)}" dy="${i === 0 ? 0 : n(shape.fontSize * 1.25)}">${escapeHtml(line) || ' '}</tspan>`)
+        .map(
+          (line, i) =>
+            `<tspan x="${n(shape.point.x)}" dy="${i === 0 ? 0 : n(shape.fontSize * 1.25)}">${escapeHtml(line) || ' '}</tspan>`,
+        )
         .join('');
       return `<text class="cd-shape" ${id} x="${n(shape.point.x)}" y="${n(shape.point.y + shape.fontSize)}" fill="${escapeHtml(color)}" font-size="${shape.fontSize}" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-weight="600" paint-order="stroke" stroke="#ffffff" stroke-width="3" stroke-linejoin="round">${tspans}</text>`;
     }
@@ -75,7 +78,7 @@ function pinMarkup(thread: CommentThread): string {
 /** Static SVG overlay (page coordinates) shown above the snapshot in the exported viewer. */
 export function renderOverlaySvg(annotations: Annotation[], width: number, height: number): string {
   const shapes = annotations.filter(isShape).map(shapeToSvg).join('');
-  const comments = annotations.filter(isComment).sort((a, b) => a.number - b.number);
+  const comments = annotations.filter(isComment).toSorted((a, b) => a.number - b.number);
   const targets = comments.map(targetMarkup).join('');
   const pins = comments.map(pinMarkup).join('');
   return `<svg class="cd-overlay" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-label="Annotation overlay"><g class="cd-layer-targets">${targets}</g><g class="cd-layer-shapes">${shapes}</g><g class="cd-layer-pins">${pins}</g></svg>`;
