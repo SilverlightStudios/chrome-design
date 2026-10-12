@@ -90,7 +90,9 @@ function adoptStyles(shadow: ShadowRoot, text: string): void {
  */
 function blockingDialog(preferred: HTMLDialogElement | null): HTMLDialogElement | null {
   if (preferred?.isConnected && preferred.open && preferred.matches(':modal')) return preferred;
-  const modals = Array.from(document.querySelectorAll('dialog')).filter((d) => d.open && d.matches(':modal'));
+  const modals = Array.from(document.querySelectorAll('dialog')).filter(
+    (d) => d.open && d.matches(':modal'),
+  );
   return modals.at(-1) ?? null;
 }
 

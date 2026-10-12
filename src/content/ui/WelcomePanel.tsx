@@ -1,5 +1,4 @@
 import { useEnv } from '../context';
-import { saveUiPrefs } from '../persistence';
 import { Icon, type IconName } from './icons';
 
 const STEPS: { icon: IconName; title: string; body: string; kbd: string }[] = [
@@ -32,10 +31,7 @@ const STEPS: { icon: IconName; title: string; body: string; kbd: string }[] = [
 /** First-run coach card. Shown once, then reachable from Shortcuts. */
 export function WelcomePanel() {
   const { store } = useEnv();
-  const done = () => {
-    void saveUiPrefs({ onboarded: true });
-    store.set({ panel: 'none' });
-  };
+  const done = () => store.set({ panel: 'none' });
   return (
     <div className="panel welcome-panel">
       <div className="panel-head">

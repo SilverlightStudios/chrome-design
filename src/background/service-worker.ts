@@ -77,7 +77,7 @@ async function fetchAsset(url: string, maxBytes: number): Promise<FetchAssetResp
       ok: false,
       error: /abort/i.test(message)
         ? 'timed out'
-        : 'no host access (grant “Embed assets from other sites” in the popup)',
+        : 'no host access (turn on “Embed assets from other sites” in Chrome Design settings)',
     };
   } finally {
     clearTimeout(timer);

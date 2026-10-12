@@ -107,7 +107,13 @@ export function handleShortcut(
     return true;
   }
   if (!event.shiftKey && TOOL_KEYS[lower]) {
-    store.set({ tool: TOOL_KEYS[lower]!, selectedId: null, draft: null, hoverEl: null });
+    store.set({
+      tool: TOOL_KEYS[lower]!,
+      selectedId: null,
+      draft: null,
+      hoverEl: null,
+      ...(s.panel === 'welcome' ? { panel: 'none' as const } : {}),
+    });
     return true;
   }
   if (!event.shiftKey && lower === 'm') {

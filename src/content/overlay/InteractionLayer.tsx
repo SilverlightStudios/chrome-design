@@ -69,6 +69,8 @@ export function InteractionLayer() {
     const p = toPage(e.clientX, e.clientY);
     capturePointer(e.currentTarget, e.pointerId);
     if (s.openThreadId || s.draft) store.set({ openThreadId: null, draft: null });
+    // Starting to work on the page puts the intro/help sheet away (it would cover popovers).
+    if (s.panel === 'welcome' || s.panel === 'help') store.set({ panel: 'none' });
 
     if (s.tool === 'select') {
       const hit = hitShape(store, p);

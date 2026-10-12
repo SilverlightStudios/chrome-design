@@ -320,6 +320,14 @@ export function Toolbar() {
     return () => window.removeEventListener('resize', onResize);
   }, [store]);
 
+  // The intro counts as seen once it has been put away, however that happened.
+  const prevPanel = useRef(panel);
+  useEffect(() => {
+    if (prevPanel.current === 'welcome' && panel !== 'welcome')
+      void saveUiPrefs({ onboarded: true });
+    prevPanel.current = panel;
+  }, [panel]);
+
   const setTool = (next: ToolId) => {
     const s = store.getState();
     const nextTool = s.tool === next ? (next === 'select' ? 'browse' : 'select') : next;

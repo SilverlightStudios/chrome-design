@@ -62,6 +62,7 @@ let server: Server;
 let baseUrl = '';
 let context: BrowserContext;
 let worker: Worker;
+let installPageTitle = '';
 
 test.beforeAll(async () => {
   server = createServer((req, res) => {
@@ -71,7 +72,8 @@ test.beforeAll(async () => {
       return;
     }
     const headers: Record<string, string> = { 'content-type': file[0] };
-    if (req.url === '/csp') headers['content-security-policy'] = "default-src 'self'; img-src 'self'; style-src 'self'";
+    if (req.url === '/csp')
+      headers['content-security-policy'] = "default-src 'self'; img-src 'self'; style-src 'self'";
     res.writeHead(200, headers).end(file[1]);
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
@@ -84,6 +86,15 @@ test.beforeAll(async () => {
     args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
   });
   worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  // First install opens the welcome/settings page in a tab; check it and put it away.
+  let welcome: Page | undefined;
+  for (let i = 0; i < 50 && !welcome; i++) {
+    welcome = context.pages().find((p) => p.url().includes('/options.html'));
+    if (!welcome) await new Promise((r) => setTimeout(r, 100));
+  }
+  await welcome?.waitForLoadState();
+  installPageTitle = welcome ? await welcome.title() : '';
+  await welcome?.close();
 });
 
 test.afterAll(async () => {
@@ -185,7 +196,8 @@ test('comment, draw and export a self-contained handoff from a live page', async
     'https://unreachable.invalid/missing.png',
   );
   expect(payload.sanitize.eventHandlers).toBeGreaterThanOrEqual(1);
-  await expect(ui.locator('.export-result')).toContainText('Saved');
+  await expect(ui.locator('.morph-pill[data-phase="done"]')).toContainText('Saved');
+  await expect(ui.locator('.export-result')).toContainText('Allow in settings');
 
   // Toolbar hides during the screenshot and comes back
   await expect(ui.locator('.toolbar')).toBeVisible();
@@ -214,6 +226,10 @@ test('comment, draw and export a self-contained handoff from a live page', async
   await expect(page.locator('chrome-design-root')).toHaveCount(0);
 });
 
+test('installing opens the welcome & settings page', () => {
+  expect(installPageTitle).toContain('Chrome Design');
+});
+
 test('popup explains restricted pages', async () => {
   const id = new URL(worker.url()).host;
   const popup = await context.newPage();
@@ -226,13 +242,21 @@ test('integrates with hostile pages: transformed root, max z-index overlay, page
   await page.goto(`${baseUrl}/hostile`);
   await toggleToolbar(page);
   const ui = page.locator('chrome-design-root');
-  await ui.getByText('Start reviewing').click();
+  const intro = ui.getByText('Start reviewing');
+  if (await intro.isVisible()) await intro.click();
 
   // Top layer: unaffected by the page's html transform, above a z-index 2147483647 widget.
-  expect(await page.evaluate(() => document.querySelector('chrome-design-root')?.matches(':popover-open'))).toBe(true);
+  expect(
+    await page.evaluate(() =>
+      document.querySelector('chrome-design-root')?.matches(':popover-open'),
+    ),
+  ).toBe(true);
   const bar = (await ui.locator('.toolbar').boundingBox())!;
   expect(Math.round(bar.y + bar.height)).toBe(800 - 16);
-  const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x!, y!)?.localName, [bar.x + bar.width / 2, bar.y + bar.height / 2]);
+  const hit = await page.evaluate(
+    ([x, y]) => document.elementFromPoint(x!, y!)?.localName,
+    [bar.x + bar.width / 2, bar.y + bar.height / 2],
+  );
   expect(hit).toBe('chrome-design-root');
 
   // While a tool is active the page never sees our single-key shortcuts…
@@ -300,7 +324,6 @@ test('strict CSP pages: tools work and the glass falls back to CSS', async () =>
   await toggleToolbar(page);
   const ui = page.locator('chrome-design-root');
   await expect(ui.locator('.toolbar')).toHaveAttribute('data-glass', 'css', { timeout: 3000 });
-  await page.keyboard.press('Escape'); // close the welcome sheet
   await page.keyboard.press('d');
   await page.mouse.move(100, 200);
   await page.mouse.down();
