@@ -65,6 +65,35 @@ function currentHref(): string {
   return location.href;
 }
 
+/**
+ * Constructable stylesheet for the shadow root. Unlike a <style> element it is not subject to
+ * the page's CSP `style-src`, so the UI stays styled on strict-CSP sites.
+ */
+function adoptStyles(shadow: ShadowRoot, text: string): void {
+  try {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(text);
+    shadow.adoptedStyleSheets = [sheet];
+    return;
+  } catch {
+    // very old engines: fall back to a <style> element
+  }
+  const style = document.createElement('style');
+  style.textContent = text;
+  shadow.appendChild(style);
+}
+
+/**
+ * The page's open modal dialog, if any. A modal dialog makes everything outside its subtree
+ * inert — top layer or not — so while one is open the host moves inside it (still rendered in
+ * the top layer, so its position is unchanged) and moves back when it closes.
+ */
+function blockingDialog(preferred: HTMLDialogElement | null): HTMLDialogElement | null {
+  if (preferred?.isConnected && preferred.open && preferred.matches(':modal')) return preferred;
+  const modals = Array.from(document.querySelectorAll('dialog')).filter((d) => d.open && d.matches(':modal'));
+  return modals.at(-1) ?? null;
+}
+
 export async function mountEditor(onClose: () => void): Promise<Mounted> {
   let href = currentHref();
   const [savedDoc, grid] = await Promise.all([loadDoc(href), loadGrid(href)]);
@@ -76,29 +105,36 @@ export async function mountEditor(onClose: () => void): Promise<Mounted> {
   host.setAttribute('popover', 'manual');
   styleHost(host);
   const shadow = host.attachShadow({ mode: 'open' });
-  const style = document.createElement('style');
-  style.textContent = css;
-  shadow.appendChild(style);
+  adoptStyles(shadow, css);
   const container = document.createElement('div');
   container.style.pointerEvents = 'auto';
   shadow.appendChild(container);
   document.documentElement.appendChild(host);
   promote(host);
 
-  // Keep the host last in the top layer when the page opens dialogs/popovers/fullscreen.
+  // Keep the host last in the top layer (and outside inert content) when the page opens
+  // dialogs, popovers or fullscreen, or re-renders and drops our node.
+  let lastModal: HTMLDialogElement | null = null;
   const reassert = debounce(() => {
-    if (!host.isConnected) document.documentElement.appendChild(host);
+    const dialog = blockingDialog(lastModal);
+    const parent = dialog ?? document.documentElement;
+    if (host.parentNode !== parent) parent.appendChild(host);
     styleHost(host);
     promote(host);
-  }, 50);
+  }, 30);
   const topLayerWatch = new MutationObserver((records) => {
     for (const r of records) {
       if (r.type === 'childList' && !host.isConnected) return reassert();
       const el = r.target as Element;
-      if (el !== host && (el.localName === 'dialog' || el.hasAttribute('popover')))
+      if (el === host) continue;
+      if (el.localName === 'dialog') {
+        if ((el as HTMLDialogElement).open) lastModal = el as HTMLDialogElement;
         return reassert();
+      }
+      if (el.hasAttribute('popover')) return reassert();
     }
   });
+  if (blockingDialog(null)) reassert();
   topLayerWatch.observe(document.documentElement, {
     subtree: true,
     childList: true,

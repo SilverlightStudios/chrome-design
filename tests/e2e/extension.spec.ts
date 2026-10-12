@@ -132,7 +132,7 @@ test('comment, draw and export a self-contained handoff from a live page', async
   await page.mouse.click(cta!.x + 10, cta!.y + 10);
   await expect(ui.locator('.inspector .el-name')).toHaveText('button#cta');
   await page.keyboard.press('Enter');
-  await ui.locator('.intent-picker button[data-intent="decision"]').click();
+  await ui.locator('.seg button[data-intent="decision"]').click();
   await ui.locator('.popover textarea').fill('Keep the button copy.');
   await ui.locator('.composer .btn.primary').click();
   await expect(ui.locator('.pin')).toHaveCount(2);
