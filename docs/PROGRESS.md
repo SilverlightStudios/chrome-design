@@ -15,6 +15,9 @@ extension (including a phone-width bottom-sheet test). Verified on the demo page
   plain-language element names (`src/content/describe.ts`) + floating selection bar + Details;
   comment bubble with send button; More sheet of tiles; contextual style bar; phone bottom sheets on
   the Remote Desktop drawer physics; exit animations everywhere (bubble, bars, sheets, whole UI).
+- R5: animated icons — Lucide geometry with Lucide Animated's motion as CSS keyframes
+  (`ui/icons.tsx`, `iconMotion.ts` restarts `data-play` on press / mouse enter; `data-hold` icons
+  hold a hover pose).
 - R4: Columns as DialKit-style bar sliders (`ui/Dial.tsx`; typed values may pass the slider end),
   rows that don't apply fold away; Columns tile toggles, a ⋯ in its corner opens the panel (the
   drawer never changes height); back buttons on panels opened from More (`panelBack` in the

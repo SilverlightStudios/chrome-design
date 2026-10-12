@@ -1,15 +1,34 @@
 import type { ReactNode } from 'react';
 
-/** Original 20×20 stroke icon set for the toolbar. */
-function Svg({ children, filled = false }: { children: ReactNode; filled?: boolean }) {
+/*
+ * Animated icons. Geometry is Lucide (ISC, lucide.dev); the motion follows Lucide Animated
+ * (MIT, pqoqubbw/icons — the "animated icons" reference in Spark's resources), ported from its
+ * motion/react variants to CSS keyframes in styles.css (`.ai-*`), so there's no animation
+ * library in the content script. Icons Lucide Animated doesn't have (pencil, ruler, columns,
+ * list, shapes, text, eraser, ellipsis, info) get motion in the same spirit.
+ *
+ * Playing: `iconMotion.ts` sets `data-play` on the icon when its button is pressed, and when a
+ * mouse enters it. Icons marked `hold` instead keep a pose while hovered (CSS) and play on press.
+ */
+function Svg({
+  name,
+  hold = false,
+  children,
+}: {
+  name: string;
+  hold?: boolean;
+  children: ReactNode;
+}) {
   return (
     <svg
-      viewBox="0 0 20 20"
+      className={`ai ai-${name}`}
+      data-hold={hold ? '' : undefined}
+      viewBox="0 0 24 24"
       width="18"
       height="18"
-      fill={filled ? 'currentColor' : 'none'}
-      stroke={filled ? 'none' : 'currentColor'}
-      strokeWidth="1.7"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -20,189 +39,207 @@ function Svg({ children, filled = false }: { children: ReactNode; filled?: boole
 }
 
 export const Icon = {
+  // Lucide mouse-pointer-2, moved like Lucide Animated's cursor-click.
   select: () => (
-    <Svg>
-      <path d="M4.5 3.5l11 5.2-4.7 1.4-1.6 4.8z" fill="currentColor" />
+    <Svg name="select">
+      <path
+        className="p"
+        d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
+      />
     </Svg>
   ),
+  // Lucide Animated message-circle: a wobble.
   comment: () => (
-    <Svg>
-      <path d="M4 15.5V6.8A3.3 3.3 0 0 1 7.3 3.5h5.4A3.3 3.3 0 0 1 16 6.8v2.9a3.3 3.3 0 0 1-3.3 3.3H7.2z" />
-      <path d="M7.5 7.8h5M7.5 10h3" />
+    <Svg name="comment">
+      <path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" />
     </Svg>
   ),
+  // Lucide pencil, scribbling like Lucide Animated's square-pen.
   draw: () => (
-    <Svg>
-      <path d="M12.6 3.9l3.5 3.5-7.4 7.4-4.2.8.8-4.2z" />
-      <path d="M3.5 17.2c2.2-1 3.6.9 5.8-.1" />
+    <Svg name="draw">
+      <g className="p">
+        <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+        <path d="m15 5 4 4" />
+      </g>
     </Svg>
   ),
   rulers: () => (
-    <Svg>
-      <rect x="2.8" y="7" width="14.4" height="6" rx="1.2" transform="rotate(-35 10 10)" />
-      <path d="M7.3 9.4l1 1.4M9.4 8l1 1.4M11.5 6.5l1 1.4" />
+    <Svg name="rulers">
+      <path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z" />
+      <path className="t t1" pathLength={1} d="m8.5 6.5 2-2" />
+      <path className="t t2" pathLength={1} d="m11.5 9.5 2-2" />
+      <path className="t t3" pathLength={1} d="m14.5 12.5 2-2" />
+      <path className="t t4" pathLength={1} d="m17.5 15.5 2-2" />
     </Svg>
   ),
+  // Lucide columns-3: the dividers slide apart and back.
   grid: () => (
-    <Svg>
-      <rect x="3.5" y="3.5" width="3" height="13" rx="1" />
-      <rect x="8.5" y="3.5" width="3" height="13" rx="1" />
-      <rect x="13.5" y="3.5" width="3" height="13" rx="1" />
+    <Svg name="grid">
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path className="c1" d="M9 3v18" />
+      <path className="c2" d="M15 3v18" />
     </Svg>
   ),
   list: () => (
-    <Svg>
-      <path d="M8 5.5h8.5M8 10h8.5M8 14.5h8.5" />
-      <circle cx="4.3" cy="5.5" r="1" fill="currentColor" />
-      <circle cx="4.3" cy="10" r="1" fill="currentColor" />
-      <circle cx="4.3" cy="14.5" r="1" fill="currentColor" />
+    <Svg name="list">
+      <path d="M3 5h.01" />
+      <path d="M3 12h.01" />
+      <path d="M3 19h.01" />
+      <path className="l l1" d="M8 5h13" />
+      <path className="l l2" d="M8 12h13" />
+      <path className="l l3" d="M8 19h13" />
     </Svg>
   ),
+  // Lucide Animated download: the arrow drops (held while hovered).
   export: () => (
-    <Svg>
-      <path d="M10 3.5v8.2M6.6 8.5L10 11.9l3.4-3.4" />
-      <path d="M3.8 12.5v1.8a2 2 0 0 0 2 2h8.4a2 2 0 0 0 2-2v-1.8" />
+    <Svg name="export" hold>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <g className="a">
+        <path d="m7 10 5 5 5-5" />
+        <path d="M12 15V3" />
+      </g>
     </Svg>
   ),
+  // Lucide Animated circle-help: the question mark shakes.
   help: () => (
-    <Svg>
-      <circle cx="10" cy="10" r="6.7" />
-      <path d="M8.2 8.1a1.9 1.9 0 1 1 2.6 1.8c-.5.2-.8.6-.8 1.1v.4" />
-      <circle cx="10" cy="13.7" r=".4" fill="currentColor" />
+    <Svg name="help">
+      <circle cx="12" cy="12" r="10" />
+      <g className="q">
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+        <path d="M12 17h.01" />
+      </g>
     </Svg>
   ),
+  // Lucide Animated x: both strokes draw in.
   close: () => (
-    <Svg>
-      <path d="M5.5 5.5l9 9M14.5 5.5l-9 9" />
-    </Svg>
-  ),
-  grip: () => (
-    <Svg filled>
-      <circle cx="8" cy="5.5" r="1.2" />
-      <circle cx="12" cy="5.5" r="1.2" />
-      <circle cx="8" cy="10" r="1.2" />
-      <circle cx="12" cy="10" r="1.2" />
-      <circle cx="8" cy="14.5" r="1.2" />
-      <circle cx="12" cy="14.5" r="1.2" />
-    </Svg>
-  ),
-  pen: () => (
-    <Svg>
-      <path d="M3.5 14.5c2-4.5 4-8.5 6-8.5s.5 7 2.5 7 2.5-4 4.5-5" />
+    <Svg name="close">
+      <path className="s s1" pathLength={1} d="M18 6 6 18" />
+      <path className="s s2" pathLength={1} d="m6 6 12 12" />
     </Svg>
   ),
   line: () => (
-    <Svg>
-      <path d="M4.5 15.5l11-11" />
+    <Svg name="line">
+      <path className="s" pathLength={1} d="M5 19 19 5" />
     </Svg>
   ),
+  // Lucide Animated arrow-up-right: pulls back toward its tip and springs out.
   arrow: () => (
-    <Svg>
-      <path d="M4.5 15.5l11-11M8.5 4.5h7v7" />
+    <Svg name="arrow">
+      <g className="a">
+        <path d="M7 7h10v10" />
+        <path d="M7 17 17 7" />
+      </g>
     </Svg>
   ),
   rect: () => (
-    <Svg>
-      <rect x="3.8" y="4.8" width="12.4" height="10.4" rx="1.4" />
+    <Svg name="rect">
+      <rect className="p" width="18" height="18" x="3" y="3" rx="2" />
     </Svg>
   ),
   ellipse: () => (
-    <Svg>
-      <ellipse cx="10" cy="10" rx="6.5" ry="5.3" />
+    <Svg name="ellipse">
+      <circle className="p" cx="12" cy="12" r="10" />
     </Svg>
   ),
   text: () => (
-    <Svg>
-      <path d="M4.5 5.5V4h11v1.5M10 4v12M7.8 16h4.4" />
+    <Svg name="text">
+      <path className="bar" d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2" />
+      <path className="stem" d="M12 4v16" />
+      <path d="M9 20h6" />
     </Svg>
   ),
   eraser: () => (
-    <Svg>
-      <path d="M8.2 16h7.3M3.9 11.9l6.8-6.8a1.6 1.6 0 0 1 2.3 0l2.4 2.4a1.6 1.6 0 0 1 0 2.3L10 15.2H7.2z" />
-      <path d="M7.5 8.4l4.6 4.6" />
+    <Svg name="eraser">
+      <g className="p">
+        <path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21" />
+        <path d="m5.082 11.09 8.828 8.828" />
+      </g>
     </Svg>
   ),
+  // Lucide Animated undo/redo: the head kicks back while the arc pulls in.
   undo: () => (
-    <Svg>
-      <path d="M7.5 5L4 8.5 7.5 12" />
-      <path d="M4.5 8.5h7a4 4 0 0 1 0 8H9" />
+    <Svg name="undo">
+      <path className="h" d="M3 7v6h6" />
+      <path className="arc" pathLength={1} d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
     </Svg>
   ),
   redo: () => (
-    <Svg>
-      <path d="M12.5 5L16 8.5 12.5 12" />
-      <path d="M15.5 8.5h-7a4 4 0 0 0 0 8H11" />
+    <Svg name="redo">
+      <path className="h" d="M21 7v6h-6" />
+      <path className="arc" pathLength={1} d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7" />
     </Svg>
   ),
+  // Lucide Animated delete (trash-2): the lid lifts (held while hovered).
   trash: () => (
-    <Svg>
-      <path d="M4 6h12M8 6V4.5h4V6M5.5 6l.8 9.6a1.5 1.5 0 0 0 1.5 1.4h4.4a1.5 1.5 0 0 0 1.5-1.4L14.5 6" />
+    <Svg name="trash" hold>
+      <g className="lid">
+        <path d="M3 6h18" />
+        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+      </g>
+      <g className="can">
+        <path d="M19 8v12c0 1-1 2-2 2H7c-1 0-2-1-2-2V8" />
+        <path d="M10 11v6" />
+        <path d="M14 11v6" />
+      </g>
     </Svg>
   ),
+  // Lucide Animated check: draws in.
   check: () => (
-    <Svg>
-      <path d="M4.5 10.5l3.5 3.5 7.5-8" />
+    <Svg name="check">
+      <path className="s" pathLength={1} d="M4 12 9 17L20 6" />
     </Svg>
   ),
-  reopen: () => (
-    <Svg>
-      <path d="M15.5 10a5.5 5.5 0 1 1-1.6-3.9M15.5 4v3.5H12" />
-    </Svg>
-  ),
+  // Lucide Animated arrow-up: the head bobs while the stem shortens.
   parent: () => (
-    <Svg>
-      <path d="M10 15.5v-11M5.5 9L10 4.5 14.5 9" />
-    </Svg>
-  ),
-  copy: () => (
-    <Svg>
-      <rect x="7" y="7" width="9" height="9" rx="1.6" />
-      <path d="M13 7V5.6A1.6 1.6 0 0 0 11.4 4H5.6A1.6 1.6 0 0 0 4 5.6v5.8A1.6 1.6 0 0 0 5.6 13H7" />
-    </Svg>
-  ),
-  dash: () => (
-    <Svg>
-      <path d="M3.5 10h2.5M8.8 10h2.5M14 10h2.5" />
+    <Svg name="up">
+      <path className="h" d="m5 12 7-7 7 7" />
+      <path className="stem" d="M12 19V5" />
     </Svg>
   ),
   send: () => (
-    <Svg>
-      <path d="M10 15.5V4.8M5.6 9 10 4.6 14.4 9" strokeWidth="2" />
+    <Svg name="up">
+      <path className="h" d="m5 12 7-7 7 7" />
+      <path className="stem" d="M12 19V5" />
     </Svg>
   ),
   more: () => (
-    <Svg filled>
-      <circle cx="4.8" cy="10" r="1.5" />
-      <circle cx="10" cy="10" r="1.5" />
-      <circle cx="15.2" cy="10" r="1.5" />
+    <Svg name="more">
+      <circle className="d d1" cx="5" cy="12" r="1" />
+      <circle className="d d2" cx="12" cy="12" r="1" />
+      <circle className="d d3" cx="19" cy="12" r="1" />
     </Svg>
   ),
+  // Lucide Animated hand: a wave from the wrist.
   hand: () => (
-    <Svg>
-      <path d="M7.5 9.5V4.8a1.3 1.3 0 0 1 2.6 0v4.4M10.1 8.6V3.9a1.3 1.3 0 0 1 2.6 0v5M12.7 9V5.6a1.3 1.3 0 0 1 2.6 0v5.6c0 3-2.1 5.3-5 5.3-2 0-3.2-.8-4.4-2.4L3.6 10.9a1.3 1.3 0 0 1 2-1.6l1.9 2" />
+    <Svg name="hand">
+      <path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2" />
+      <path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2" />
+      <path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" />
+      <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
     </Svg>
   ),
   info: () => (
-    <Svg>
-      <circle cx="10" cy="10" r="6.7" />
-      <path d="M10 9.2v4.3" />
-      <circle cx="10" cy="6.7" r=".4" fill="currentColor" />
+    <Svg name="info">
+      <circle cx="12" cy="12" r="10" />
+      <g className="i">
+        <path d="M12 16v-4" />
+        <path d="M12 8h.01" />
+      </g>
     </Svg>
   ),
+  // Lucide Animated settings: a half turn (held while hovered).
   gear: () => (
-    <Svg>
-      <circle cx="10" cy="10" r="2.4" />
-      <path d="M10 3.2v1.6M10 15.2v1.6M3.2 10h1.6M15.2 10h1.6M5.2 5.2l1.1 1.1M13.7 13.7l1.1 1.1M5.2 14.8l1.1-1.1M13.7 6.3l1.1-1.1" />
+    <Svg name="gear" hold>
+      <g className="p">
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+        <circle cx="12" cy="12" r="3" />
+      </g>
     </Svg>
   ),
+  // Lucide Animated chevron-down: a nudge in the direction it points.
   chevron: () => (
-    <Svg>
-      <path d="M6.5 8.2 10 11.7l3.5-3.5" />
-    </Svg>
-  ),
-  pause: () => (
-    <Svg>
-      <path d="M7.5 5.5v9M12.5 5.5v9" strokeWidth="2" />
+    <Svg name="chevron">
+      <path className="p" d="m6 9 6 6 6-6" />
     </Svg>
   ),
 };

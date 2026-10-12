@@ -3441,3 +3441,374 @@ details.options .checks {
     backdrop-filter: none;
   }
 }
+
+/* ---------- animated icons (ui/icons.tsx, played by iconMotion.ts) ----------
+   Timings and moves are Lucide Animated's (motion/react variants → CSS). `data-play` replays
+   the keyframes on press (and on mouse enter); `[data-hold]` icons keep a pose while hovered. */
+.ai {
+  --ai-in-out: cubic-bezier(0.42, 0, 0.58, 1);
+  --ai-out: cubic-bezier(0.25, 0.1, 0.25, 1);
+  overflow: visible;
+}
+.ai :is(path, g, rect, circle) {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* select — cursor-click's cursor: up, back, home (1s) */
+  .ai-select[data-play] .p {
+    animation: ai-select 0.8s var(--ai-in-out);
+  }
+  /* comment — message-circle: rotate 0/-7/7/0 over 0.5s with a little scale */
+  .ai-comment[data-play] {
+    animation: ai-comment 0.5s var(--ai-in-out);
+  }
+  /* draw — square-pen's pen scribble */
+  .ai-draw[data-play] .p {
+    transform-origin: 10% 90%;
+    animation: ai-draw 0.6s var(--ai-in-out);
+  }
+  /* rulers — the ticks draw in, one after another */
+  .ai-rulers[data-play] .t {
+    stroke-dasharray: 1;
+    animation: ai-draw-in 0.3s var(--ai-out) both;
+  }
+  .ai-rulers[data-play] .t2 {
+    animation-delay: 60ms;
+  }
+  .ai-rulers[data-play] .t3 {
+    animation-delay: 120ms;
+  }
+  .ai-rulers[data-play] .t4 {
+    animation-delay: 180ms;
+  }
+  /* grid — the column dividers open out and settle */
+  .ai-grid[data-play] .c1 {
+    animation: ai-col-left 0.5s var(--ai-in-out);
+  }
+  .ai-grid[data-play] .c2 {
+    animation: ai-col-right 0.5s var(--ai-in-out);
+  }
+  /* list — the lines write in, one after another */
+  .ai-list[data-play] .l {
+    transform-origin: 0% 50%;
+    animation: ai-line-in 0.4s var(--ease-bounce) both;
+  }
+  .ai-list[data-play] .l2 {
+    animation-delay: 70ms;
+  }
+  .ai-list[data-play] .l3 {
+    animation-delay: 140ms;
+  }
+  /* export — download: the arrow drops 2 (spring 200/10) */
+  .ai-export .a {
+    transition: translate 0.45s var(--ease-bounce);
+  }
+  .ai-export[data-play] .a {
+    animation: ai-drop 0.45s var(--ease-bounce);
+  }
+  /* help — circle-help: the mark shakes -10/10/-10 over 0.5s */
+  .ai-help[data-play] .q {
+    animation: ai-shake 0.5s var(--ai-in-out);
+  }
+  /* close — x: both strokes draw in, the second 0.2s later */
+  .ai-close[data-play] .s {
+    stroke-dasharray: 1;
+    animation: ai-draw-in 0.3s var(--ai-out) both;
+  }
+  .ai-close[data-play] .s2 {
+    animation-delay: 0.2s;
+  }
+  .ai-line[data-play] .s,
+  .ai-check[data-play] .s {
+    stroke-dasharray: 1;
+    animation: ai-draw-in 0.4s var(--ai-out) both;
+  }
+  /* check — also grows from half size */
+  .ai-check[data-play] .s {
+    animation-name: ai-check;
+  }
+  /* arrow — arrow-up-right: shrinks toward its tip and springs back (0.5s) */
+  .ai-arrow[data-play] .a {
+    transform-origin: 100% 0%;
+    animation: ai-arrow 0.5s var(--ai-in-out);
+  }
+  .ai-rect[data-play] .p {
+    animation: ai-pop 0.45s var(--ai-in-out);
+  }
+  .ai-ellipse[data-play] .p {
+    animation: ai-squash 0.5s var(--ai-in-out);
+  }
+  /* text — the bar presses down on the stem */
+  .ai-text[data-play] .bar {
+    animation: ai-bar 0.45s var(--ai-in-out);
+  }
+  .ai-text[data-play] .stem {
+    transform-origin: 50% 100%;
+    animation: ai-stem 0.45s var(--ai-in-out);
+  }
+  .ai-eraser[data-play] .p {
+    animation: ai-rub 0.5s var(--ai-in-out);
+  }
+  /* undo / redo: head kicks (translate 2.1/-1.4, rotate 12) while the arc pulls to 0.8 (0.6s) */
+  .ai-undo[data-play] .h {
+    animation: ai-undo-head 0.6s var(--ai-out);
+  }
+  .ai-redo[data-play] .h {
+    animation: ai-redo-head 0.6s var(--ai-out);
+  }
+  :is(.ai-undo, .ai-redo)[data-play] .arc {
+    stroke-dasharray: 1;
+    animation: ai-arc 0.6s var(--ai-out);
+  }
+  /* trash — delete: the lid lifts 1.1 while the can sinks 1 (spring 500/30) */
+  .ai-trash :is(.lid, .can) {
+    transition: translate 0.25s var(--ease-bounce);
+  }
+  .ai-trash[data-play] .lid {
+    animation: ai-lid 0.4s var(--ease-bounce);
+  }
+  /* up (parent, send) — arrow-up: the head bobs 3 while the stem shortens (0.4s) */
+  .ai-up[data-play] .h {
+    animation: ai-head 0.4s var(--ai-in-out);
+  }
+  .ai-up[data-play] .stem {
+    transform-origin: 50% 100%;
+    animation: ai-shorten 0.4s var(--ai-in-out);
+  }
+  /* more — the dots hop in turn */
+  .ai-more[data-play] .d {
+    animation: ai-hop 0.4s var(--ai-in-out);
+  }
+  .ai-more[data-play] .d2 {
+    animation-delay: 70ms;
+  }
+  .ai-more[data-play] .d3 {
+    animation-delay: 140ms;
+  }
+  /* hand — a wave from the wrist (0/-15/10/-5/0 over 0.8s, origin 50% 90%) */
+  .ai-hand[data-play] {
+    transform-origin: 50% 90%;
+    animation: ai-wave 0.8s var(--ai-in-out);
+  }
+  .ai-info[data-play] .i {
+    animation: ai-hop 0.4s var(--ai-in-out);
+  }
+  /* gear — settings: a half turn (spring 50/10) */
+  .ai-gear .p {
+    transition: rotate 0.9s var(--ease-settle);
+  }
+  .ai-gear[data-play] .p {
+    animation: ai-turn 0.9s var(--ease-settle);
+  }
+  /* chevron — a nudge of 2 the way it points (0.5s, peak at 40%) */
+  .ai-chevron[data-play] .p {
+    animation: ai-nudge 0.5s var(--ai-in-out);
+  }
+}
+/* Hold poses while a mouse is over the control. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  :is(button, label):hover .ai-export .a {
+    translate: 0 2px;
+  }
+  :is(button, label):hover .ai-trash .lid {
+    translate: 0 -1.1px;
+  }
+  :is(button, label):hover .ai-trash .can {
+    translate: 0 0.8px;
+  }
+  :is(button, label):hover .ai-gear .p {
+    rotate: 180deg;
+  }
+}
+
+@keyframes ai-select {
+  33% {
+    translate: 0 -4px;
+  }
+  66% {
+    translate: -3px 0;
+  }
+}
+@keyframes ai-comment {
+  33% {
+    rotate: -7deg;
+    scale: 1.05;
+  }
+  66% {
+    rotate: 7deg;
+    scale: 1.05;
+  }
+}
+@keyframes ai-draw {
+  33% {
+    translate: -1px 1.5px;
+    rotate: -6deg;
+  }
+  66% {
+    translate: 1.5px -1px;
+    rotate: 4deg;
+  }
+}
+@keyframes ai-col-left {
+  40% {
+    translate: -2px 0;
+  }
+}
+@keyframes ai-col-right {
+  40% {
+    translate: 2px 0;
+  }
+}
+@keyframes ai-line-in {
+  from {
+    scale: 0.3 1;
+    opacity: 0.4;
+  }
+}
+@keyframes ai-drop {
+  50% {
+    translate: 0 3px;
+  }
+}
+@keyframes ai-shake {
+  25% {
+    rotate: -10deg;
+  }
+  50% {
+    rotate: 10deg;
+  }
+  75% {
+    rotate: -10deg;
+  }
+}
+@keyframes ai-draw-in {
+  from {
+    stroke-dashoffset: 1;
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes ai-check {
+  from {
+    stroke-dashoffset: 1;
+    opacity: 0;
+    scale: 0.5;
+  }
+  25% {
+    opacity: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+    scale: 1;
+  }
+}
+@keyframes ai-arrow {
+  50% {
+    scale: 0.85;
+    translate: -4px 4px;
+  }
+}
+@keyframes ai-pop {
+  40% {
+    scale: 0.85;
+  }
+  75% {
+    scale: 1.06;
+  }
+}
+@keyframes ai-squash {
+  35% {
+    scale: 1.12 0.88;
+  }
+  70% {
+    scale: 0.95 1.05;
+  }
+}
+@keyframes ai-bar {
+  45% {
+    translate: 0 2px;
+  }
+}
+@keyframes ai-stem {
+  45% {
+    scale: 1 0.85;
+  }
+}
+@keyframes ai-rub {
+  25% {
+    translate: -2px 0;
+    rotate: -6deg;
+  }
+  60% {
+    translate: 2px 0;
+    rotate: 4deg;
+  }
+}
+@keyframes ai-undo-head {
+  50% {
+    translate: 2.1px -1.4px;
+    rotate: 12deg;
+  }
+}
+@keyframes ai-redo-head {
+  50% {
+    translate: -2.1px -1.4px;
+    rotate: -12deg;
+  }
+}
+@keyframes ai-arc {
+  50% {
+    stroke-dashoffset: 0.2;
+  }
+}
+@keyframes ai-lid {
+  45% {
+    translate: 0 -2.2px;
+    rotate: -8deg;
+  }
+}
+@keyframes ai-head {
+  50% {
+    translate: 0 3px;
+  }
+}
+@keyframes ai-shorten {
+  50% {
+    scale: 1 0.64;
+  }
+}
+@keyframes ai-hop {
+  45% {
+    translate: 0 -2.5px;
+  }
+}
+@keyframes ai-wave {
+  25% {
+    rotate: -15deg;
+  }
+  50% {
+    rotate: 10deg;
+  }
+  75% {
+    rotate: -5deg;
+  }
+}
+@keyframes ai-turn {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: 180deg;
+  }
+}
+@keyframes ai-nudge {
+  40% {
+    translate: 0 2px;
+  }
+}

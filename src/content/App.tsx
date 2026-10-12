@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type EditorEnv, EnvProvider, type ToastAction, useEditor } from './context';
+import { installIconMotion } from './iconMotion';
 import { handleShortcut } from './keyboard';
 import { AnnotationLayer } from './overlay/AnnotationLayer';
 import { InspectOverlay } from './overlay/InspectOverlay';
@@ -47,8 +48,10 @@ function Toast({ item, onDone }: { item: ToastItem | null; onDone: () => void })
 
 function Root({ toast, onToastDone }: { toast: ToastItem | null; onToastDone: () => void }) {
   const tool = useEditor((s) => s.tool);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => (ref.current ? installIconMotion(ref.current) : undefined), []);
   return (
-    <div className="root" data-tool={tool}>
+    <div ref={ref} className="root" data-tool={tool}>
       <GridOverlay />
       <InteractionLayer />
       <AnnotationLayer />

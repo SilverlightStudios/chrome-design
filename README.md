@@ -177,7 +177,9 @@ scripts/       build.mjs (three Vite builds + manifest), make-icons.mjs (depende
 
 ## Attribution
 
-Chrome Design is an original implementation inspired by the workflow in [Squints](https://x.com/andreaskatzmann/status/2109119904351924379) by Andreas Katzmann: design inspection tools (inspect, rulers and guides, column grid, drawing) layered over live web pages. I studied the public demo video and the public feature description. No Squints source code, branding, logos, icons or assets were used. The interface, icon set, extension icon, code and the AI-handoff export format are original to this project. The visual language and motion follow the owner's own projects: the Remote Desktop viewer (Liquid Glass, drawer) and Spark (morphing tooltip, StackableDrawer springs).
+Chrome Design is an original implementation inspired by the workflow in [Squints](https://x.com/andreaskatzmann/status/2109119904351924379) by Andreas Katzmann: design inspection tools (inspect, rulers and guides, column grid, drawing) layered over live web pages. I studied the public demo video and the public feature description. No Squints source code, branding, logos, icons or assets were used. The interface, extension icon, code and the AI-handoff export format are original to this project. The visual language and motion follow the owner's own projects: the Remote Desktop viewer (Liquid Glass, drawer) and Spark (morphing tooltip, StackableDrawer springs, DialKit sliders).
+
+Toolbar and panel icons use [Lucide](https://lucide.dev) geometry (ISC, © Lucide Icons and Contributors), animated after [Lucide Animated](https://lucide-animated.com) (MIT, © 2024-2026 pqoqubbw), the animated icon reference in Spark's resources. Its motion/react variants are re-implemented as CSS keyframes (`src/content/ui/icons.tsx`, `.ai-*` in `styles.css`); no animation library ships in the extension. Pressing a control plays its icon; hovering plays it too, and a few icons (download, trash, settings) hold a pose while hovered.
 
 ## License
 
