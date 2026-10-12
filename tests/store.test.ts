@@ -66,3 +66,16 @@ describe('EditorStore history', () => {
     expect(nextCommentNumber([])).toBe(1);
   });
 });
+
+describe('panel back button', () => {
+  it('remembers where a panel came from until a panel is opened another way', () => {
+    const store = new EditorStore(createInitialState(emptyDoc('https://x.test/', 'X')));
+    store.set({ panel: 'grid', panelBack: 'more' });
+    expect(store.getState().panelBack).toBe('more');
+    store.set({ grid: { ...store.getState().grid, count: 6 } });
+    expect(store.getState().panelBack).toBe('more');
+    // Back to More, or a shortcut opening a panel directly: nothing to go back to.
+    store.set({ panel: 'more' });
+    expect(store.getState().panelBack).toBeNull();
+  });
+});

@@ -15,7 +15,14 @@ extension (including a phone-width bottom-sheet test). Verified on the demo page
   plain-language element names (`src/content/describe.ts`) + floating selection bar + Details;
   comment bubble with send button; More sheet of tiles; contextual style bar; phone bottom sheets on
   the Remote Desktop drawer physics; exit animations everywhere (bubble, bars, sheets, whole UI).
-- R3.1: Columns panel rebuilt for touch: −/+ stepper (hold to repeat) with count presets, a number
+- R4: Columns as DialKit-style bar sliders (`ui/Dial.tsx`; typed values may pass the slider end),
+  rows that don't apply fold away; Columns tile toggles, a ⋯ in its corner opens the panel (the
+  drawer never changes height); back buttons on panels opened from More (`panelBack` in the
+  store); Settings is an in-toolbar panel (`cd:get-settings`); solid/dashed line buttons; no
+  hint chips or info toasts (only Paused + Resume, and toasts with an Undo); no flavor text;
+  page can't scroll under a phone sheet; rulers on a solid strip with token colours, guide
+  positions always shown on touch; Shortcuts tile hidden on touch.
+- R3.1 (superseded by R4): Columns panel rebuilt for touch: −/+ stepper (hold to repeat) with count presets, a number
   box you type over (deleting no longer snaps to 1), layout tiles with Space between / around /
   evenly (`GridSettings.spacing`, math in `gridColumns`), custom sliders (tap to jump, sideways drag,
   vertical swipes still scroll), colour swatches. Switching to fixed columns narrows them to fit.

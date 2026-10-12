@@ -2,20 +2,10 @@ import { useEnv } from '../context';
 import { Icon, type IconName } from './icons';
 import { BackButton } from './PanelHead';
 
-const touch = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-
-const STEPS: { icon: IconName; title: string; body: string }[] = [
-  {
-    icon: 'comment',
-    title: 'Comment',
-    body: `${touch() ? 'Tap' : 'Click'} anything on the page to leave feedback.`,
-  },
-  { icon: 'draw', title: 'Draw', body: 'Point things out with the pencil, shapes and text.' },
-  {
-    icon: 'export',
-    title: 'Send to AI',
-    body: 'Download one file with the page and your notes for an AI assistant.',
-  },
+const STEPS: { icon: IconName; title: string }[] = [
+  { icon: 'comment', title: 'Comment on anything' },
+  { icon: 'draw', title: 'Sketch with pencil, shapes and text' },
+  { icon: 'export', title: 'Send it all to AI as one file' },
 ];
 
 /** First-run card: three steps, one button. Reopen it from More → Quick tour. */
@@ -26,7 +16,6 @@ export function WelcomePanel() {
       <BackButton />
       <div className="welcome-head">
         <h2>Give feedback on any page</h2>
-        <p className="muted">Everything stays in your browser.</p>
       </div>
       <ol className="steps">
         {STEPS.map((s) => {
@@ -36,10 +25,7 @@ export function WelcomePanel() {
               <span className="step-icon">
                 <Glyph />
               </span>
-              <span className="step-text">
-                <b>{s.title}</b>
-                <span>{s.body}</span>
-              </span>
+              <span className="step-text">{s.title}</span>
             </li>
           );
         })}

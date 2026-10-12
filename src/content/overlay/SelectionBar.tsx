@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { buildAnchor } from '../../capture/anchor';
 import type { Rect } from '../../shared/model';
 import { useEditor, useEnv, useViewport } from '../context';
@@ -146,20 +146,24 @@ const WEIGHTS: Record<string, string> = {
   '900': 'Black',
 };
 
+/** Colour value that copies itself; the label says "Copied" for a moment instead of a toast. */
 function Swatch({ color }: { color: string }) {
-  const { toast } = useEnv();
+  const [copied, setCopied] = useState(false);
   const hex = rgbToHex(color);
+  useEffect(() => {
+    if (!copied) return;
+    const t = window.setTimeout(() => setCopied(false), 1200);
+    return () => window.clearTimeout(t);
+  }, [copied]);
   return (
     <button
       type="button"
       className="color-value"
       title="Copy colour"
-      onClick={() => {
-        void copyText(hex).then((ok) => toast(ok ? `Copied ${hex}` : hex));
-      }}
+      onClick={() => void copyText(hex).then((ok) => ok && setCopied(true))}
     >
       <span className="dot" style={{ background: color }} />
-      {hex}
+      {copied ? 'Copied' : hex}
     </button>
   );
 }
@@ -281,9 +285,9 @@ function DetailsContent({ el, onClose }: { el: Element; onClose: () => void }) {
             <dd>{radius}</dd>
           </>
         )}
-        <dt>Inside</dt>
+        <dt>Padding</dt>
         <dd>{spacing(cs, 'padding')}</dd>
-        <dt>Outside</dt>
+        <dt>Margin</dt>
         <dd>{spacing(cs, 'margin')}</dd>
         {opacity < 1 && (
           <>
@@ -292,7 +296,6 @@ function DetailsContent({ el, onClose }: { el: Element; onClose: () => void }) {
           </>
         )}
       </dl>
-      <p className="muted small hover-hint">Hold ⌥ and hover to see spacing.</p>
     </div>
   );
 }

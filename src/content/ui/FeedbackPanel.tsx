@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { type CommentThread, INTENT_LABEL, isComment } from '../../shared/model';
+import { type CommentThread, isComment } from '../../shared/model';
 import { revealThread } from '../actions';
 import { useEditor, useEnv } from '../context';
 import { friendlyAnchorLabel } from '../describe';
@@ -27,7 +27,7 @@ export function FeedbackPanel() {
   return (
     <div className="panel list-panel">
       <PanelHead title="Comments">
-        <span className="muted small">{threads.length}</span>
+        {threads.length ? <span className="muted small">{threads.length}</span> : null}
       </PanelHead>
       {threads.length > 0 && (
         <div
@@ -53,9 +53,7 @@ export function FeedbackPanel() {
       )}
       {visible.length === 0 ? (
         <p className="empty">
-          {threads.length === 0
-            ? 'No comments yet. Choose Comment and click anywhere on the page.'
-            : 'Nothing here.'}
+          {threads.length === 0 ? 'No comments yet' : `No ${filter} comments`}
         </p>
       ) : (
         <ol className="thread-list">
@@ -73,8 +71,7 @@ export function FeedbackPanel() {
                 <span className="thread-body">
                   <span className="thread-text">{t.messages[0]?.body}</span>
                   <span className="thread-meta">
-                    {INTENT_LABEL[t.intent]} · {targetLabel(t)} · {timeAgo(t.updatedAt)}
-                    {t.status === 'resolved' ? ' · Resolved' : ''}
+                    {targetLabel(t)} · {timeAgo(t.updatedAt)}
                     {t.messages.length > 1
                       ? ` · ${t.messages.length - 1} repl${t.messages.length > 2 ? 'ies' : 'y'}`
                       : ''}

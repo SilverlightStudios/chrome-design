@@ -20,7 +20,7 @@ The toolbar is one row: **Close · Select · Comment · Pencil · Shapes · Text
 | Shapes | `R` `O` `A` `L` | Rectangle, ellipse, arrow and line. The button shows the last shape you used; press and hold (or right-click) it for the others. `⇧` makes squares and circles and snaps lines to 45°. After drawing, you're back in Select with the new shape selected, ready to adjust. |
 | Text | `T` | Click to place a text label. |
 | Style bar | | Appears above the toolbar while drawing or when a drawing is selected: colour, stroke width, dashed, eraser, delete, undo and redo. Changes apply to the selected drawing. |
-| More ⋯ | | Comments list (`F`, filter by open or resolved, click to jump to one), Use the page (pauses the tools so the page works normally), Rulers (`M`, drag from a ruler to add a guide), Columns (`G`, a layout grid: count stepper and presets, Stretch / Left / Center / Right / Space between / around / evenly, sliders for width, gutter, margin and opacity, colour swatches), Shortcuts (`?`), Quick tour, Settings and Clear this page. |
+| More ⋯ | | Comments list (`F`, filter by open or resolved, click to jump to one), Use the page (pauses the tools so the page works normally), Rulers (`M`, drag from a ruler to add a guide), Columns (`G` toggles; the ⋯ on the tile opens its settings: Stretch / Left / Center / Right / Space between / around / evenly, DialKit-style sliders for count, width, gutter, margin and opacity where a typed number can go past the slider, colour swatches), Shortcuts (`?`, desktop only), Quick tour, Settings and Clear this page. Panels opened from More have a back button. |
 | Send to AI | `⇧E` | Shows what will be included, takes an optional note for the assistant, and downloads the file. |
 | Undo / redo | `⌘Z` / `⇧⌘Z` | Applies to every change: comments, drawings, guides, moves and deletes. |
 | Step back | `Esc` | Each press goes back one level: closes bubbles and panels, deselects, returns to Select, then pauses the tools. While paused the page gets all its keys back. |
@@ -102,7 +102,7 @@ pnpm build          # → dist/
 2. Turn on **Developer mode** (top right).
 3. Click **Load unpacked** and select the `dist/` folder. A welcome and settings page opens.
 4. Pin **Chrome Design**, open any http(s) page and click the icon (or press `⌥⇧D`). Click again to close. On pages Chrome doesn't allow extensions on, the icon opens a short explanation instead.
-5. Optional: turn on **Allow other websites** in Settings. It requests `<all_urls>` at runtime so the file can include images, fonts and stylesheets from CDNs that don't send CORS headers. Without it, those show up as placeholders and are listed in the file's warnings.
+5. Optional: turn on **Images from other websites** in Settings. It requests `<all_urls>` at runtime so the file can include images, fonts and stylesheets from CDNs that don't send CORS headers. Without it, those show up as placeholders and are listed in the file's warnings.
 6. Optional: enable **Allow access to file URLs** on the extension's details page to use it on local `file://` pages.
 
 After changing code, run `pnpm build` again and click the reload icon on the extension card. `pnpm dev` rebuilds on save (watch mode).
@@ -138,7 +138,7 @@ src/
     keyboard.ts     Figma-style single-key tools and the Esc chain
     overlay/        capture layer (pointer logic), page-space drawings/pins/selection handles,
                     hover + selection outlines, selection bar + details, comment bubble, text editor, rulers/grid
-    ui/             toolbar (tools, Shapes menu, style bar), panels (More, Comments, Columns, Send to AI, Shortcuts, Welcome), status chip
+    ui/             toolbar (tools, Shapes menu, style bar), panels (More, Comments, Columns, Send to AI, Settings, Shortcuts, Welcome), `Dial` slider, Paused chip
     motion/         spring.ts (Spark's spring), glass.tsx (Liquid Glass), MorphTooltip, MorphSheet (desktop sheets + phone bottom sheets), presence.ts (exit animations)
     exporter.ts     capture → build → download
   capture/     DOM → sanitized snapshot: stylesheets (CSSOM, @import, adopted sheets, shadow roots),
@@ -149,7 +149,7 @@ tests/         Vitest unit tests; tests/e2e Playwright extension tests
 scripts/       build.mjs (three Vite builds + manifest), make-icons.mjs (dependency-free PNG icons)
 ```
 
-- **Permissions:** `activeTab`, `scripting` and `storage`, plus the optional `<all_urls>` that Settings requests only when you turn on **Allow other websites**. There are no static content scripts and no host permissions by default.
+- **Permissions:** `activeTab`, `scripting` and `storage`, plus the optional `<all_urls>` that Settings requests only when you turn on **Images from other websites**. There are no static content scripts and no host permissions by default.
 - **Messages:** only the content script talks to the service worker, to ask for a screenshot or an asset fetch. The service worker checks that the sender is this extension.
 - **Living on any page:** the UI is a `popover="manual"` host in the top layer, so page transforms and `z-index: 2147483647` widgets can't cover it. When the page opens a modal `<dialog>`, the host moves into it to stay usable. The stylesheet is a constructable stylesheet, which strict CSPs allow. While a tool is active, our single-key shortcuts don't reach the page; while paused, the page gets every key. Single-page-app navigations swap to that URL's notes. Pins follow elements inside inner scrollers and fixed headers.
 - **Snapshot fidelity:**

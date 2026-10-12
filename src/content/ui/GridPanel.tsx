@@ -116,6 +116,7 @@ export function GridPanel() {
           value={grid.count}
           min={1}
           max={24}
+          limit={500}
           onChange={(count) => update({ count })}
         />
         <Reveal show={layout !== 'stretch'}>
@@ -150,13 +151,13 @@ export function GridPanel() {
         </Reveal>
         <div className="dial-row colour-row">
           <span className="dial-label">Colour</span>
-          <div className="swatches" role="radiogroup" aria-label="Column colour">
+          <div className="grid-swatches" role="radiogroup" aria-label="Column colour">
             {GRID_COLORS.map((c) => (
               <button
                 key={c}
                 type="button"
                 role="radio"
-                className="swatch"
+                className="grid-swatch"
                 aria-checked={grid.color === c}
                 aria-label={c}
                 data-active={grid.color === c ? '' : undefined}
@@ -165,7 +166,7 @@ export function GridPanel() {
               />
             ))}
             <label
-              className="swatch custom"
+              className="grid-swatch custom"
               data-active={GRID_COLORS.includes(grid.color) ? undefined : ''}
               style={{ ['--c' as string]: grid.color }}
             >
@@ -183,6 +184,7 @@ export function GridPanel() {
           value={grid.opacity}
           min={0}
           max={100}
+          limit={100}
           unit="%"
           onChange={(opacity) => update({ opacity })}
         />

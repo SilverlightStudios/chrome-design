@@ -63,14 +63,7 @@ function Root({ toast, onToastDone }: { toast: ToastItem | null; onToastDone: ()
   );
 }
 
-export function App({
-  env,
-  onReady,
-}: {
-  env: Omit<EditorEnv, 'toast'>;
-  /** Hands the toast function to non-React code (navigation notices). */
-  onReady?: (toast: (message: string) => void) => void;
-}) {
+export function App({ env }: { env: Omit<EditorEnv, 'toast'> }) {
   const [toast, setToast] = useState<ToastItem | null>(null);
   const timer = useRef(0);
   const showToast = useCallback((text: string, action?: ToastAction) => {
@@ -83,7 +76,6 @@ export function App({
     setToast(null);
   }, []);
   const full: EditorEnv = { ...env, toast: showToast };
-  useEffect(() => onReady?.(showToast), [onReady, showToast]);
 
   useEffect(() => {
     // Keys we handle are swallowed on keydown *and* the matching keyup/keypress, so page

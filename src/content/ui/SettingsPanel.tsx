@@ -11,7 +11,7 @@ const touch = () => typeof matchMedia === 'function' && matchMedia('(pointer: co
  * for the all-sites permission, so changing it opens the full settings page in a tab.
  */
 export function SettingsPanel() {
-  const { getSettings, openSettingsPage, toast } = useEnv();
+  const { getSettings, openSettingsPage } = useEnv();
   // undefined = loading, null = no extension (demo page)
   const [settings, setSettings] = useState<SettingsResponse | null | undefined>(undefined);
   useEffect(() => {
@@ -27,64 +27,40 @@ export function SettingsPanel() {
     };
   }, [getSettings]);
   const demo = settings === null;
-  const openPage = async () => {
-    if (!(await openSettingsPage()))
-      toast('Settings open in a tab when Chrome Design is installed');
-  };
+  const openPage = () => void openSettingsPage();
 
   return (
     <div className="panel settings-panel">
       <PanelHead title="Settings" />
-      <div className="set-card">
+      <div className="set-list">
         <div className="set-row">
           <span className="set-title">Images from other websites</span>
-          <span className="set-value" data-on={settings?.allSites ? '' : undefined}>
-            {settings === undefined ? '' : demo ? 'Off' : settings.allSites ? 'On' : 'Off'}
-          </span>
+          {demo ? (
+            <span className="set-value">Extension only</span>
+          ) : (
+            <button
+              type="button"
+              className="set-action"
+              data-on={settings?.allSites ? '' : undefined}
+              onClick={openPage}
+            >
+              {settings === undefined ? '' : settings.allSites ? 'On' : 'Off'}
+            </button>
+          )}
         </div>
-        <p className="set-desc">
-          Lets the file for AI include pictures, fonts and styles this page loads from elsewhere.
-          Without it they show as placeholders.
-        </p>
-        {demo ? (
-          <p className="set-desc faint">Available once Chrome Design is installed.</p>
-        ) : (
-          <button type="button" className="btn wide" onClick={() => void openPage()}>
-            {settings?.allSites ? 'Turn off' : 'Turn on'} in Chrome
-          </button>
-        )}
-      </div>
-      {touch() ? null : (
-        <div className="set-card">
+        {touch() ? null : (
           <div className="set-row">
-            <span className="set-title">Open or close the toolbar</span>
+            <span className="set-title">Shortcut</span>
             <kbd className="set-kbd">{settings?.shortcut || '⌥⇧D'}</kbd>
           </div>
-          <p className="set-desc">
-            {demo
-              ? 'Change it in Chrome’s extension shortcuts.'
-              : 'Change it at chrome://extensions/shortcuts.'}
-          </p>
-        </div>
-      )}
-      <div className="set-card">
-        <div className="set-row">
-          <span className="set-title">Privacy</span>
-        </div>
-        <p className="set-desc">
-          Your comments and drawings stay in this browser. Nothing is uploaded and there are no
-          accounts.
-        </p>
+        )}
       </div>
       <p className="set-foot">
-        Chrome Design {APP_VERSION}
+        <span>Version {APP_VERSION}</span>
         {demo ? null : (
-          <>
-            {' · '}
-            <button type="button" className="inline-link" onClick={() => void openPage()}>
-              All settings
-            </button>
-          </>
+          <button type="button" className="inline-link" onClick={openPage}>
+            All settings
+          </button>
         )}
       </p>
     </div>

@@ -50,19 +50,22 @@ function drawRuler(
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   ctx.scale(dpr, dpr);
-  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
-  const ink = dark ? '255,255,255' : '20,20,20';
+  // Colours come from the UI's own tokens (the canvas's CSS colour), so labels always match
+  // the strip behind them, whatever the page or the system theme.
+  const ink = getComputedStyle(canvas).color;
+  const touch = matchMedia('(pointer: coarse)').matches;
   if (highlight) {
     ctx.fillStyle = 'rgba(86, 132, 245, 0.3)';
     const [a, b] = highlight;
     if (axis === 'x') ctx.fillRect(a - offset, 0, b - a, RULER);
     else ctx.fillRect(0, a - offset, RULER, b - a);
   }
-  ctx.strokeStyle = `rgba(${ink},0.32)`;
-  ctx.fillStyle = `rgba(${ink},0.62)`;
-  ctx.font = '9px ui-sans-serif, system-ui, sans-serif';
+  ctx.strokeStyle = ink;
+  ctx.fillStyle = ink;
+  ctx.font = `500 ${touch ? 10 : 9}px ui-sans-serif, system-ui, sans-serif`;
   ctx.lineWidth = 1;
   const start = Math.floor(offset / 10) * 10;
+  ctx.globalAlpha = 0.45;
   ctx.beginPath();
   for (let v = start; v <= offset + length; v += 10) {
     const pos = Math.round(v - offset) + 0.5;
@@ -75,6 +78,7 @@ function drawRuler(
       ctx.lineTo(RULER - tick, pos);
     }
     if (v % 100 === 0 && v !== 0) {
+      ctx.globalAlpha = 0.75;
       if (axis === 'x') ctx.fillText(String(v), pos + 3, 9);
       else {
         ctx.save();
@@ -84,9 +88,10 @@ function drawRuler(
         ctx.restore();
       }
     }
+    ctx.globalAlpha = 0.45;
   }
   ctx.stroke();
-  ctx.strokeStyle = `rgba(${ink},0.1)`;
+  ctx.globalAlpha = 0.15;
   ctx.beginPath();
   if (axis === 'x') {
     ctx.moveTo(0, RULER - 0.5);
@@ -195,8 +200,8 @@ export function RulersAndGuides() {
   const shown = guides.filter((g) => g.id !== drag?.id);
   return (
     <div className="rulers ui">
-      <div className="ruler-strip x glass-css" />
-      <div className="ruler-strip y glass-css" />
+      <div className="ruler-strip x" />
+      <div className="ruler-strip y" />
       {shown.map((g) => {
         const c = toClient(g, vp);
         return (

@@ -1,6 +1,5 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { APP_VERSION } from '../shared/model';
 import { Mark, Switch, useAllSitesPermission } from './shared';
 import './popup.css';
 
@@ -15,10 +14,7 @@ function Popup() {
     <main className="shell compact">
       <header className="wordmark">
         <Mark />
-        <div>
-          <h1>Chrome Design</h1>
-          <p className="tagline">v{APP_VERSION}</p>
-        </div>
+        <h1>Chrome Design</h1>
       </header>
       <section className="notice" role="alert">
         <span className="dot warn" aria-hidden="true" />
@@ -29,14 +25,17 @@ function Popup() {
       </section>
       <div className="row">
         <div>
-          <b>Allow other websites</b>
-          <p className="muted">Lets the file include images, fonts and styles from other sites.</p>
+          <b>Images from other websites</b>
         </div>
-        <Switch label="Allow other websites" on={allSites} onChange={(v) => void setAllSites(v)} />
+        <Switch
+          label="Images from other websites"
+          on={allSites}
+          onChange={(v) => void setAllSites(v)}
+        />
       </div>
       {error ? <p className="error">{error}</p> : null}
       <button type="button" className="link" onClick={() => void chrome.runtime.openOptionsPage()}>
-        Settings &amp; how to use
+        Settings
       </button>
     </main>
   );

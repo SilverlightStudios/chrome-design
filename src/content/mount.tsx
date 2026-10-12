@@ -164,7 +164,6 @@ export async function mountEditor(onClose: () => void): Promise<Mounted> {
   });
 
   // Single-page apps: when the URL changes, save this page's notes and load the next page's.
-  let toast: ((msg: string) => void) | null = null;
   const navWatch = window.setInterval(async () => {
     const next = currentHref();
     if (pageKey(next) === pageKey(href)) return;
@@ -173,12 +172,6 @@ export async function mountEditor(onClose: () => void): Promise<Mounted> {
     await saveDoc(prev, store.getState().doc);
     const loaded = await loadDoc(next);
     store.replaceDoc(loaded ?? emptyDoc(next, document.title));
-    const count = store.getState().doc.annotations.length;
-    toast?.(
-      count
-        ? `New page — ${count} saved annotation${count === 1 ? '' : 's'} loaded`
-        : 'New page — fresh canvas',
-    );
   }, 600);
 
   const exportWith = (options: ExportOptions, onStatus: (s: ExportStatus) => void) =>
@@ -196,9 +189,6 @@ export async function mountEditor(onClose: () => void): Promise<Mounted> {
           runExport: exportWith,
           openSettingsPage,
           getSettings,
-        }}
-        onReady={(t) => {
-          toast = t;
         }}
       />
     </StrictMode>,

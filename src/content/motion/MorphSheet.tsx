@@ -563,6 +563,21 @@ export function BottomSheet({
 
   useEffect(() => () => motionRef.current?.stop(), []);
 
+  // The page underneath never scrolls while the sheet is up: a swipe on the scrim or the
+  // sheet's chrome does nothing, and only a list that actually overflows scrolls (CSS
+  // overscroll-behavior keeps it from chaining to the page at its ends). touch-action alone
+  // isn't enough on iOS, so touchmove is cancelled too.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || phase !== 'open') return;
+    const onTouchMove = (e: TouchEvent) => {
+      const body = (e.target as Element).closest?.('.bsheet-body');
+      if (!body || body.scrollHeight <= body.clientHeight + 1) e.preventDefault();
+    };
+    root.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => root.removeEventListener('touchmove', onTouchMove);
+  }, [phase]);
+
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (phase !== 'open' || e.button !== 0) return;
     const target = e.target as Element;

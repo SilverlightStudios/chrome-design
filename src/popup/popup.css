@@ -287,8 +287,10 @@ h2 {
 }
 .steps li {
   display: flex;
+  align-items: center;
   gap: 12px;
   padding: 10px;
+  font-weight: 500;
   border-radius: 16px;
   background: var(--chip);
   animation: pop 0.4s var(--elastic) both;
@@ -298,6 +300,11 @@ h2 {
     opacity: 0;
     scale: 0.6;
   }
+}
+.foot {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
 }
 .num {
   display: grid;

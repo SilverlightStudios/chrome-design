@@ -347,7 +347,8 @@ test('single-page apps: notes follow the URL', async () => {
   await expect(ui.locator('.pin')).toHaveCount(1);
   await page.evaluate(() => (document.getElementById('go') as HTMLButtonElement).click());
   await expect(ui.locator('.pin')).toHaveCount(0, { timeout: 3000 });
-  await expect(ui.locator('.toast')).toContainText('New page');
+  // Switching pages is silent: no notice, just that page's notes.
+  await expect(ui.locator('.toast[data-on]')).toHaveCount(0);
   await page.goBack();
   await expect(ui.locator('.pin')).toHaveCount(1, { timeout: 3000 });
 });

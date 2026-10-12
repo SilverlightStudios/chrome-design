@@ -5,16 +5,10 @@ import { Mark, Switch, useAllSitesPermission } from './shared';
 import './popup.css';
 
 const STEPS = [
-  ['Pin it', 'Click the puzzle icon in Chrome’s toolbar and pin Chrome Design.'],
-  ['Open it on any page', 'Click the icon or press ⌥⇧D. Click again to close.'],
-  [
-    'Comment and sketch',
-    'Click anything to comment on it. Sketch with the pencil, shapes and text, then move or resize what you drew.',
-  ],
-  [
-    'Send to AI',
-    'Saves one file with the page, your comments and instructions any AI assistant can follow.',
-  ],
+  'Pin Chrome Design from Chrome’s puzzle icon',
+  'Click the icon or press ⌥⇧D on any page',
+  'Comment on anything, sketch over it',
+  'Send to AI saves one file for any assistant',
 ];
 
 function Options() {
@@ -33,22 +27,16 @@ function Options() {
     <main className="shell wide">
       <header className="wordmark">
         <Mark />
-        <div>
-          <h1>Chrome Design</h1>
-          <p className="tagline">Comment · sketch · send to AI — v{APP_VERSION}</p>
-        </div>
+        <h1>Chrome Design</h1>
       </header>
 
       <section className="card">
         <h2>Get started</h2>
         <ol className="steps">
-          {STEPS.map(([title, body], i) => (
-            <li key={title} style={{ animationDelay: `${i * 40}ms` }}>
+          {STEPS.map((step, i) => (
+            <li key={step} style={{ animationDelay: `${i * 40}ms` }}>
               <span className="num">{i + 1}</span>
-              <div>
-                <b>{title}</b>
-                <p className="muted">{body}</p>
-              </div>
+              <span>{step}</span>
             </li>
           ))}
         </ol>
@@ -58,15 +46,10 @@ function Options() {
         <h2>Settings</h2>
         <div className="row">
           <div>
-            <b>Allow other websites</b>
-            <p className="muted">
-              Optional. Many pages load their images, fonts and styles from other websites. This
-              lets Chrome Design include those in the file too. Chrome asks once. Without it, the
-              file shows a placeholder for anything it couldn’t include.
-            </p>
+            <b>Images from other websites</b>
           </div>
           <Switch
-            label="Allow other websites"
+            label="Images from other websites"
             on={allSites}
             onChange={(v) => void setAllSites(v)}
           />
@@ -74,34 +57,29 @@ function Options() {
         {error ? <p className="error">{error}</p> : null}
         <div className="row">
           <div>
-            <b>Keyboard shortcut</b>
+            <b>Shortcut</b>
             <p className="muted">
-              Currently <kbd>{shortcut}</kbd>. Change it at{' '}
-              <code>chrome://extensions/shortcuts</code>.
+              Change it at <code>chrome://extensions/shortcuts</code>
             </p>
           </div>
+          <kbd>{shortcut}</kbd>
         </div>
         <div className="row">
           <div>
             <b>Local files</b>
-            <p className="muted">
-              {fileAccess
-                ? 'Allowed — Chrome Design works on file:// pages.'
-                : 'To review file:// pages, turn on “Allow access to file URLs” on this extension’s details page.'}
-            </p>
+            {fileAccess ? null : (
+              <p className="muted">
+                Turn on “Allow access to file URLs” in the extension’s details
+              </p>
+            )}
           </div>
           <span className={`dot ${fileAccess ? 'ok' : 'warn'}`} aria-hidden="true" />
         </div>
       </section>
 
-      <section className="card">
-        <h2>Privacy</h2>
-        <p className="muted">
-          Annotations stay in this browser (extension storage, per page). Nothing is uploaded: the
-          only network requests are fetching the page’s own images, fonts and styles when you
-          export, so they can be embedded in the file. No accounts, no analytics.
-        </p>
-      </section>
+      <p className="foot muted">
+        v{APP_VERSION} · Notes stay in this browser. Nothing is uploaded.
+      </p>
     </main>
   );
 }

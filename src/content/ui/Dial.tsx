@@ -39,13 +39,24 @@ interface DialProps {
   label: string;
   value: number;
   min: number;
+  /** End of the slider. Typed numbers (and arrow keys) may go past it, up to `limit`. */
   max: number;
+  limit?: number;
   step?: number;
   unit?: string;
   onChange: (value: number) => void;
 }
 
-export function Dial({ label, value, min, max, step = 1, unit, onChange }: DialProps) {
+export function Dial({
+  label,
+  value,
+  min,
+  max,
+  limit = 9999,
+  step = 1,
+  unit,
+  onChange,
+}: DialProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
   const valueRef = useRef<HTMLSpanElement>(null);
@@ -64,8 +75,10 @@ export function Dial({ label, value, min, max, step = 1, unit, onChange }: DialP
   const steps = Math.round((max - min) / step);
   const p = clamp01((value - min) / (max - min));
 
-  const quantize = (v: number) =>
-    Math.max(min, Math.min(max, min + Math.round((v - min) / step) * step));
+  const snap = (v: number, hi: number) =>
+    Math.max(min, Math.min(hi, min + Math.round((v - min) / step) * step));
+  const quantize = (v: number) => snap(v, max);
+  const typed = (v: number) => snap(v, limit);
   const valueAt = (clientX: number, rect: DOMRect) =>
     min + clamp01((clientX - rect.left) / rect.width) * (max - min);
   // Short ranges snap to every step; long ones to the nearest tenth when the tap is close to one.
@@ -102,7 +115,7 @@ export function Dial({ label, value, min, max, step = 1, unit, onChange }: DialP
         tabIndex={editing ? -1 : 0}
         aria-label={label}
         aria-valuemin={min}
-        aria-valuemax={max}
+        aria-valuemax={Math.max(max, value)}
         aria-valuenow={value}
         aria-valuetext={`${value}${unit ? ` ${unit}` : ''}`}
         data-phase={phase}
@@ -167,7 +180,7 @@ export function Dial({ label, value, min, max, step = 1, unit, onChange }: DialP
           if (e.key === 'Enter') setEditing(true);
           else if (e.key === 'Home') onChange(min);
           else if (e.key === 'End') onChange(max);
-          else if (e.key in delta) onChange(quantize(value + (delta[e.key] ?? 0)));
+          else if (e.key in delta) onChange(typed(value + (delta[e.key] ?? 0)));
           else return;
           e.preventDefault();
         }}
@@ -191,8 +204,8 @@ export function Dial({ label, value, min, max, step = 1, unit, onChange }: DialP
             label={label}
             value={value}
             min={min}
-            max={max}
-            quantize={quantize}
+            limit={limit}
+            quantize={typed}
             onChange={onChange}
             onDone={() => {
               setEditing(false);
@@ -224,7 +237,7 @@ function DialInput({
   label,
   value,
   min,
-  max,
+  limit,
   quantize,
   onChange,
   onDone,
@@ -232,7 +245,7 @@ function DialInput({
   label: string;
   value: number;
   min: number;
-  max: number;
+  limit: number;
   quantize: (v: number) => number;
   onChange: (v: number) => void;
   onDone: () => void;
@@ -245,7 +258,7 @@ function DialInput({
     const cleaned = raw.replace(/[^\d.]/g, '').slice(0, 6);
     setText(cleaned);
     const n = Number(cleaned);
-    if (cleaned !== '' && Number.isFinite(n) && n >= min) onChange(quantize(Math.min(max, n)));
+    if (cleaned !== '' && Number.isFinite(n) && n >= min) onChange(quantize(Math.min(limit, n)));
   };
   const applyRef = useLatest(apply);
 

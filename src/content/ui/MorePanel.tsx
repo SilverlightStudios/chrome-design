@@ -3,6 +3,9 @@ import { isComment } from '../../shared/model';
 import { useEditor, useEnv } from '../context';
 import { Icon, type IconName } from './icons';
 
+/** Touch screens have no keyboard, so no Shortcuts tile. */
+const touch = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+
 interface TileProps {
   icon: IconName;
   label: string;
@@ -10,25 +13,41 @@ interface TileProps {
   badge?: number;
   danger?: boolean;
   onClick: () => void;
+  /** Settings for a tile that's switched on: a ⋯ in its corner while it's on. */
+  options?: { label: string; open: () => void };
 }
 
-function Tile({ icon, label, on, badge, danger, onClick }: TileProps) {
+function Tile({ icon, label, on, badge, danger, onClick, options }: TileProps) {
   const Glyph = Icon[icon];
   return (
-    <button
-      type="button"
-      className="tile"
-      data-on={on ? '' : undefined}
-      data-danger={danger ? '' : undefined}
-      aria-pressed={on ?? undefined}
-      onClick={onClick}
-    >
-      <span className="tile-icon">
-        <Glyph />
-        {badge ? <span className="tb-badge">{badge > 99 ? '99+' : badge}</span> : null}
-      </span>
-      <span className="tile-label">{label}</span>
-    </button>
+    <div className="tile-wrap">
+      <button
+        type="button"
+        className="tile"
+        data-on={on ? '' : undefined}
+        data-danger={danger ? '' : undefined}
+        aria-pressed={on ?? undefined}
+        onClick={onClick}
+      >
+        <span className="tile-icon">
+          <Glyph />
+          {badge ? <span className="tb-badge">{badge > 99 ? '99+' : badge}</span> : null}
+        </span>
+        <span className="tile-label">{label}</span>
+      </button>
+      {options ? (
+        <button
+          type="button"
+          className="tile-more"
+          aria-label={options.label}
+          data-shown={on ? '' : undefined}
+          inert={!on}
+          onClick={options.open}
+        >
+          <Icon.more />
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -73,19 +92,19 @@ export function MorePanel() {
           icon="grid"
           label="Columns"
           on={grid}
-          onClick={() =>
-            store.set({
-              grid: { ...store.getState().grid, visible: true },
-              panel: 'grid',
-              panelBack: 'more',
-            })
-          }
+          onClick={() => store.set({ grid: { ...store.getState().grid, visible: !grid } })}
+          options={{
+            label: 'Column settings',
+            open: () => store.set({ panel: 'grid', panelBack: 'more' }),
+          }}
         />
-        <Tile
-          icon="help"
-          label="Shortcuts"
-          onClick={() => store.set({ panel: 'help', panelBack: 'more' })}
-        />
+        {touch() ? null : (
+          <Tile
+            icon="help"
+            label="Shortcuts"
+            onClick={() => store.set({ panel: 'help', panelBack: 'more' })}
+          />
+        )}
         <Tile
           icon="info"
           label="Quick tour"

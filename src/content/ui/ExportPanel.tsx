@@ -3,6 +3,7 @@ import { isComment } from '../../shared/model';
 import { type ExportStatus, useEditor, useEnv } from '../context';
 import { plural } from './format';
 import { Icon } from './icons';
+import { PanelHead } from './PanelHead';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -101,26 +102,21 @@ export function ExportPanel() {
         ]
           .filter(Boolean)
           .join(' and ')
-      : 'No comments yet — the AI will get just the page';
+      : 'No comments yet';
 
   return (
     <div className="panel export-panel">
-      <div className="panel-head stacked">
-        <h2>Send to AI</h2>
-        <p className="muted">
-          One file with this page and your notes. Give it to any AI assistant.
-        </p>
-      </div>
+      <PanelHead title="Send to AI" />
       <div className="summary-row">
         <Icon.comment />
         <span>{summary}</span>
       </div>
       <label className="stack">
-        <span className="label">Anything else to tell the AI?</span>
         <textarea
           rows={2}
           value={brief}
-          placeholder="Optional — e.g. “Make it feel calmer, keep our colours.”"
+          aria-label="Note for the AI"
+          placeholder="Note for the AI (optional)"
           onChange={(e) => store.setBrief(e.target.value)}
         />
       </label>
@@ -148,27 +144,20 @@ export function ExportPanel() {
             {status.phase === 'done' ? `Saved to Downloads · ${formatBytes(status.bytes)}` : ''}
           </span>
         </span>
-        <span className="layer error">Something went wrong — try again</span>
+        <span className="layer error">Couldn’t save — try again</span>
       </button>
-      {status.phase === 'done' && (
+      {status.phase === 'done' && missing.length > 0 && (
         <div className="export-result" role="status">
-          {missing.length > 0 ? (
-            <>
-              <span className="warn">
-                {plural(missing.length, 'image or style')} couldn’t be included
-              </span>
-              <span className="muted small">They come from another website. </span>
-              <button
-                type="button"
-                className="inline-link"
-                onClick={() => env.store.set({ panel: 'settings', panelBack: 'export' })}
-              >
-                Allow other websites
-              </button>
-            </>
-          ) : (
-            <span className="ok">Everything was included.</span>
-          )}
+          <span className="warn">
+            {plural(missing.length, 'image or style')} couldn’t be included
+          </span>
+          <button
+            type="button"
+            className="inline-link"
+            onClick={() => env.store.set({ panel: 'settings', panelBack: 'export' })}
+          >
+            Allow other websites
+          </button>
           {status.warnings.length > 0 ? (
             <details>
               <summary className="muted small">Details</summary>
@@ -192,15 +181,11 @@ export function ExportPanel() {
         <summary>Options</summary>
         <div className="checks">
           <Switch
-            label="Include a picture of what you see"
+            label="Include a screenshot"
             on={includeScreenshot}
             onChange={setIncludeScreenshot}
           />
-          <Switch
-            label="Include the page’s original code"
-            on={includeSource}
-            onChange={setIncludeSource}
-          />
+          <Switch label="Include the page code" on={includeSource} onChange={setIncludeSource} />
         </div>
       </details>
     </div>
