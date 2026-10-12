@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useSyncExternalStore } from 'react';
+import type { SettingsResponse } from '../shared/messages';
 import type { EditorState, EditorStore } from './store';
 
 export interface ExportOptions {
@@ -29,8 +30,10 @@ export interface EditorEnv {
   close: () => void;
   runExport: (options: ExportOptions, onStatus: (status: ExportStatus) => void) => Promise<void>;
   toast: (message: string, action?: ToastAction) => void;
-  /** Open the extension's settings page (cross-origin asset permission lives there). */
-  openSettings: () => void;
+  /** Open the extension's full settings page in a tab; false without the extension. */
+  openSettingsPage: () => Promise<boolean>;
+  /** Current extension settings; null without the extension (demo page). */
+  getSettings: () => Promise<SettingsResponse | null>;
 }
 
 const EnvContext = createContext<EditorEnv | null>(null);

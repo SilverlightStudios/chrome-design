@@ -2,6 +2,7 @@ import type { AssetFetcher } from '../capture/assets';
 import type {
   CaptureVisibleTabResponse,
   FetchAssetResponse,
+  SettingsResponse,
   ToBackgroundMessage,
 } from '../shared/messages';
 
@@ -40,9 +41,14 @@ export const backgroundFetcher: AssetFetcher = async (url, maxBytes) => {
   return response;
 };
 
-/** Opens the extension's settings page (or does nothing on the demo page). */
-export function openSettings(): void {
-  void send<{ ok: boolean }>({ type: 'cd:open-options' });
+/** Opens the extension's full settings page in a tab. False on the demo page (no extension). */
+export async function openSettingsPage(): Promise<boolean> {
+  return (await send<{ ok: boolean }>({ type: 'cd:open-options' }))?.ok === true;
+}
+
+/** Current extension settings, or null on the demo page. */
+export function getSettings(): Promise<SettingsResponse | null> {
+  return send<SettingsResponse>({ type: 'cd:get-settings' });
 }
 
 /** Keeps the toolbar icon's badge in sync when the toolbar is closed from the page. */

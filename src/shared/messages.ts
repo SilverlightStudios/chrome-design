@@ -11,7 +11,15 @@ export type ToBackgroundMessage =
   | { type: 'cd:capture-visible-tab' }
   | { type: 'cd:fetch-asset'; url: string; maxBytes: number }
   | { type: 'cd:open-options' }
+  | { type: 'cd:get-settings' }
   | { type: 'cd:state'; open: boolean };
+
+export interface SettingsResponse {
+  /** The optional all-sites permission (embeds images, fonts and styles from other websites). */
+  allSites: boolean;
+  /** The toolbar shortcut as Chrome reports it ('' when unset). */
+  shortcut: string;
+}
 
 export type CaptureVisibleTabResponse =
   | { ok: true; dataUrl: string }

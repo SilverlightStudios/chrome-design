@@ -462,8 +462,6 @@ svg {
   border-radius: 999px;
   transition:
     translate var(--duration-settle) var(--ease-settle),
-    opacity var(--duration) var(--ease),
-    scale var(--duration) var(--ease),
     background-color var(--duration) var(--ease);
 }
 .seg button {
@@ -1000,6 +998,17 @@ svg {
 }
 .width-btn[data-active] span {
   background: var(--accent);
+}
+.width-btn .line-sample {
+  width: 26px;
+  height: 3px;
+  border-radius: 2px;
+}
+.width-btn .line-sample[data-dashed] {
+  background: repeating-linear-gradient(90deg, var(--ink) 0 6px, transparent 6px 10px);
+}
+.width-btn[data-active] .line-sample[data-dashed] {
+  background: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 10px);
 }
 .toggle-row {
   display: flex;
@@ -1794,121 +1803,63 @@ p.muted {
   margin: 0 2px;
 }
 
+/* Back to the panel this one came from (More, or Send to AI for Settings). */
+.back-btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin: -4px 0 -4px -4px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--chip);
+  color: var(--ink);
+  touch-action: manipulation;
+  transition:
+    background-color var(--duration) var(--ease),
+    scale 0.14s var(--ease);
+}
+.back-btn svg {
+  rotate: 90deg;
+}
+.back-btn:active {
+  scale: 0.9;
+}
+@media (hover: hover) and (pointer: fine) {
+  .back-btn:hover {
+    background: var(--card-hover);
+  }
+}
+.panel-head:has(> .back-btn) {
+  align-items: center;
+  justify-content: flex-start;
+}
+.panel-head:has(> .back-btn) > h2 {
+  margin-right: auto;
+}
+.welcome-panel > .back-btn {
+  margin: -2px 0 -4px -2px;
+}
+
+/* ---------- Columns ---------- */
 .grid-panel {
   width: min(320px, calc(100vw - 16px));
-  gap: 16px;
 }
 .grid-panel .panel-head {
   align-items: center;
 }
-.grid-panel .toggle-row {
-  padding: 0;
-  font-size: 12.5px;
-}
-.grid-section {
-  display: grid;
-  gap: 8px;
-}
-.grid-section.sliders {
-  gap: 12px;
-}
-.slider-label {
-  font: 550 12.5px / 1.2 var(--font);
-  color: var(--ink-muted);
-  padding-left: 2px;
-}
-.count-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.stepper {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 999px;
-  background: var(--chip);
-}
-.step-btn {
+.switch-btn {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 32px;
+  margin: -6px -4px -6px auto;
+  padding: 6px 4px;
   border: 0;
-  border-radius: 999px;
   background: none;
-  color: var(--ink);
   touch-action: manipulation;
-  user-select: none;
-  -webkit-touch-callout: none;
-  transition:
-    scale 0.12s var(--ease),
-    background-color var(--duration) var(--ease);
 }
-.step-btn:active {
-  scale: 0.9;
-  background: var(--card-hover);
-}
-@media (hover: hover) and (pointer: fine) {
-  .step-btn:hover {
-    background: var(--card-hover);
-  }
-}
-.numbox {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 2px;
-  min-width: 48px;
-  height: 30px;
-  padding: 0 8px;
-  border-radius: 10px;
-  cursor: text;
-  transition:
-    background-color var(--duration) var(--ease),
-    box-shadow var(--duration) var(--ease);
-}
-.numbox[data-editing] {
-  background: var(--raised);
-  box-shadow:
-    0 0 0 1.5px var(--accent),
-    0 0 0 4px var(--accent-soft);
-}
-.numbox input {
-  width: 4ch;
-  min-width: 0;
-  field-sizing: content;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--ink);
-  font: 600 14px / 30px var(--font);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-  outline: none;
-}
-.numbox input::selection {
-  background: var(--accent-soft);
-}
-.numbox-unit {
-  color: var(--ink-faint);
-  font-size: 12px;
-}
-.stepper .numbox {
-  min-width: 44px;
-}
-.seg.count-presets {
-  font-size: 13px;
-}
-.seg.count-presets button {
-  padding: 7px 0;
-  font-variant-numeric: tabular-nums;
-}
-.seg[data-none] .seg-loz {
-  opacity: 0;
-  scale: 0.6;
+.switch-btn .switch {
+  margin: 0;
 }
 .layout-tiles {
   display: grid;
@@ -1957,127 +1908,218 @@ p.muted {
     color: var(--ink);
   }
 }
-.layout-hint {
-  margin: 0;
-  padding: 0 2px;
-  min-height: 1lh;
-  text-wrap: pretty;
+.dials {
+  display: flex;
+  flex-direction: column;
 }
-@media (prefers-reduced-motion: no-preference) {
-  .layout-hint {
-    animation: hint-in 0.2s var(--ease) both;
-  }
+.dials > :not(.reveal, :first-child) {
+  margin-top: 6px;
 }
-@keyframes hint-in {
-  from {
-    opacity: 0;
-    translate: 0 3px;
-  }
-}
-.slider-row {
+/* Folds a row away when it doesn't apply; its spacing lives inside so it folds too. */
+.dials > .reveal {
   display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  row-gap: 2px;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows 0.32s var(--ease),
+    opacity 0.2s var(--ease);
 }
-.slider-row .slider {
-  grid-column: 1 / -1;
+.dials > .reveal > div {
+  /* flow-root keeps the row's top margin inside, so it folds away too */
+  display: flow-root;
+  min-height: 0;
+  overflow: clip;
+  /* room for the bar's end-of-range stretch */
+  margin-inline: -10px;
+  padding-inline: 10px;
 }
-.slider-row .numbox {
-  justify-content: flex-end;
-  padding-right: 4px;
+.dials > .reveal > div > * {
+  margin-top: 6px;
 }
-.slider-row .numbox input {
-  text-align: right;
+.dials > .reveal[data-hidden] {
+  grid-template-rows: 0fr;
+  opacity: 0;
 }
-.slider-off {
-  height: 30px;
-  line-height: 30px;
-  padding-right: 4px;
-  color: var(--ink-faint);
-  font-size: 12.5px;
-}
-.slider {
-  --thumb: 22px;
+
+/* DialKit-style slider: the whole row is the control. */
+.dial-wrap {
   position: relative;
-  height: 30px;
-  touch-action: pan-y;
+  height: 40px;
+}
+.dial {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(100% + var(--stretch, 0px));
+  translate: var(--shift, 0px) 0;
+  border-radius: 14px;
+  background: var(--chip);
+  overflow: clip;
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;
   outline: none;
   -webkit-tap-highlight-color: transparent;
 }
-.slider-track {
-  position: absolute;
-  inset: 50% calc(var(--thumb) / 2) auto;
-  height: 4px;
-  translate: 0 -50%;
-  border-radius: 999px;
-  background: var(--line);
-  overflow: clip;
+.dial:not([data-phase="drag"]) {
+  transition:
+    width 0.35s var(--ease-bounce),
+    translate 0.35s var(--ease-bounce);
 }
-.slider-fill {
+.dial-fill {
   position: absolute;
   inset: 0;
   transform-origin: left;
   scale: var(--p) 1;
-  background: var(--accent);
+  background: color-mix(in oklab, var(--ink), transparent 91%);
+  transition: background-color 0.15s var(--ease);
 }
-.slider-thumb {
+.dial:not([data-phase="drag"]) .dial-fill {
+  transition:
+    scale 0.4s var(--ease-settle),
+    background-color 0.15s var(--ease);
+}
+.dial-handle {
   position: absolute;
   top: 50%;
-  left: calc(var(--p) * (100% - var(--thumb)));
-  width: var(--thumb);
-  height: var(--thumb);
+  left: max(5px, calc(var(--p) * 100% - 9px));
+  width: 3px;
+  height: 20px;
   translate: 0 -50%;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow:
-    0 0 0 0.5px hsl(0 0% 0% / 0.12),
-    0 2px 6px hsl(0 0% 0% / 0.22);
-  transition:
-    scale 0.16s var(--ease-bounce),
-    opacity 0.16s var(--ease);
-}
-.slider:not([data-dragging]) .slider-thumb {
-  transition:
-    scale 0.16s var(--ease-bounce),
-    opacity 0.16s var(--ease),
-    left 0.16s var(--ease);
-}
-.slider:not([data-dragging]) .slider-fill {
-  transition:
-    scale 0.16s var(--ease),
-    opacity 0.16s var(--ease);
-}
-.slider[data-dragging] .slider-thumb {
-  scale: 1.15;
-}
-.slider:focus-visible .slider-thumb {
-  box-shadow:
-    0 0 0 0.5px hsl(0 0% 0% / 0.12),
-    0 2px 6px hsl(0 0% 0% / 0.22),
-    0 0 0 4px var(--accent-soft);
-}
-.slider[aria-disabled] {
-  cursor: default;
-}
-.slider[aria-disabled] .slider-fill {
+  border-radius: 999px;
+  background: var(--ink);
   opacity: 0;
+  scale: 0.25 1;
+  transition:
+    opacity 0.15s var(--ease),
+    scale 0.25s var(--ease-bounce);
 }
-.slider[aria-disabled] .slider-thumb {
+.dial:not([data-phase="drag"]) .dial-handle {
+  transition:
+    opacity 0.15s var(--ease),
+    scale 0.25s var(--ease-bounce),
+    left 0.4s var(--ease-settle);
+}
+.dial-ticks i {
+  position: absolute;
+  top: 50%;
+  width: 1px;
+  height: 8px;
+  translate: -50% -50%;
+  border-radius: 999px;
+  background: var(--ink);
   opacity: 0;
-  scale: 0.5;
+  transition: opacity 0.2s var(--ease);
+}
+.dial-label,
+.dial-value {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  font: 500 13px / 1 var(--font);
+  color: var(--ink-muted);
+  transition: color 0.15s var(--ease);
+}
+.dial-label {
+  left: 12px;
+  pointer-events: none;
+}
+.dial-value {
+  right: 12px;
+  padding: 6px 0;
+  font-variant-numeric: tabular-nums;
+  cursor: text;
+  border-bottom: 1px solid transparent;
+}
+.dial-value small {
+  margin-left: 1px;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.dial-input {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 7ch;
+  translate: 0 -50%;
+  padding: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--raised);
+  box-shadow: 0 0 0 1.5px var(--accent);
+  color: var(--ink);
+  font: 500 13px / 1 var(--font);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  outline: none;
+}
+.dial-input::selection {
+  background: var(--accent-soft);
+}
+.dial:is([data-phase="press"], [data-phase="drag"], :focus-visible) .dial-fill {
+  background: color-mix(in oklab, var(--ink), transparent 85%);
+}
+.dial:is([data-phase="press"], [data-phase="drag"], :focus-visible) :is(.dial-value, .dial-label) {
+  color: var(--ink);
+}
+.dial:is([data-phase="press"], [data-phase="drag"]) .dial-ticks i {
+  opacity: 0.15;
+}
+.dial:is([data-phase="press"], [data-phase="drag"], :focus-visible) .dial-handle {
+  opacity: 0.5;
+  scale: 1;
+}
+.dial[data-phase="drag"] .dial-handle {
+  opacity: 0.9;
+}
+.dial[data-dodge]:is([data-phase="press"], [data-phase="drag"], :focus-visible) .dial-handle {
+  opacity: 0.1;
+  scale: 1 0.75;
+}
+@media (hover: hover) and (pointer: fine) {
+  .dial:hover .dial-fill {
+    background: color-mix(in oklab, var(--ink), transparent 85%);
+  }
+  .dial:hover :is(.dial-value, .dial-label) {
+    color: var(--ink);
+  }
+  .dial:hover .dial-ticks i {
+    opacity: 0.15;
+  }
+  .dial:hover .dial-handle {
+    opacity: 0.5;
+    scale: 1;
+  }
+  .dial:hover[data-dodge] .dial-handle {
+    opacity: 0.1;
+    scale: 1 0.75;
+  }
+  .dial-value:hover {
+    border-bottom-color: currentColor;
+    transition: border-color 0.15s var(--ease) 0.5s;
+  }
+}
+.dial-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 8px 0 12px;
+  border-radius: 14px;
+  background: var(--chip);
+}
+.dial-row .dial-label {
+  position: static;
+  translate: none;
 }
 .swatches {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 2px;
+  gap: 6px;
 }
 .swatch {
   position: relative;
-  width: 30px;
-  height: 30px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -2087,28 +2129,34 @@ p.muted {
   touch-action: manipulation;
   transition: scale 0.14s var(--ease);
 }
+/* bigger touch target than the dot */
+.swatch::before {
+  content: "";
+  position: absolute;
+  inset: -5px -3px;
+}
 .swatch::after {
   content: "";
   position: absolute;
-  inset: -4px;
+  inset: -3px;
   border-radius: 50%;
-  border: 2px solid var(--accent);
+  border: 1.5px solid var(--ink);
   opacity: 0;
-  scale: 0.85;
+  scale: 0.8;
   transition:
     opacity var(--duration) var(--ease),
     scale var(--duration-settle) var(--ease-settle);
 }
 .swatch[data-active]::after {
-  opacity: 1;
+  opacity: 0.8;
   scale: 1;
 }
 .swatch:active {
-  scale: 0.92;
+  scale: 0.9;
 }
 .swatch.custom {
   background:
-    radial-gradient(circle, var(--c) 0 38%, transparent 40%),
+    radial-gradient(circle, var(--c) 0 36%, transparent 39%),
     conic-gradient(from 0deg, #f43f5e, #f59e0b, #84cc16, #06b6d4, #6366f1, #d946ef, #f43f5e);
 }
 .swatch.custom input {
@@ -2118,6 +2166,60 @@ p.muted {
   height: 100%;
   opacity: 0;
   cursor: pointer;
+}
+
+/* ---------- Settings ---------- */
+.settings-panel {
+  width: min(340px, calc(100vw - 16px));
+}
+.set-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--chip);
+}
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.set-title {
+  font: 600 13.5px / 1.25 var(--font);
+}
+.set-value {
+  font: 600 12.5px / 1 var(--font);
+  color: var(--ink-muted);
+}
+.set-value[data-on] {
+  color: var(--success);
+}
+.set-desc {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+.set-desc.faint {
+  color: var(--ink-faint);
+}
+.set-card .btn {
+  margin-top: 4px;
+}
+.set-kbd {
+  padding: 3px 7px;
+  border-radius: 7px;
+  background: var(--raised);
+  font: 600 12px / 1 var(--font);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.set-foot {
+  margin: 0;
+  padding: 0 2px;
+  font-size: 11.5px;
+  color: var(--ink-faint);
 }
 
 .thread-list {
@@ -3193,12 +3295,12 @@ details.options .checks {
   .field textarea,
   .stack textarea,
   .text-editor,
-  .numbox input {
+  .dial-input {
     font-size: 16px;
   }
-  .slider {
-    --thumb: 28px;
-    height: 36px;
+  .dial-wrap,
+  .dial-row {
+    height: 44px;
   }
 }
 

@@ -2,6 +2,7 @@ import { guessMime, toDataUrl } from '../shared/base64';
 import type {
   CaptureVisibleTabResponse,
   FetchAssetResponse,
+  SettingsResponse,
   ToBackgroundMessage,
 } from '../shared/messages';
 import { activeTab, sendToTab } from './inject';
@@ -110,6 +111,16 @@ chrome.runtime.onMessage.addListener((message: ToBackgroundMessage, sender, send
         .catch(() => undefined);
     }
     return false;
+  }
+  if (message?.type === 'cd:get-settings') {
+    void Promise.all([
+      chrome.permissions.contains({ origins: ['<all_urls>'] }),
+      chrome.commands.getAll(),
+    ]).then(([allSites, commands]) => {
+      const shortcut = commands.find((c) => c.name === 'toggle-chrome-design')?.shortcut ?? '';
+      sendResponse({ allSites, shortcut } satisfies SettingsResponse);
+    });
+    return true;
   }
   if (message?.type === 'cd:open-options') {
     void chrome.runtime.openOptionsPage().then(() => sendResponse({ ok: true }));

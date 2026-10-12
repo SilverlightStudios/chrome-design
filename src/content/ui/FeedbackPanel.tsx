@@ -4,6 +4,7 @@ import { revealThread } from '../actions';
 import { useEditor, useEnv } from '../context';
 import { friendlyAnchorLabel } from '../describe';
 import { timeAgo } from '../overlay/CommentPopover';
+import { PanelHead } from './PanelHead';
 
 type Filter = 'all' | 'open' | 'resolved';
 const FILTERS: Filter[] = ['all', 'open', 'resolved'];
@@ -25,10 +26,9 @@ export function FeedbackPanel() {
 
   return (
     <div className="panel list-panel">
-      <div className="panel-head">
-        <h2>Comments</h2>
+      <PanelHead title="Comments">
         <span className="muted small">{threads.length}</span>
-      </div>
+      </PanelHead>
       {threads.length > 0 && (
         <div
           className="seg"

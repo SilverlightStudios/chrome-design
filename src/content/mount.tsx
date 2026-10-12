@@ -4,7 +4,7 @@ import { App } from './App';
 import type { ExportOptions, ExportStatus } from './context';
 import { HOST_TAG } from './dom';
 import { runExport } from './exporter';
-import { openSettings } from './ext';
+import { getSettings, openSettingsPage } from './ext';
 import { debounce, loadDoc, loadGrid, pageKey, saveDoc, saveGrid } from './persistence';
 import { createInitialState, EditorStore, emptyDoc } from './store';
 import css from './styles.css?inline';
@@ -188,7 +188,15 @@ export async function mountEditor(onClose: () => void): Promise<Mounted> {
   root.render(
     <StrictMode>
       <App
-        env={{ store, host, shadow, close: onClose, runExport: exportWith, openSettings }}
+        env={{
+          store,
+          host,
+          shadow,
+          close: onClose,
+          runExport: exportWith,
+          openSettingsPage,
+          getSettings,
+        }}
         onReady={(t) => {
           toast = t;
         }}

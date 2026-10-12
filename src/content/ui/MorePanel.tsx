@@ -34,7 +34,7 @@ function Tile({ icon, label, on, badge, danger, onClick }: TileProps) {
 
 /** The ⋯ sheet: everything that isn't a drawing tool, as Remote Desktop-style tiles. */
 export function MorePanel() {
-  const { store, openSettings, toast } = useEnv();
+  const { store, toast } = useEnv();
   const rulers = useEditor((s) => s.rulers);
   const grid = useEditor((s) => s.grid.visible);
   const tool = useEditor((s) => s.tool);
@@ -49,7 +49,7 @@ export function MorePanel() {
           icon="list"
           label="Comments"
           badge={open}
-          onClick={() => store.set({ panel: 'list' })}
+          onClick={() => store.set({ panel: 'list', panelBack: 'more' })}
         />
         <Tile
           icon="hand"
@@ -73,17 +73,30 @@ export function MorePanel() {
           icon="grid"
           label="Columns"
           on={grid}
-          onClick={() => store.set({ grid: { ...store.getState().grid, visible: !grid } })}
+          onClick={() =>
+            store.set({
+              grid: { ...store.getState().grid, visible: true },
+              panel: 'grid',
+              panelBack: 'more',
+            })
+          }
         />
-        <Tile icon="help" label="Shortcuts" onClick={() => store.set({ panel: 'help' })} />
-        <Tile icon="info" label="Quick tour" onClick={() => store.set({ panel: 'welcome' })} />
-        <Tile icon="gear" label="Settings" onClick={openSettings} />
+        <Tile
+          icon="help"
+          label="Shortcuts"
+          onClick={() => store.set({ panel: 'help', panelBack: 'more' })}
+        />
+        <Tile
+          icon="info"
+          label="Quick tour"
+          onClick={() => store.set({ panel: 'welcome', panelBack: 'more' })}
+        />
+        <Tile
+          icon="gear"
+          label="Settings"
+          onClick={() => store.set({ panel: 'settings', panelBack: 'more' })}
+        />
       </div>
-      {grid ? (
-        <button type="button" className="btn wide" onClick={() => store.set({ panel: 'grid' })}>
-          Adjust columns
-        </button>
-      ) : null}
       {annotations.length > 0 && (
         <button
           type="button"

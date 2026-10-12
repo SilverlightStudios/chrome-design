@@ -35,6 +35,7 @@ import { GridPanel } from './GridPanel';
 import { HelpPanel } from './HelpPanel';
 import { Icon, type IconName } from './icons';
 import { MorePanel } from './MorePanel';
+import { SettingsPanel } from './SettingsPanel';
 import { WelcomePanel } from './WelcomePanel';
 
 interface ButtonProps {
@@ -247,15 +248,22 @@ function StyleBar({ placement }: { placement: 'up' | 'down' }) {
                   </button>
                 ))}
               </div>
-              <button
-                type="button"
-                className="toggle-row"
-                aria-pressed={shown.dashed}
-                onClick={() => applyStyle({ ...shown, dashed: !shown.dashed })}
-              >
-                <Icon.dash /> Dashed{' '}
-                <span className="switch" data-on={shown.dashed ? '' : undefined} />
-              </button>
+              <div className="width-row" role="radiogroup" aria-label="Line style">
+                {[false, true].map((dashed) => (
+                  <button
+                    key={String(dashed)}
+                    type="button"
+                    role="radio"
+                    className="width-btn"
+                    aria-checked={shown.dashed === dashed}
+                    aria-label={dashed ? 'Dashed line' : 'Solid line'}
+                    data-active={shown.dashed === dashed ? '' : undefined}
+                    onClick={() => applyStyle({ ...shown, dashed })}
+                  >
+                    <span className="line-sample" data-dashed={dashed ? '' : undefined} />
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -297,7 +305,11 @@ const PANELS: Record<Exclude<PanelId, 'none'>, { label: string; render: () => Re
   export: { label: 'Send to AI', render: () => <ExportPanel /> },
   help: { label: 'Keyboard shortcuts', render: () => <HelpPanel /> },
   welcome: { label: 'Welcome', render: () => <WelcomePanel /> },
+  settings: { label: 'Settings', render: () => <SettingsPanel /> },
 };
+
+/** Panels reached from More; the More button stays lit and closes them. */
+const MORE_CHILDREN = new Set<PanelId>(['list', 'grid', 'help', 'settings']);
 
 const skipOwnUi = (el: Element) => el.localName === HOST_TAG;
 
@@ -663,13 +675,9 @@ export function Toolbar() {
             <ToolButton
               icon="more"
               label="More"
-              active={panel === 'more' || panel === 'list' || panel === 'grid' || panel === 'help'}
+              active={panel === 'more' || MORE_CHILDREN.has(panel)}
               badge={openCount}
-              onClick={() =>
-                togglePanel(
-                  panel === 'list' || panel === 'grid' || panel === 'help' ? panel : 'more',
-                )
-              }
+              onClick={() => togglePanel(MORE_CHILDREN.has(panel) ? panel : 'more')}
             />
             <ToolButton
               icon="export"

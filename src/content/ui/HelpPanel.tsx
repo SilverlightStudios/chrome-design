@@ -1,3 +1,5 @@
+import { PanelHead } from './PanelHead';
+
 const isMac =
   typeof navigator !== 'undefined' &&
   /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -43,9 +45,7 @@ const SECTIONS: { title: string; rows: [string, string][] }[] = [
 export function HelpPanel() {
   return (
     <div className="panel help-panel">
-      <div className="panel-head">
-        <h2>Keyboard shortcuts</h2>
-      </div>
+      <PanelHead title="Keyboard shortcuts" />
       {SECTIONS.map((section) => (
         <section key={section.title}>
           <h3>{section.title}</h3>

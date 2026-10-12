@@ -23,7 +23,15 @@ export const SHAPE_TOOLS: ShapeToolId[] = ['rect', 'ellipse', 'line', 'arrow'];
 export function isShapeTool(tool: DrawToolId): tool is ShapeToolId {
   return (SHAPE_TOOLS as string[]).includes(tool);
 }
-export type PanelId = 'none' | 'grid' | 'list' | 'export' | 'help' | 'welcome' | 'more';
+export type PanelId =
+  | 'none'
+  | 'grid'
+  | 'list'
+  | 'export'
+  | 'help'
+  | 'welcome'
+  | 'more'
+  | 'settings';
 
 /** Comment being composed (not yet part of the document / history). */
 export interface DraftComment {
@@ -69,6 +77,8 @@ export interface EditorState {
   grid: GridSettings;
   rulers: boolean;
   panel: PanelId;
+  /** Where the open panel's back button leads (set when it was opened from another panel). */
+  panelBack: PanelId | null;
 }
 
 const HISTORY_LIMIT = 200;
@@ -106,6 +116,7 @@ export function createInitialState(
     grid,
     rulers: false,
     panel: 'none',
+    panelBack: null,
   };
 }
 
@@ -145,6 +156,8 @@ export class EditorStore {
 
   set(patch: Partial<EditorState>): void {
     const prevDoc = this.state.doc;
+    // Opening a panel any other way forgets the way back.
+    if ('panel' in patch && !('panelBack' in patch)) patch = { ...patch, panelBack: null };
     this.state = { ...this.state, ...patch };
     this.emit(prevDoc);
   }

@@ -1,5 +1,6 @@
 import { useEnv } from '../context';
 import { Icon, type IconName } from './icons';
+import { BackButton } from './PanelHead';
 
 const touch = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
@@ -22,6 +23,7 @@ export function WelcomePanel() {
   const { store } = useEnv();
   return (
     <div className="panel welcome-panel">
+      <BackButton />
       <div className="welcome-head">
         <h2>Give feedback on any page</h2>
         <p className="muted">Everything stays in your browser.</p>

@@ -158,7 +158,11 @@ export function ExportPanel() {
                 {plural(missing.length, 'image or style')} couldn’t be included
               </span>
               <span className="muted small">They come from another website. </span>
-              <button type="button" className="inline-link" onClick={env.openSettings}>
+              <button
+                type="button"
+                className="inline-link"
+                onClick={() => env.store.set({ panel: 'settings', panelBack: 'export' })}
+              >
                 Allow other websites
               </button>
             </>
