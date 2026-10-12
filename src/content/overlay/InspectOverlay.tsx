@@ -35,6 +35,72 @@ function useAltHeld(): boolean {
   return held;
 }
 
+/** One measured gap, in viewport space. */
+interface Guide {
+  key: string;
+  axis: 'x' | 'y';
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  value: number;
+  /** A line to the page edge rather than to something on it. */
+  dashed?: boolean;
+  tone?: 'measure' | 'margin' | 'padding';
+}
+
+const labelWidth = (value: number) => String(value).length * 6.6 + 14;
+
+/**
+ * Every measurement draws the same way: a thin line with end caps and its value in a pill —
+ * centred just above a horizontal line, just right of a vertical one — so labels sit beside
+ * what they measure instead of on top of the box. Pills stay on screen.
+ */
+function Guides({ lines }: { lines: Guide[] }) {
+  const vp = useViewport();
+  const clampX = (x: number, w: number) => Math.min(vp.width - w / 2 - 4, Math.max(w / 2 + 4, x));
+  const clampY = (y: number) => Math.min(vp.height - 12, Math.max(12, y));
+  return (
+    <>
+      <svg className="measure guides" aria-hidden="true">
+        {lines.map((l) => (
+          <g key={l.key} data-tone={l.tone ?? 'measure'} data-dashed={l.dashed ? '' : undefined}>
+            <line className="run" x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} />
+            {l.axis === 'x' ? (
+              <>
+                <line x1={l.x1} y1={l.y1 - 3.5} x2={l.x1} y2={l.y1 + 3.5} />
+                <line x1={l.x2} y1={l.y2 - 3.5} x2={l.x2} y2={l.y2 + 3.5} />
+              </>
+            ) : (
+              <>
+                <line x1={l.x1 - 3.5} y1={l.y1} x2={l.x1 + 3.5} y2={l.y1} />
+                <line x1={l.x2 - 3.5} y1={l.y2} x2={l.x2 + 3.5} y2={l.y2} />
+              </>
+            )}
+          </g>
+        ))}
+      </svg>
+      {lines.map((l) => {
+        const w = labelWidth(l.value);
+        const mx = (l.x1 + l.x2) / 2;
+        const my = (l.y1 + l.y2) / 2;
+        const left = clampX(l.axis === 'x' ? mx : mx + 6 + w / 2, w);
+        const top = clampY(l.axis === 'x' ? my - 12 : my);
+        return (
+          <div
+            key={l.key}
+            className="gap-label"
+            data-tone={l.tone ?? 'measure'}
+            style={{ left, top }}
+          >
+            {l.value}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 function SpacingView({ el }: { el: Element }) {
   const r = el.getBoundingClientRect();
   const cs = getComputedStyle(el);
@@ -68,41 +134,57 @@ function SpacingView({ el }: { el: Element }) {
           borderWidth: p.map((v) => `${v}px`).join(' '),
         }}
       />
+      <Guides lines={boxGuides(r, m, b, p)} />
     </>
   );
+}
+
+/** Margin and padding values as guides across each band, at the middle of its side. */
+function boxGuides(r: DOMRect, m: number[], b: number[], p: number[]): Guide[] {
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+  const out: Guide[] = [];
+  const add = (
+    tone: 'margin' | 'padding',
+    side: string,
+    axis: 'x' | 'y',
+    from: number,
+    to: number,
+    at: number,
+  ) => {
+    const value = Math.round(Math.abs(to - from));
+    if (value < 1) return;
+    out.push(
+      axis === 'y'
+        ? { key: `${tone}-${side}`, tone, axis, x1: at, x2: at, y1: from, y2: to, value }
+        : { key: `${tone}-${side}`, tone, axis, y1: at, y2: at, x1: from, x2: to, value },
+    );
+  };
+  add('margin', 'top', 'y', r.top - m[0]!, r.top, cx);
+  add('margin', 'right', 'x', r.right, r.right + m[1]!, cy);
+  add('margin', 'bottom', 'y', r.bottom, r.bottom + m[2]!, cx);
+  add('margin', 'left', 'x', r.left - m[3]!, r.left, cy);
+  add('padding', 'top', 'y', r.top + b[0]!, r.top + b[0]! + p[0]!, cx);
+  add('padding', 'right', 'x', r.right - b[1]! - p[1]!, r.right - b[1]!, cy);
+  add('padding', 'bottom', 'y', r.bottom - b[2]! - p[2]!, r.bottom - b[2]!, cx);
+  add('padding', 'left', 'x', r.left + b[3]!, r.left + b[3]! + p[3]!, cy);
+  return out;
 }
 
 function MeasureView({ a, b }: { a: Element; b: Element }) {
   const ra = clientRect(a);
   const rb = clientRect(b);
-  const lines = measureBetween(ra, rb);
+  const lines: Guide[] = measureBetween(ra, rb).map((l) => ({
+    ...l,
+    key: `${l.axis}${l.x1}${l.y1}${l.x2}${l.y2}`,
+  }));
   return (
-    <svg className="measure" aria-hidden="true">
-      <rect className="measure-target" x={rb.x} y={rb.y} width={rb.width} height={rb.height} />
-      {lines.map((l) => {
-        const mx = (l.x1 + l.x2) / 2;
-        const my = (l.y1 + l.y2) / 2;
-        return (
-          <g key={`${l.axis}${l.x1}${l.y1}${l.x2}${l.y2}`}>
-            <line x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} />
-            {l.axis === 'x' ? (
-              <>
-                <line x1={l.x1} y1={l.y1 - 4} x2={l.x1} y2={l.y1 + 4} />
-                <line x1={l.x2} y1={l.y2 - 4} x2={l.x2} y2={l.y2 + 4} />
-              </>
-            ) : (
-              <>
-                <line x1={l.x1 - 4} y1={l.y1} x2={l.x1 + 4} y2={l.y1} />
-                <line x1={l.x2 - 4} y1={l.y2} x2={l.x2 + 4} y2={l.y2} />
-              </>
-            )}
-            <foreignObject x={mx - 30} y={my - 10} width={60} height={20}>
-              <div className="measure-label">{l.value}</div>
-            </foreignObject>
-          </g>
-        );
-      })}
-    </svg>
+    <>
+      <svg className="measure" aria-hidden="true">
+        <rect className="measure-target" x={rb.x} y={rb.y} width={rb.width} height={rb.height} />
+      </svg>
+      <Guides lines={lines} />
+    </>
   );
 }
 
@@ -111,52 +193,43 @@ function MeasureView({ a, b }: { a: Element; b: Element }) {
  * neighbour, the inside edge of the box it sits in, or the page edge — dashed), with the gap in
  * px. Measured in page space once per selection and layout; drawn in viewport space.
  */
-function SpacingGuides({ el, pill }: { el: Element; pill: { x: number; width: number } | null }) {
+function SpacingGuides({ lines }: { lines: Guide[] }) {
+  return <Guides lines={lines} />;
+}
+
+/** The selection's spacing guides in viewport space (page-space measurement, cached). */
+function useSpacingGuides(el: Element | null): Guide[] {
   const vp = useViewport();
   const { width: vw, height: vh } = vp;
   // Re-measured per selection and whenever the window (and so the layout) changes size.
-  const lines = useMemo(() => spacingFor(el, vw, vh), [el, vw, vh]);
-  const clampX = (x: number) => Math.min(vp.width - 22, Math.max(22, x));
-  const clampY = (y: number) => Math.min(vp.height - 14, Math.max(14, y));
-  return (
-    <>
-      <svg className="measure spacing" aria-hidden="true">
-        {lines.map((l) => {
-          const x1 = l.x1 - vp.scrollX;
-          const x2 = l.x2 - vp.scrollX;
-          const y1 = l.y1 - vp.scrollY;
-          const y2 = l.y2 - vp.scrollY;
-          return (
-            <g key={l.side} data-to={l.to}>
-              <line x1={x1} y1={y1} x2={x2} y2={y2} />
-              {l.axis === 'x' ? (
-                <line className="cap" x1={x2} y1={y2 - 4} x2={x2} y2={y2 + 4} />
-              ) : (
-                <line className="cap" x1={x2 - 4} y1={y2} x2={x2 + 4} y2={y2} />
-              )}
-            </g>
-          );
-        })}
-      </svg>
-      {lines.map((l) => {
-        const mx = (l.x1 + l.x2) / 2 - vp.scrollX;
-        const my = (l.y1 + l.y2) / 2 - vp.scrollY;
-        // A gap too short for the label inside it gets the label beside the line — past the
-        // size pill for the gap underneath, which the pill sits in.
-        const short = l.value < 28;
-        const besidePill = short && l.side === 'bottom' && pill;
-        const left = clampX(
-          besidePill ? pill.x + pill.width / 2 + 22 : l.axis === 'y' && short ? mx + 18 : mx,
-        );
-        const top = clampY(my);
-        return (
-          <div key={l.side} className="measure-label spacing-label" style={{ left, top }}>
-            {l.value}
-          </div>
-        );
-      })}
-    </>
-  );
+  const lines = useMemo(() => (el ? spacingFor(el, vw, vh) : []), [el, vw, vh]);
+  return lines.map((l) => ({
+    key: l.side,
+    axis: l.axis,
+    x1: l.x1 - vp.scrollX,
+    x2: l.x2 - vp.scrollX,
+    y1: l.y1 - vp.scrollY,
+    y2: l.y2 - vp.scrollY,
+    value: l.value,
+    dashed: l.to === 'page',
+  }));
+}
+
+/**
+ * Where the size pill goes under the selection: centred, unless the bottom guide and its
+ * label run through there — then just left of them, or right of them when there's no room on
+ * the left. Always kept on screen.
+ */
+function pillCentre(r: Rect, pillW: number, bottom: Guide | undefined, vw: number): number {
+  const half = pillW / 2;
+  const onScreen = (c: number) => Math.min(vw - half - 4, Math.max(half + 4, c));
+  const centre = r.x + r.width / 2;
+  if (!bottom) return onScreen(centre);
+  const from = bottom.x1 - 6;
+  const to = bottom.x1 + 6 + labelWidth(bottom.value) + 6;
+  if (centre + half <= from || centre - half >= to) return onScreen(centre);
+  const leftOf = from - half;
+  return onScreen(leftOf - half >= 4 ? leftOf : to + half);
 }
 
 function sizeLabel(r: Rect): string {
@@ -178,16 +251,28 @@ export function InspectOverlay() {
   const hoverShapeId = useEditor((s) => s.hoverShapeId);
   const draft = useEditor((s) => s.draft);
   const alt = useAltHeld();
-  if (tool !== 'select' && tool !== 'comment') return null;
+  const active = tool === 'select' || tool === 'comment';
 
   // While a comment is being written, the bubble's own outline takes over.
   const picked = tool === 'select' && !draft && pickedEl?.isConnected ? pickedEl : null;
   const hovering =
-    hoverEl?.isConnected && !region && !hoverShapeId && !draft && hoverEl !== picked
+    active && hoverEl?.isConnected && !region && !hoverShapeId && !draft && hoverEl !== picked
       ? hoverEl
       : null;
+  // Holding ⌥ swaps them for the padding/margin view (or the distance to the hovered element).
+  const guides = useSpacingGuides(picked && !alt ? picked : null);
+  if (!active) return null;
   const hr = hovering ? clientRect(hovering) : null;
   const pr = picked ? clientRect(picked) : null;
+  const pillText = pr ? sizeLabel(pr) : '';
+  const pillX = pr
+    ? pillCentre(
+        pr,
+        pillText.length * 6.6 + 14,
+        guides.find((g) => g.key === 'bottom'),
+        vp.width,
+      )
+    : 0;
   const area =
     tool === 'select' && !draft && pickedRegion
       ? {
@@ -218,23 +303,15 @@ export function InspectOverlay() {
           </div>
         </>
       )}
-      {picked && pr && !(alt && hovering) && (
-        <SpacingGuides
-          el={picked}
-          pill={{ x: pr.x + pr.width / 2, width: sizeLabel(pr).length * 6.6 + 14 }}
-        />
-      )}
+      {guides.length > 0 && <SpacingGuides lines={guides} />}
       {pr && (
         <>
           <div
             className="picked-outline"
             style={{ left: pr.x, top: pr.y, width: pr.width, height: pr.height }}
           />
-          <div
-            className="size-pill fixed"
-            style={{ left: pr.x + pr.width / 2, top: pr.y + pr.height + 8 }}
-          >
-            {sizeLabel(pr)}
+          <div className="size-pill fixed" style={{ left: pillX, top: pr.y + pr.height + 8 }}>
+            {pillText}
           </div>
         </>
       )}

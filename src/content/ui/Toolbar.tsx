@@ -18,7 +18,6 @@ import {
 } from '../motion/glass';
 import { BottomSheet, FloatingSheet, useCompact, useSheetPresence } from '../motion/MorphSheet';
 import { MorphTooltipGroup } from '../motion/MorphTooltip';
-import { usePresence } from '../motion/presence';
 import { textFontSize } from '../overlay/TextEditor';
 import { loadUiPrefs, saveUiPrefs, type UiPrefs } from '../persistence';
 import {
@@ -48,6 +47,10 @@ interface ButtonProps {
   className?: string;
   longPress?: 'menu';
   expanded?: boolean;
+  /** The menu this control opens (grown out of the tooltip). */
+  menu?: string;
+  /** Opens a panel: the tooltip gets out of the way on click. */
+  hideTip?: boolean;
   onClick: () => void;
   onPointerDown?: (e: ReactPointerEvent<HTMLButtonElement>) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
@@ -64,6 +67,8 @@ export function ToolButton({
   className,
   longPress,
   expanded,
+  menu,
+  hideTip,
   onClick,
   onPointerDown,
   onContextMenu,
@@ -77,6 +82,8 @@ export function ToolButton({
       data-tip={label}
       data-kbd={kbd}
       data-longpress={longPress}
+      data-menu={menu}
+      data-tip-hide={hideTip ? '' : undefined}
       aria-label={kbd ? `${label} (${kbd})` : label}
       aria-pressed={active ?? undefined}
       aria-expanded={expanded}
@@ -120,7 +127,9 @@ function useDismiss(open: boolean, inside: React.RefObject<HTMLElement | null>, 
     if (!open) return;
     const onDown = (e: PointerEvent) => {
       const el = inside.current;
-      if (el && e.composedPath().includes(el)) return;
+      const path = e.composedPath();
+      if (el && path.includes(el)) return;
+      if (path.some((n) => n instanceof Element && n.hasAttribute('data-tip-menu'))) return;
       closeRef.current();
     };
     window.addEventListener('pointerdown', onDown, true);
@@ -164,109 +173,107 @@ function StyleBar({ placement }: { placement: 'up' | 'down' }) {
     }
   };
   const pencilMode = tool === 'draw' && (drawTool === 'pen' || drawTool === 'eraser');
+  const menu =
+    popover === 'color'
+      ? {
+          owner: 'color',
+          label: 'Colour',
+          content: (
+            <div className="swatches">
+              {PALETTE.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className="swatch-btn"
+                  aria-label={c}
+                  data-active={shown.color.toLowerCase() === c.toLowerCase() ? '' : undefined}
+                  style={{ background: c }}
+                  onClick={() => {
+                    applyStyle({ ...shown, color: c });
+                    setPopover(null);
+                  }}
+                />
+              ))}
+              <label className="swatch-btn custom" aria-label="Custom colour">
+                <input
+                  type="color"
+                  value={shown.color.length === 7 ? shown.color : '#3b82f6'}
+                  onChange={(e) => applyStyle({ ...shown, color: e.target.value.toUpperCase() })}
+                />
+              </label>
+            </div>
+          ),
+        }
+      : popover === 'stroke'
+        ? {
+            owner: 'stroke',
+            label: 'Stroke',
+            content: (
+              <div className="stroke-menu">
+                <div className="width-row">
+                  {WIDTHS.map((w) => (
+                    <button
+                      key={w}
+                      type="button"
+                      className="width-btn"
+                      aria-label={`${w}px`}
+                      data-active={shown.width === w ? '' : undefined}
+                      onClick={() => applyStyle({ ...shown, width: w })}
+                    >
+                      <span style={{ height: w }} />
+                    </button>
+                  ))}
+                </div>
+                <div className="width-row" role="radiogroup" aria-label="Line style">
+                  {[false, true].map((dashed) => (
+                    <button
+                      key={String(dashed)}
+                      type="button"
+                      role="radio"
+                      className="width-btn"
+                      aria-checked={shown.dashed === dashed}
+                      aria-label={dashed ? 'Dashed line' : 'Solid line'}
+                      data-active={shown.dashed === dashed ? '' : undefined}
+                      onClick={() => applyStyle({ ...shown, dashed })}
+                    >
+                      <span className="line-sample" data-dashed={dashed ? '' : undefined} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ),
+          }
+        : null;
 
   return (
     <div ref={ref}>
-      <MorphTooltipGroup placement={placement} className="subbar" ariaLabel="Style">
-        <div className="tb-pop-anchor">
-          <button
-            type="button"
-            className="tb-btn"
-            data-tip="Colour"
-            aria-label="Colour"
-            aria-expanded={popover === 'color'}
-            onClick={() => setPopover(popover === 'color' ? null : 'color')}
-          >
-            <span className="swatch" style={{ background: shown.color }} />
-          </button>
-          {popover === 'color' && (
-            <div
-              className="mini-pop glass-css"
-              data-placement={placement}
-              role="dialog"
-              aria-label="Colour"
-            >
-              <div className="swatches">
-                {PALETTE.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    className="swatch-btn"
-                    aria-label={c}
-                    data-active={shown.color.toLowerCase() === c.toLowerCase() ? '' : undefined}
-                    style={{ background: c }}
-                    onClick={() => {
-                      applyStyle({ ...shown, color: c });
-                      setPopover(null);
-                    }}
-                  />
-                ))}
-                <label className="swatch-btn custom" aria-label="Custom colour">
-                  <input
-                    type="color"
-                    value={shown.color.length === 7 ? shown.color : '#3b82f6'}
-                    onChange={(e) => applyStyle({ ...shown, color: e.target.value.toUpperCase() })}
-                  />
-                </label>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="tb-pop-anchor">
-          <button
-            type="button"
-            className="tb-btn"
-            data-tip="Stroke"
-            aria-label="Stroke"
-            aria-expanded={popover === 'stroke'}
-            onClick={() => setPopover(popover === 'stroke' ? null : 'stroke')}
-          >
-            <span
-              className="stroke-preview"
-              data-dashed={shown.dashed ? '' : undefined}
-              style={{ height: Math.min(7, shown.width) }}
-            />
-          </button>
-          {popover === 'stroke' && (
-            <div
-              className="mini-pop glass-css"
-              data-placement={placement}
-              role="dialog"
-              aria-label="Stroke"
-            >
-              <div className="width-row">
-                {WIDTHS.map((w) => (
-                  <button
-                    key={w}
-                    type="button"
-                    className="width-btn"
-                    aria-label={`${w}px`}
-                    data-active={shown.width === w ? '' : undefined}
-                    onClick={() => applyStyle({ ...shown, width: w })}
-                  >
-                    <span style={{ height: w }} />
-                  </button>
-                ))}
-              </div>
-              <div className="width-row" role="radiogroup" aria-label="Line style">
-                {[false, true].map((dashed) => (
-                  <button
-                    key={String(dashed)}
-                    type="button"
-                    role="radio"
-                    className="width-btn"
-                    aria-checked={shown.dashed === dashed}
-                    aria-label={dashed ? 'Dashed line' : 'Solid line'}
-                    data-active={shown.dashed === dashed ? '' : undefined}
-                    onClick={() => applyStyle({ ...shown, dashed })}
-                  >
-                    <span className="line-sample" data-dashed={dashed ? '' : undefined} />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+      <MorphTooltipGroup placement={placement} className="subbar" ariaLabel="Style" menu={menu}>
+        <button
+          type="button"
+          className="tb-btn"
+          data-tip="Colour"
+          data-menu="color"
+          aria-label="Colour"
+          aria-expanded={popover === 'color'}
+          onClick={() => setPopover(popover === 'color' ? null : 'color')}
+        >
+          <span className="swatch" style={{ background: shown.color }} />
+        </button>
+        <button
+          type="button"
+          className="tb-btn"
+          data-tip="Stroke"
+          data-menu="stroke"
+          aria-label="Stroke"
+          aria-expanded={popover === 'stroke'}
+          onClick={() => setPopover(popover === 'stroke' ? null : 'stroke')}
+        >
+          <span
+            className="stroke-preview"
+            data-dashed={shown.dashed ? '' : undefined}
+            style={{ height: Math.min(7, shown.width) }}
+          />
+        </button>
         {pencilMode ? (
           <ToolButton
             icon="eraser"
@@ -362,7 +369,6 @@ export function Toolbar() {
   const [shapesOpen, setShapesOpen] = useState(false);
   const longPress = useRef<{ timer: number; fired: boolean }>({ timer: 0, fired: false });
   useDismiss(shapesOpen, shapesRef, () => setShapesOpen(false));
-  const flyout = usePresence(shapesOpen ? 'shapes' : null, true, 140);
 
   useEffect(() => {
     const bar = barRef.current;
@@ -451,7 +457,8 @@ export function Toolbar() {
 
   // Drag the whole dock by the bar's background (anything that is not a control).
   const onBarPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || (e.target as Element).closest('button, input, label, .mini-pop')) return;
+    if (e.button !== 0 || (e.target as Element).closest('button, input, label, [data-tip-menu]'))
+      return;
     const bar = barRef.current;
     if (!bar) return;
     const r = bar.getBoundingClientRect();
@@ -530,6 +537,37 @@ export function Toolbar() {
   const renderPanel = (key: string) => PANELS[key as Exclude<PanelId, 'none'>].render();
   const sheetOpenOnPhone = compact && sheet.shown !== null && sheet.phase === 'open';
 
+  const shapesMenu = shapesOpen
+    ? {
+        owner: 'shapes',
+        label: 'Shapes',
+        content: (
+          <div className="shape-menu" role="menu" aria-label="Shapes">
+            {SHAPES.map((s) => {
+              const Glyph = Icon[s.icon];
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={shapeActive && drawTool === s.id}
+                  className="menu-item"
+                  data-active={drawTool === s.id && shapeActive ? '' : undefined}
+                  onClick={() => {
+                    chooseDraw(s.id);
+                    setShapesOpen(false);
+                  }}
+                >
+                  <Glyph />
+                  <span>{s.label}</span>
+                  <kbd>{s.kbd}</kbd>
+                </button>
+              );
+            })}
+          </div>
+        ),
+      }
+    : null;
   return (
     <>
       <div
@@ -583,6 +621,7 @@ export function Toolbar() {
             className="toolbar-row"
             ariaLabel="Chrome Design"
             onPointerDown={onBarPointerDown}
+            menu={shapesMenu}
           >
             <ToolButton
               icon="close"
@@ -619,6 +658,7 @@ export function Toolbar() {
                 label="Shapes"
                 kbd={SHAPE_META[lastShape].kbd}
                 className="has-menu"
+                menu="shapes"
                 longPress="menu"
                 expanded={shapesOpen}
                 active={shapeActive}
@@ -631,38 +671,6 @@ export function Toolbar() {
               >
                 <span className="menu-mark" aria-hidden="true" />
               </ToolButton>
-              {flyout.key && (
-                <div
-                  className="mini-pop menu glass-css"
-                  data-placement={placement}
-                  data-exiting={flyout.exiting ? '' : undefined}
-                  inert={flyout.exiting}
-                  role="menu"
-                  aria-label="Shapes"
-                >
-                  {SHAPES.map((s) => {
-                    const Glyph = Icon[s.icon];
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        role="menuitemradio"
-                        aria-checked={shapeActive && drawTool === s.id}
-                        className="menu-item"
-                        data-active={drawTool === s.id && shapeActive ? '' : undefined}
-                        onClick={() => {
-                          chooseDraw(s.id);
-                          setShapesOpen(false);
-                        }}
-                      >
-                        <Glyph />
-                        <span>{s.label}</span>
-                        <kbd>{s.kbd}</kbd>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
             </div>
             <ToolButton
               icon="text"
@@ -675,6 +683,7 @@ export function Toolbar() {
             <ToolButton
               icon="more"
               label="More"
+              hideTip
               active={panel === 'more' || MORE_CHILDREN.has(panel)}
               badge={openCount}
               onClick={() => togglePanel(MORE_CHILDREN.has(panel) ? panel : 'more')}
@@ -682,6 +691,7 @@ export function Toolbar() {
             <ToolButton
               icon="export"
               label="Send to AI"
+              hideTip
               kbd="⇧E"
               className="droplet"
               active={panel === 'export'}

@@ -15,6 +15,11 @@ extension (including a phone-width bottom-sheet test). Verified on the demo page
   plain-language element names (`src/content/describe.ts`) + floating selection bar + Details;
   comment bubble with send button; More sheet of tiles; contextual style bar; phone bottom sheets on
   the Remote Desktop drawer physics; exit animations everywhere (bubble, bars, sheets, whole UI).
+- R8: one guide renderer for every measurement (`Guides` in overlay/InspectOverlay.tsx: pills
+  above horizontal lines, beside vertical ones, 88% opaque; margin orange, padding green); size
+  pill steps aside for the bottom guide; menus grow out of the morphing tooltip (`menu` prop on
+  `MorphTooltipGroup`, `data-menu` on the owning control, dark `.tip-menu`); a click keeps the
+  tooltip and resizes it; Shapes corner mark ◢; menus sized to their content.
 - R7: spacing guides on every selection (`edgeDistances` in shared/measure.ts, cached per element
   in overlay/spacing.ts; the selection bar keeps clear of the top/bottom guide); an open phone
   sheet whose content changes size eases its height at full width (`PullMotion.resize`,

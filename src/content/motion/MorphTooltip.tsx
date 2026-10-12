@@ -5,6 +5,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -18,6 +19,11 @@ import { prefersReducedMotion } from './spring';
  *   only plain shapes are filtered (blur 5 + alpha 22/-11), labels stay crisp,
  *   keyboard focus and reduced motion snap without the goo, touch never opens it.
  * Open delay follows Spark's fluid tooltips (350ms cold, instant once warm).
+ *
+ * Menus grow out of the same surface: a control that owns a menu (data-menu) hands its content
+ * to the group, and the tooltip extends from its label into the menu — or pours out of the
+ * control into it when no label was showing — instead of a second panel stacking on top.
+ * Clicking a control keeps the tooltip and lets it resize to the control's new label.
  */
 
 const MORPH_MS = 450;
@@ -27,8 +33,9 @@ const OPEN_DELAY_MS = 350;
 const CLOSE_DELAY_MS = 120;
 const TIP_HEIGHT = 26;
 const GAP = 10;
+const MENU_GAP = 12;
 
-type Morph = 'closed' | 'opening' | 'open' | 'moving' | 'closing';
+type Morph = 'closed' | 'opening' | 'open' | 'moving' | 'closing' | 'menu';
 
 interface Geometry {
   triggerLeft: number;
@@ -37,6 +44,7 @@ interface Geometry {
   triggerHeight: number;
   tipLeft: number;
   tipWidth: number;
+  tipHeight: number;
   restTop: number;
 }
 
@@ -63,6 +71,7 @@ const INITIAL: TipState = {
   triggerHeight: 0,
   tipLeft: 0,
   tipWidth: 0,
+  tipHeight: TIP_HEIGHT,
   restTop: 0,
   trailLeft: 0,
   trailWidth: 0,
@@ -78,6 +87,8 @@ interface Props {
   onPointerDown?: (e: ReactPointerEvent<HTMLDivElement>) => void;
   children: ReactNode;
   style?: CSSProperties;
+  /** An open menu: `owner` matches the data-menu of the control it belongs to. */
+  menu?: { owner: string; label: string; content: ReactNode } | null;
 }
 
 function tipTarget(el: EventTarget | null): HTMLElement | null {
@@ -91,10 +102,18 @@ export function MorphTooltipGroup({
   onPointerDown,
   children,
   style,
+  menu = null,
 }: Props) {
   const groupRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  /** The control under the mouse right now, so a click or a closing menu can return to it. */
+  const hovered = useRef<HTMLElement | null>(null);
+  const menuOpen = useRef(false);
+  useLayoutEffect(() => {
+    menuOpen.current = !!menu;
+  });
   const [state, setState] = useState<TipState>(INITIAL);
   const stateRef = useRef(state);
   const timers = useRef({ open: 0, close: 0, settle: 0, frame: 0 });
@@ -149,6 +168,7 @@ export function MorphTooltipGroup({
         triggerHeight: r.height,
         tipLeft,
         tipWidth,
+        tipHeight: TIP_HEIGHT,
         restTop,
       };
     },
@@ -162,6 +182,32 @@ export function MorphTooltipGroup({
     const b = tip.getBoundingClientRect();
     return { left: b.left - group.getBoundingClientRect().left, width: b.width };
   }, []);
+
+  /** The surface grown into a menu of `w` × `h` over its control, kept on screen. */
+  const menuGeometry = useCallback(
+    (el: HTMLElement, w: number, h: number): Geometry => {
+      const group = groupRef.current!.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      const triggerLeft = r.left - group.left;
+      const triggerTop = r.top - group.top;
+      let tipLeft = triggerLeft + (r.width - w) / 2;
+      const absLeft = group.left + tipLeft;
+      const vw = document.documentElement.clientWidth || window.innerWidth;
+      if (absLeft < 8) tipLeft += 8 - absLeft;
+      if (absLeft + w > vw - 8) tipLeft -= absLeft + w - (vw - 8);
+      return {
+        triggerLeft,
+        triggerTop,
+        triggerWidth: r.width,
+        triggerHeight: r.height,
+        tipLeft,
+        tipWidth: w,
+        tipHeight: h,
+        restTop: placement === 'up' ? triggerTop - h - MENU_GAP : triggerTop + r.height + MENU_GAP,
+      };
+    },
+    [placement],
+  );
 
   const reveal = useCallback(
     (el: HTMLElement, keyboard: boolean) => {
@@ -241,6 +287,9 @@ export function MorphTooltipGroup({
   const onPointerOver = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'touch') return;
     const el = tipTarget(e.target);
+    if (el) hovered.current = el;
+    // An open menu holds the surface; other controls don't pull it away.
+    if (menuOpen.current) return;
     if (!el || (el as HTMLButtonElement).disabled) return;
     window.clearTimeout(timers.current.close);
     const s = stateRef.current;
@@ -253,9 +302,10 @@ export function MorphTooltipGroup({
   };
 
   const onPointerLeave = () => {
+    hovered.current = null;
     window.clearTimeout(timers.current.open);
     window.clearTimeout(timers.current.close);
-    if (stateRef.current.morph === 'closed') return;
+    if (menuOpen.current || stateRef.current.morph === 'closed') return;
     timers.current.close = window.setTimeout(hide, CLOSE_DELAY_MS);
   };
 
@@ -268,6 +318,92 @@ export function MorphTooltipGroup({
     if (e.relatedTarget instanceof Node && groupRef.current?.contains(e.relatedTarget)) return;
     hide();
   };
+
+  /** A menu closed: back to the label of whatever is under the mouse, or sink away. */
+  const afterMenu = useCallback(() => {
+    const el = hovered.current;
+    if (!el?.isConnected || (el as HTMLButtonElement).disabled) {
+      hide();
+      return;
+    }
+    const g = geometryFor(el);
+    const trail = liveSurface();
+    clear();
+    commit({
+      ...stateRef.current,
+      ...g,
+      morph: 'moving',
+      visible: true,
+      trailLeft: trail ? trail.left : g.tipLeft,
+      trailWidth: trail ? trail.width : g.tipWidth,
+      travel: stateRef.current.travel + 1,
+    });
+    timers.current.settle = window.setTimeout(() => {
+      const s = stateRef.current;
+      if (s.morph === 'moving') commit({ ...s, morph: 'open' });
+    }, TRAVEL_MS);
+  }, [clear, commit, geometryFor, hide, liveSurface]);
+
+  // A menu opened: grow the surface into it (from the label, or out of the control).
+  const owner = menu?.owner ?? null;
+  useLayoutEffect(() => {
+    const group = groupRef.current;
+    const content = menuRef.current;
+    if (!owner || !group || !content) return;
+    const trigger = group.querySelector<HTMLElement>(`[data-menu="${owner}"]`);
+    if (!trigger) return;
+    const sizeTo = (first: boolean) => {
+      const b = content.getBoundingClientRect();
+      const g = menuGeometry(trigger, Math.ceil(b.width), Math.ceil(b.height));
+      const current = stateRef.current;
+      if (!first) {
+        commit({ ...current, ...g });
+        return;
+      }
+      clear();
+      const from = current.visible || current.morph === 'closing';
+      if (prefersReducedMotion() || from) {
+        commit({
+          ...current,
+          ...g,
+          label: '',
+          kbd: '',
+          morph: 'menu',
+          visible: true,
+          keyboard: false,
+        });
+        return;
+      }
+      commit({
+        ...current,
+        ...g,
+        label: '',
+        kbd: '',
+        morph: 'opening',
+        visible: false,
+        keyboard: false,
+        trailLeft: g.tipLeft,
+        trailWidth: g.tipWidth,
+        travel: current.travel + 1,
+      });
+      timers.current.frame = requestAnimationFrame(() => {
+        const pending = stateRef.current;
+        if (pending.morph !== 'opening') return;
+        commit({ ...pending, visible: true });
+        timers.current.settle = window.setTimeout(() => {
+          const s = stateRef.current;
+          if (s.morph === 'opening') commit({ ...s, morph: 'menu' });
+        }, MORPH_MS);
+      });
+    };
+    sizeTo(true);
+    const ro = new ResizeObserver(() => sizeTo(false));
+    ro.observe(content);
+    return () => {
+      ro.disconnect();
+      afterMenu();
+    };
+  }, [owner, clear, commit, menuGeometry, afterMenu]);
 
   useEffect(() => clear, [clear]);
 
@@ -285,7 +421,7 @@ export function MorphTooltipGroup({
     '--morph-duration': `${MORPH_MS}ms`,
     '--morph-travel': `${TRAVEL_MS}ms`,
     '--morph-close': `${CLOSE_MS}ms`,
-    '--tip-height': `${TIP_HEIGHT}px`,
+    '--tip-height': `${s.tipHeight}px`,
     ...style,
   } as CSSProperties;
 
@@ -299,11 +435,23 @@ export function MorphTooltipGroup({
       data-visible={s.visible}
       data-keyboard={s.keyboard}
       data-placement={placement}
+      data-menu={menu ? '' : undefined}
       style={vars}
       onPointerOver={onPointerOver}
       onPointerLeave={onPointerLeave}
       onPointerDown={(e) => {
-        hide();
+        const inMenu = (e.target as Element).closest?.('[data-tip-menu]');
+        if (e.pointerType === 'touch') hide();
+        else if (!menuOpen.current && !inMenu) {
+          // A click keeps the tooltip: once the control has updated, it resizes to the new
+          // label (or stays put) instead of sinking and pouring out again.
+          const el = tipTarget(e.target);
+          window.setTimeout(() => {
+            if (menuOpen.current || !el?.isConnected || hovered.current !== el) return;
+            if (stateRef.current.morph !== 'closed') reveal(el, false);
+          }, 0);
+        }
+        if (inMenu) return;
         window.clearTimeout(hold.current.timer);
         hold.current.fired = false;
         const el = tipTarget(e.target);
@@ -362,11 +510,28 @@ export function MorphTooltipGroup({
         )}
       </div>
       {children}
-      <div ref={tipRef} className="tip-surface" role="tooltip" aria-hidden={!s.visible}>
-        <span className="tip-label" key={`${s.travel}-${s.label}`}>
-          <span className="tip-text">{s.label}</span>
-          {s.kbd ? <kbd>{s.kbd}</kbd> : null}
-        </span>
+      <div
+        ref={tipRef}
+        className="tip-surface"
+        role={menu ? undefined : 'tooltip'}
+        aria-hidden={menu ? undefined : !s.visible}
+      >
+        {menu ? (
+          <div
+            ref={menuRef}
+            className="tip-menu"
+            data-tip-menu=""
+            role="dialog"
+            aria-label={menu.label}
+          >
+            {menu.content}
+          </div>
+        ) : (
+          <span className="tip-label" key={`${s.travel}-${s.label}`}>
+            <span className="tip-text">{s.label}</span>
+            {s.kbd ? <kbd>{s.kbd}</kbd> : null}
+          </span>
+        )}
       </div>
       <span ref={measureRef} className="tip-measure" aria-hidden="true">
         <span className="tip-text" />
