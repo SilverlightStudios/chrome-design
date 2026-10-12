@@ -41,11 +41,11 @@ Chrome extensions don't run on iPhone or Android Chrome. The touch layout is for
 
 ## Look and motion
 
-The look follows the owner's Remote Desktop viewer (`studio-hub/assist/public/desk`): Liquid Glass toolbar, chips, segmented controls, tiles and the bottom drawer. The motion follows Spark (`Repos/Spark`): the morphing tooltip and the StackableDrawer springs. Everything is CSS except the sheet springs, which need velocity-preserving retargeting.
+The look follows the owner's Remote Desktop viewer (`studio-hub/assist/public/desk`): Liquid Glass toolbar, chips, segmented controls and tiles. The motion follows Spark (`Repos/Spark`): the morphing tooltip, the StackableDrawer springs and, on phones, Spark's own scrubbed drawer. Everything is CSS except the sheet springs, which need velocity-preserving retargeting.
 
 - **Liquid Glass toolbar.** An SVG displacement map used as `backdrop-filter` (a port of the Remote Desktop's WebGL glass: 30 px edge refraction, frost, rim). This works in Chromium. Safari, and pages whose CSP blocks the map, get a frosted CSS glass instead. The glass tone adapts to light and dark pages.
 - **Tooltips** pour out of the hovered button and travel between buttons (Spark's morphing tooltip).
-- **Panels** spring from the toolbar (Spark's drawer). On phones they behave like the Remote Desktop drawer.
+- **Panels** spring from the toolbar (Spark's drawer). On phones they are Spark's app drawer: one morph plays the opening, a finger dragging it anywhere, and the close.
 
 Measured in Chrome DevTools (`document.getAnimations()`, rAF sampling) against the reference values:
 
@@ -55,8 +55,9 @@ Measured in Chrome DevTools (`document.getAnimations()`, rAF sampling) against t
 | Panel open (spring, starts at 38% × 58%) | 384 ms, 10 px overshoot (Spark drawer) | settles at 388 ms; overshoot 6 px wide, 2 px tall (the same 10 px spread over the size change) |
 | Panel close (content stays visible) | 180 ms (Spark drawer) | 180 ms, removed at 188 ms, content opacity 1 throughout |
 | Panel switch | crossfade, never blank | old panel fades out by ~180 ms, new one is fully in by ~260 ms, no restart |
-| Phone sheet open | 384 ms spring, content fades in after 36% (Remote Desktop drawer) | settles at ~348 ms, 6 px overshoot, content fully in at ~364 ms |
-| Phone sheet close | 0.18 s × 1.3 spring, content rides down | off screen at ~150 ms, removed at ~313 ms, content opacity 1 throughout |
+| Phone sheet open | Spark app drawer (iPhone emulator): from 39% wide, 78% of its height by ~233 ms, settles ~400 ms, ~1 px overshoot | from 39% wide, 79% by ~221 ms, settles ~407 ms, 1 px overshoot |
+| Phone sheet close | Spark: shrinks to the card and drops away, content until ~340 ms, gone ~480–530 ms | content until ~344 ms, gone ~494–544 ms |
+| Phone sheet drag | follows the finger 1:1, 36 px overpull, 0.18 s velocity projection | same (60 px slow drag springs back, flick or past half closes) |
 | Comment bubble close | — | fades out and shrinks back toward its pin over ~140 ms |
 | Whole toolbar close | — | fades out over 200 ms and slides down 24 px over 240 ms, then everything is removed |
 
@@ -177,7 +178,7 @@ scripts/       build.mjs (three Vite builds + manifest), make-icons.mjs (depende
 
 ## Attribution
 
-Chrome Design is an original implementation inspired by the workflow in [Squints](https://x.com/andreaskatzmann/status/2109119904351924379) by Andreas Katzmann: design inspection tools (inspect, rulers and guides, column grid, drawing) layered over live web pages. I studied the public demo video and the public feature description. No Squints source code, branding, logos, icons or assets were used. The interface, extension icon, code and the AI-handoff export format are original to this project. The visual language and motion follow the owner's own projects: the Remote Desktop viewer (Liquid Glass, drawer) and Spark (morphing tooltip, StackableDrawer springs, DialKit sliders).
+Chrome Design is an original implementation inspired by the workflow in [Squints](https://x.com/andreaskatzmann/status/2109119904351924379) by Andreas Katzmann: design inspection tools (inspect, rulers and guides, column grid, drawing) layered over live web pages. I studied the public demo video and the public feature description. No Squints source code, branding, logos, icons or assets were used. The interface, extension icon, code and the AI-handoff export format are original to this project. The visual language and motion follow the owner's own projects: the Remote Desktop viewer (Liquid Glass) and Spark (morphing tooltip, StackableDrawer springs, the scrubbed phone drawer, DialKit sliders).
 
 Toolbar and panel icons use [Lucide](https://lucide.dev) geometry (ISC, © Lucide Icons and Contributors), animated after [Lucide Animated](https://lucide-animated.com) (MIT, © 2024-2026 pqoqubbw), the animated icon reference in Spark's resources. Its motion/react variants are re-implemented as CSS keyframes (`src/content/ui/icons.tsx`, `.ai-*` in `styles.css`); no animation library ships in the extension. Pressing a control plays its icon; hovering plays it too, and a few icons (download, trash, settings) hold a pose while hovered.
 

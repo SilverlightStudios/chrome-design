@@ -3120,21 +3120,17 @@ details.options .checks {
   border: 0;
   padding: 0;
   background: hsl(0 0% 0% / 0.18);
-  opacity: 1;
+  /* Follows the sheet frame by frame (PullMotion writes --progress on the root). */
+  opacity: var(--progress, 0);
   pointer-events: auto;
   touch-action: none;
   overscroll-behavior: none;
-  transition: opacity 0.26s var(--sheet-ease);
-  @starting-style {
-    opacity: 0;
-  }
 }
 .bsheet-root[data-phase="closing"] .bsheet-scrim {
-  opacity: 0;
   pointer-events: none;
 }
-/* The Remote Desktop drawer: a bottom-attached surface sized by springs (--w/--h/--oy, written
-   by DrawerMotion) over a content plane that is always its final size (--fw/--fh). */
+/* Spark's scrubbed drawer: a bottom-attached surface shaped by one number (--w/--h/--oy/--rb,
+   written by PullMotion) over a content plane that is always its final size (--fw/--fh). */
 .bsheet-dock {
   position: absolute;
   left: 0;
@@ -3149,8 +3145,9 @@ details.options .checks {
   bottom: 0;
   left: 50%;
   width: var(--w, 0px);
-  height: calc(var(--h, 0px) + var(--rb, 0px));
-  translate: -50% calc(var(--oy, 0px) + var(--gy, 0px));
+  /* --h already includes the overpull stretch (--rb), which lifts the plane below. */
+  height: var(--h, 0px);
+  translate: -50% var(--oy, 0px);
   overflow: hidden;
   contain: layout paint;
   border-radius: 22px 22px 0 0;
@@ -3176,21 +3173,12 @@ details.options .checks {
   display: flex;
   flex-direction: column;
   padding-bottom: env(safe-area-inset-bottom);
-  /* Content arrives late, once the surface has mostly grown (desk.css `dreveal`). */
-  animation: bsheet-reveal 0.384s linear both;
+  /* In step with the shape: there almost as soon as the card shows, and kept through the
+     whole shrink and half the card's drop when closing — never a blank shell. */
+  opacity: var(--reveal, 0);
 }
-@keyframes bsheet-reveal {
-  0%,
-  36% {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-/* Closing: the content rides down with the surface, never fading out first. */
-.bsheet-root[data-phase="closing"] .bsheet-plane {
-  animation: none;
+.bsheet[data-dragging] {
+  cursor: grabbing;
 }
 .bsheet-grab {
   display: grid;
@@ -3212,6 +3200,10 @@ details.options .checks {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
+  /* The whole sheet is a drag surface; only a list that really scrolls keeps vertical pans. */
+  touch-action: none;
+}
+.bsheet-body[data-scrolls] {
   touch-action: pan-y;
 }
 .bsheet .panel-head {

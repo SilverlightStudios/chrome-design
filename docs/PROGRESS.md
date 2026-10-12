@@ -15,6 +15,11 @@ extension (including a phone-width bottom-sheet test). Verified on the demo page
   plain-language element names (`src/content/describe.ts`) + floating selection bar + Details;
   comment bubble with send button; More sheet of tiles; contextual style bar; phone bottom sheets on
   the Remote Desktop drawer physics; exit animations everywhere (bubble, bars, sheets, whole UI).
+- R6: phone sheets are Spark's own app drawer (StackableDrawer `motion="scrub"`, useDrawerPull):
+  one number (top edge height) drives shape, content fade and scrim; open 0.42s/0.86 spring
+  from the edge with width on an exponential curve from 38%; drag anywhere that isn't a control
+  (scrolling list only from its top), 36px overpull; release projects velocity 0.18s; close
+  1.26s critically damped toward -0.58H, removed at -24px (`PullMotion` in motion/MorphSheet.tsx).
 - R5: animated icons — Lucide geometry with Lucide Animated's motion as CSS keyframes
   (`ui/icons.tsx`, `iconMotion.ts` restarts `data-play` on press / mouse enter; `data-hold` icons
   hold a hover pose).

@@ -30,12 +30,14 @@ import {
  *   close: the whole sheet, content included, sinks back toward the toolbar and fades (the
  *          Remote Desktop drawer's "content rides down with the surface").
  *
- * Mobile — a bottom sheet on the same physics as the owner's Remote Desktop drawer (desk.js, a
- * port of Spark's StackableDrawer): the surface springs up from 38% × 58% of its box with a
- * 10px overshoot in 384ms while the full-size content fades in late (hidden until 36%); panel
- * changes re-spring its height (0.3s, ~6px overshoot); it drops away in 0.18s × 1.3 with its
- * content riding down. Drag the handle: down follows the finger, up stretches with a rubber
- * band (max 64px); let go past 84px or with a flick (> 0.6 px/ms) to close, else it springs back.
+ * Mobile — a bottom sheet that is Spark's own app drawer (StackableDrawer in "scrub" mode,
+ * useDrawerPull.ts): one number, the top edge's height, drives the shape, the content fade and
+ * the scrim. It rises from the edge (height leads; width grows from 38% on an exponential
+ * curve) on a 0.42s / 0.86 spring; a finger anywhere on it (not on a control, and a scrolling
+ * list only from its top) moves that number directly, stretching up to 36px past open; letting
+ * go projects the speed 0.18s ahead to decide open or closed and keeps it; closing shrinks back
+ * to the card and drops away on a 1.26s critically damped spring aimed a card's depth past the
+ * edge, taken off the moment it is out of sight.
  */
 
 const OPEN_S = 0.384;
@@ -47,12 +49,7 @@ const MAX_FRAME_S = 0.1;
 const CLOSE_MS = 180;
 const SWAP_FADE_MS = 180;
 // Remote Desktop drawer (desk.js) on phones.
-const DRAWER_CLOSE_S = 0.18 * 1.3;
-const DRAWER_RESIZE_S = 0.3;
-const DRAWER_RESIZE_OVERSHOOT_PX = 6;
-const DRAWER_DISMISS_PX = 84;
-const DRAWER_FLICK = 0.6;
-const DRAWER_BAND_PX = 64;
+/** A phone sheet comes up at most this share of the screen (the Remote Desktop drawer's cap). */
 const DRAWER_MAX_SHARE = 0.72;
 
 export type SheetPhase = 'open' | 'closing';
@@ -284,167 +281,175 @@ export function FloatingSheet({
 }
 
 const INTERACTIVE =
-  'button, input, textarea, select, label, a, summary, [role="switch"], .scrub-label';
+  'button, input, textarea, select, label, a, summary, [role="switch"], [role="slider"], [role="radio"], [contenteditable]';
 
-/** Rubber band for pulling the sheet up (Remote Desktop / Spark: approaches 64px). */
-const band = (d: number) => DRAWER_BAND_PX * (1 - 1 / (d * 0.018 + 1));
+/*
+ * The phone sheet is Spark's drawer in its "scrub" mode (StackableDrawer/useDrawerPull.ts, as
+ * Spark's own app uses it): one number places the sheet — how far its top edge is above the
+ * bottom of the screen — and opening, a finger dragging it, and closing all play that one
+ * morph. The top edge sits at that height with the full-size content uncovered beneath it;
+ * the width grows from the narrow starting card (38%) on an exponential curve of how far up it
+ * is; the content fades in over the first stretch and the scrim follows. A finger writes the
+ * number directly; letting go, opening or closing hands it to a spring that keeps the finger's
+ * velocity, so nothing changes speed at the release.
+ */
+/** How far a release is projected along its velocity, in seconds, before it is decided. */
+const PROJECTION_S = 0.18;
+/** How far past fully closed the sheet is taken off, so its shadow clears the edge too. */
+const CLOSED_GAP = 24;
+/** Pulled past fully open, the surface gives this much at most. */
+const MAX_OVERPULL = 36;
+/** The content is all there until the sheet is down to half its starting card's depth. */
+const REVEAL_DEPTH = 0.5;
+/** How sharply the width's growth accelerates (3: full width exactly as it's fully open). */
+const WIDTH_CURVE = 3;
+/** Opening is a touch underdamped; closing aims a card's depth past the edge, critically damped. */
+const OPEN_SPRING = { response: 0.42, damping: 0.86 };
+const CLOSE_SPRING = { response: 1.26, damping: 1 };
+const PULL_FRAME_S = 0.05;
+const REST_DISTANCE = 0.5;
+const REST_SPEED = 8;
+/** Only the last stretch of a drag counts towards the velocity it is let go with. */
+const VELOCITY_WINDOW_MS = 100;
+const POINTER_LOCK_PX = 6;
 
-/** The phone sheet's spring loop (size, lift, rubber band), kept outside React renders. */
-class DrawerMotion {
-  readonly w = createSpring(0);
-  readonly h = createSpring(0);
-  readonly y = createSpring(0);
-  readonly rb = createSpring(0);
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+const resist = (d: number) => MAX_OVERPULL * (1 - 1 / (d / (MAX_OVERPULL * 2.5) + 1));
+
+/** The phone sheet's single-number morph and its spring, kept outside React renders. */
+export class PullMotion {
   surface: HTMLElement | null = null;
-  /** Finger offset while dragging down (follows 1:1, not a spring). */
-  gy = 0;
-  closing = false;
-  private opened = false;
+  root: HTMLElement | null = null;
+  /** Top edge above the bottom (px); below 0 it carries on down out of sight. */
+  d = 0;
+  private size: Size = { w: 0, h: 0 };
+  private spring: Spring | null = null;
+  private closingTo: (() => void) | null = null;
   private raf = 0;
   private last = 0;
-  private timer: number | undefined;
-  private onRest: (() => void) | null = null;
+  private started = false;
+  dragging = false;
 
-  private get all(): Spring[] {
-    return [this.w, this.h, this.y, this.rb];
+  get height(): number {
+    return this.size.h;
   }
 
   write(): void {
     const el = this.surface;
-    if (!el) return;
-    el.style.setProperty('--w', `${Math.max(0, this.w.value).toFixed(2)}px`);
-    el.style.setProperty('--h', `${Math.max(0, this.h.value).toFixed(2)}px`);
-    el.style.setProperty('--oy', `${this.y.value.toFixed(2)}px`);
-    el.style.setProperty('--gy', `${this.gy.toFixed(2)}px`);
-    el.style.setProperty('--rb', `${Math.max(0, this.rb.value).toFixed(2)}px`);
+    const { w: width, h: height } = this.size;
+    if (!el || !height) return;
+    const d = this.d;
+    const progress = clamp01(d / height);
+    const growth = Math.expm1(WIDTH_CURVE * progress) / Math.expm1(WIDTH_CURVE);
+    const stretch = d > height ? resist(d - height) : 0;
+    const startWidth = width * START_ALONG;
+    el.style.setProperty('--w', `${(startWidth + (width - startWidth) * growth).toFixed(2)}px`);
+    el.style.setProperty('--h', `${(Math.max(0, Math.min(d, height)) + stretch).toFixed(2)}px`);
+    el.style.setProperty('--oy', `${Math.max(0, -d).toFixed(2)}px`);
+    el.style.setProperty('--rb', `${stretch.toFixed(2)}px`);
+    el.style.setProperty('--reveal', clamp01(d / (height * START_DEPTH * REVEAL_DEPTH)).toFixed(4));
+    this.root?.style.setProperty('--progress', progress.toFixed(4));
   }
 
-  private wake(): void {
-    if (this.raf) return;
+  private stopSpring(): void {
+    cancelAnimationFrame(this.raf);
+    this.raf = 0;
+    this.spring = null;
+  }
+
+  /** Hand the number to a spring toward open (or toward gone), keeping `velocity` (px/s, up +). */
+  private settle(open: boolean, velocity: number): void {
+    this.stopSpring();
+    const height = this.size.h;
+    const { response, damping } = open ? OPEN_SPRING : CLOSE_SPRING;
+    const spring = createSpring(this.d, stiffnessFor(response), damping);
+    spring.target = open ? height : -height * START_DEPTH;
+    spring.velocity = velocity;
+    this.spring = spring;
+    const finish = () => {
+      this.stopSpring();
+      if (!open) {
+        const done = this.closingTo;
+        this.closingTo = null;
+        done?.();
+      }
+    };
+    if (prefersReducedMotion()) {
+      this.d = open ? spring.target : -CLOSED_GAP;
+      this.write();
+      finish();
+      return;
+    }
     this.last = performance.now();
     const step = (now: number) => {
-      const dt = Math.min(MAX_FRAME_S, (now - this.last) / 1000);
+      const dt = Math.min(PULL_FRAME_S, (now - this.last) / 1000);
       this.last = now;
-      const calm = prefersReducedMotion();
-      for (const s of this.all) {
-        if (calm) {
-          s.value = s.target;
-          s.velocity = 0;
-        } else advance(s, dt);
-      }
-      // Closing is done once the sheet is out of view; no need to wait for the spring to rest.
-      if (this.closing && this.y.value >= this.y.target - 1) {
-        this.y.value = this.y.target;
-        this.y.velocity = 0;
-        this.rb.value = this.rb.target;
-        this.rb.velocity = 0;
-      }
+      advance(spring, dt);
+      const resting = open
+        ? Math.abs(spring.value - spring.target) < REST_DISTANCE &&
+          Math.abs(spring.velocity) < REST_SPEED
+        : spring.value <= -CLOSED_GAP;
+      this.d = resting && open ? spring.target : spring.value;
       this.write();
-      if (this.all.every(isAtRest)) {
-        this.raf = 0;
-        const done = this.onRest;
-        this.onRest = null;
-        done?.();
-        return;
-      }
-      this.raf = requestAnimationFrame(step);
+      if (resting) finish();
+      else this.raf = requestAnimationFrame(step);
     };
     this.raf = requestAnimationFrame(step);
   }
 
+  /** The sheet's final box: the first one rises it from the edge; later ones re-settle. */
   measured(next: Size): void {
-    if (this.closing) return;
-    if (!this.opened) {
-      this.opened = true;
-      // Spark: narrow along the edge, a little over half as deep, 16px low; height leads.
-      this.w.value = next.w * START_ALONG;
-      this.h.value = next.h * START_DEPTH;
-      this.y.value = 16;
-      this.w.target = this.w.value;
-      this.h.target = next.h;
-      this.y.target = 0;
-      configure(
-        [this.w, this.h],
-        OPEN_S,
-        OVERSHOOT_PX,
-        Math.hypot(next.w - this.w.value, next.h - this.h.value),
-      );
-      configure([this.y], OPEN_S * 1.3, 0, 16);
+    const previous = this.size;
+    this.size = next;
+    if (!this.started) {
+      this.started = true;
+      this.d = 0;
       this.write();
-      this.wake();
-      this.timer = window.setTimeout(() => {
-        this.w.target = next.w;
-        this.wake();
-      }, CROSS_AXIS_DELAY_MS);
+      this.settle(true, 0);
       return;
     }
-    // Another panel or its content changed: re-spring to the new box.
-    configure([this.w], DRAWER_RESIZE_S, 0, 0);
-    configure(
-      [this.h],
-      DRAWER_RESIZE_S,
-      DRAWER_RESIZE_OVERSHOOT_PX,
-      Math.abs(next.h - this.h.value),
-    );
-    this.w.target = next.w;
-    this.h.target = next.h;
-    this.wake();
+    if (this.closingTo || this.dragging) {
+      this.write();
+      return;
+    }
+    // Another panel or its content changed: the top edge springs to the new height. Also picks
+    // the rise back up if something stopped it short (React's dev double-mount cancels frames).
+    if (this.spring) {
+      if (previous.h !== next.h) this.settle(true, this.spring.velocity);
+      else this.write();
+    } else if (Math.abs(this.d - next.h) > REST_DISTANCE) this.settle(true, 0);
+    else this.write();
   }
 
-  /** Finger moved `dy` from where the drag started (positive = down). */
+  /** A finger is `dy` px from where it started (down +): the top edge follows it. */
   drag(dy: number): void {
-    cancelAnimationFrame(this.raf);
-    this.raf = 0;
-    this.gy = Math.max(0, dy);
-    this.rb.value = dy < 0 ? band(-dy) : 0;
-    this.rb.velocity = 0;
-    this.rb.target = this.rb.value;
+    this.stopSpring();
+    this.d = this.size.h - dy;
     this.write();
   }
 
-  /** Let go: spring back into place (the close itself is `close`). */
-  settle(): void {
-    this.y.value += this.gy;
-    this.gy = 0;
-    configure([this.y, this.rb], DRAWER_RESIZE_S, 0, 0);
-    this.y.target = 0;
-    this.rb.target = 0;
-    this.wake();
+  /** Let go with `velocity` (px/s, up +). True if it opens again, false if it should close. */
+  release(velocity: number): boolean {
+    const open = this.d + velocity * PROJECTION_S > this.size.h / 2;
+    if (open) this.settle(true, velocity);
+    return open;
   }
 
-  /** Drop away below the edge, content riding down; `velocity` in px/s carries a flick. */
+  /** Shrink back to the starting card and drop away; `done` once out of sight. */
   close(done: () => void, velocity = 0): void {
-    this.closing = true;
-    if (this.timer !== undefined) window.clearTimeout(this.timer);
-    this.y.value += this.gy;
-    this.gy = 0;
-    this.y.velocity = Math.max(this.y.velocity, velocity);
-    configure([this.y], DRAWER_CLOSE_S, 0, 0);
-    this.y.target = this.h.value + this.rb.value + 24;
-    this.w.target = this.w.value;
-    this.h.target = this.h.value;
-    this.w.velocity = 0;
-    this.h.velocity = 0;
-    configure([this.rb], DRAWER_CLOSE_S, 0, 0);
-    this.rb.target = 0;
-    this.onRest = done;
-    this.wake();
+    this.closingTo = done;
+    this.settle(false, Math.min(0, velocity));
   }
 
   /** Reopened while closing: rise back from wherever it is. */
   reopen(): void {
-    if (!this.closing) return;
-    this.closing = false;
-    this.onRest = null;
-    configure([this.y], OPEN_S * 1.3, 0, 0);
-    this.y.target = 0;
-    this.wake();
+    if (!this.closingTo) return;
+    this.closingTo = null;
+    this.settle(true, this.spring?.velocity ?? 0);
   }
 
   stop(): void {
-    cancelAnimationFrame(this.raf);
-    this.raf = 0;
-    if (this.timer !== undefined) window.clearTimeout(this.timer);
+    this.stopSpring();
   }
 }
 
@@ -497,19 +502,22 @@ export function BottomSheet({
   const planeRef = useRef<HTMLDivElement>(null);
   const grabRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
-  const motionRef = useRef<DrawerMotion | null>(null);
-  motionRef.current ??= new DrawerMotion();
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const motionRef = useRef<PullMotion | null>(null);
+  motionRef.current ??= new PullMotion();
   const [box, setBox] = useState<Size | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [scrolls, setScrolls] = useState(false);
   const drag = useRef<{
-    startY: number;
+    id: number;
+    x: number;
+    y: number;
+    locked: boolean;
     samples: { y: number; t: number }[];
-    moved: boolean;
-    dy: number;
   } | null>(null);
   const { leaving, swappedIn } = useSwap(contentKey, SWAP_FADE_MS);
   const kb = useKeyboardInset(rootRef);
-  /** Flick speed at release (px/s), handed to the closing spring. */
+  /** Speed at release (px/s, up +), handed to the closing spring. */
   const releaseVelocity = useRef(0);
   const closedRef = useRef(onClosed);
   useLayoutEffect(() => {
@@ -522,6 +530,7 @@ export function BottomSheet({
     if (!frame || !contentKey) return;
     const motion = motionRef.current!;
     motion.surface = surfaceRef.current;
+    motion.root = rootRef.current;
     const measure = () => {
       const dock = dockRef.current;
       const plane = planeRef.current;
@@ -533,6 +542,7 @@ export function BottomSheet({
       const next = { w: dock.clientWidth, h: Math.round(Math.min(natural, max)) };
       if (next.w === 0 || next.h === 0) return;
       setBox((prev) => (prev && prev.w === next.w && prev.h === next.h ? prev : next));
+      setScrolls(natural > max + 1);
       motion.measured(next);
     };
     measure();
@@ -548,7 +558,8 @@ export function BottomSheet({
       motion.reopen();
       return;
     }
-    // Closing: drop away, then unmount (with a fallback if frames stop, e.g. a hidden tab).
+    // Closing: shrink to the card and drop away, then unmount (with a fallback if frames
+    // stop, e.g. a hidden tab).
     let done = false;
     const finish = () => {
       if (done) return;
@@ -557,7 +568,7 @@ export function BottomSheet({
     };
     motion.close(finish, releaseVelocity.current);
     releaseVelocity.current = 0;
-    const t = window.setTimeout(finish, prefersReducedMotion() ? 0 : 700);
+    const t = window.setTimeout(finish, prefersReducedMotion() ? 0 : 1500);
     return () => window.clearTimeout(t);
   }, [phase]);
 
@@ -578,51 +589,69 @@ export function BottomSheet({
     return () => root.removeEventListener('touchmove', onTouchMove);
   }, [phase]);
 
+  // Spark's drawer gesture: grab the sheet anywhere that isn't a control. A list that scrolls
+  // only hands over once it's at its top and the finger is pulling down.
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (phase !== 'open' || e.button !== 0) return;
+    if (phase !== 'open' || e.button > 0 || drag.current) return;
     const target = e.target as Element;
-    // Drag from the handle or the panel's title row; the body scrolls natively.
-    if (!target.closest('.bsheet-grab, .panel-head') || target.closest(INTERACTIVE)) return;
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      // synthetic or already-released pointer
-    }
+    const fromChrome = !!target.closest('.bsheet-grab, .panel-head');
+    if (!fromChrome && target.closest(INTERACTIVE)) return;
     drag.current = {
-      startY: e.clientY,
+      id: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      locked: false,
       samples: [{ y: e.clientY, t: performance.now() }],
-      moved: false,
-      dy: 0,
     };
   };
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const d = drag.current;
-    if (!d) return;
+    if (!d || d.id !== e.pointerId) return;
+    const dy = e.clientY - d.y;
+    if (!d.locked) {
+      if (Math.abs(dy) < POINTER_LOCK_PX) return;
+      const body = bodyRef.current;
+      const inList =
+        !!body && body.contains(e.target as Node) && !(e.target as Element).closest('.panel-head');
+      const listBusy =
+        inList && body!.scrollHeight > body!.clientHeight + 1 && (dy < 0 || body!.scrollTop > 1);
+      if (Math.abs(dy) <= Math.abs(e.clientX - d.x) || listBusy) {
+        drag.current = null;
+        return;
+      }
+      d.locked = true;
+      motionRef.current!.dragging = true;
+      setDragging(true);
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // synthetic or already-released pointer
+      }
+    }
     const now = performance.now();
     d.samples.push({ y: e.clientY, t: now });
-    // Keep the last ~120ms of movement for the release velocity.
-    while (d.samples.length > 2 && now - d.samples[0]!.t > 120) d.samples.shift();
-    const dy = e.clientY - d.startY;
-    if (!d.moved && Math.abs(dy) < 6) return;
-    if (!d.moved) setDragging(true);
-    d.moved = true;
-    d.dy = dy;
+    while (d.samples.length > 2 && now - d.samples[0]!.t > VELOCITY_WINDOW_MS) d.samples.shift();
     motionRef.current!.drag(dy);
   };
-  const onPointerUp = () => {
+  const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
     const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
     drag.current = null;
-    if (!d?.moved) return;
+    if (!d.locked) return;
+    const motion = motionRef.current!;
+    motion.dragging = false;
     setDragging(false);
     const first = d.samples[0]!;
     const last = d.samples[d.samples.length - 1]!;
-    const span = last.t - first.t;
-    // px/ms over the recent window; a window shorter than 30ms can't be trusted as a flick.
-    const velocity = span >= 30 ? (last.y - first.y) / span : 0;
-    if (d.dy > DRAWER_DISMISS_PX || (velocity > DRAWER_FLICK && d.dy > 24)) {
-      releaseVelocity.current = Math.max(0, velocity * 1000);
-      onDismiss();
-    } else motionRef.current!.settle();
+    const now = performance.now();
+    // Up is positive. A finger that stopped before it lifted gives none.
+    const velocity =
+      last.t > first.t && now - last.t < VELOCITY_WINDOW_MS
+        ? -((last.y - first.y) / (last.t - first.t)) * 1000
+        : 0;
+    if (motion.release(velocity)) return;
+    releaseVelocity.current = velocity;
+    onDismiss();
   };
 
   return (
@@ -663,7 +692,7 @@ export function BottomSheet({
             <div ref={grabRef} className="bsheet-grab" aria-hidden="true">
               <span />
             </div>
-            <div className="bsheet-body">
+            <div ref={bodyRef} className="bsheet-body" data-scrolls={scrolls ? '' : undefined}>
               {leaving && leaving !== contentKey ? (
                 <div
                   className="bsheet-frame leaving"
