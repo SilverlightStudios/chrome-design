@@ -41,8 +41,7 @@ function manifest() {
     description: pkg.description,
     minimum_chrome_version: '120',
     action: {
-      default_title: 'Chrome Design',
-      default_popup: 'popup.html',
+      default_title: 'Chrome Design (⌥⇧D)',
       default_icon: { 16: 'icons/icon-16.png', 32: 'icons/icon-32.png', 48: 'icons/icon-48.png' },
     },
     icons: {
@@ -52,6 +51,7 @@ function manifest() {
       128: 'icons/icon-128.png',
     },
     background: { service_worker: 'background.js', type: 'module' },
+    options_ui: { page: 'options.html', open_in_tab: true },
     permissions: ['activeTab', 'scripting', 'storage'],
     optional_host_permissions: ['<all_urls>'],
     ...(e2e ? { host_permissions: ['<all_urls>'] } : {}),
@@ -78,7 +78,12 @@ async function run() {
       ...shared,
       build: {
         ...shared.build,
-        rollupOptions: { input: { popup: resolve(root, 'src/popup/popup.html') } },
+        rollupOptions: {
+          input: {
+            popup: resolve(root, 'src/popup/popup.html'),
+            options: resolve(root, 'src/popup/options.html'),
+          },
+        },
       },
       // Emit popup.html at the dist root instead of dist/src/popup/.
       plugins: [
@@ -89,6 +94,7 @@ async function run() {
           generateBundle(_options, bundle) {
             for (const file of Object.values(bundle)) {
               if (file.fileName.endsWith('popup.html')) file.fileName = 'popup.html';
+              if (file.fileName.endsWith('options.html')) file.fileName = 'options.html';
             }
           },
         },

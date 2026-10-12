@@ -50,16 +50,16 @@ function drawRuler(
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   ctx.scale(dpr, dpr);
-  ctx.fillStyle = '#1c1d21';
-  ctx.fillRect(0, 0, w, h);
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const ink = dark ? '255,255,255' : '20,20,20';
   if (highlight) {
-    ctx.fillStyle = 'rgba(64, 132, 255, 0.35)';
+    ctx.fillStyle = 'rgba(86, 132, 245, 0.3)';
     const [a, b] = highlight;
     if (axis === 'x') ctx.fillRect(a - offset, 0, b - a, RULER);
     else ctx.fillRect(0, a - offset, RULER, b - a);
   }
-  ctx.strokeStyle = 'rgba(255,255,255,0.32)';
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.strokeStyle = `rgba(${ink},0.32)`;
+  ctx.fillStyle = `rgba(${ink},0.62)`;
   ctx.font = '9px ui-sans-serif, system-ui, sans-serif';
   ctx.lineWidth = 1;
   const start = Math.floor(offset / 10) * 10;
@@ -86,7 +86,7 @@ function drawRuler(
     }
   }
   ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.strokeStyle = `rgba(${ink},0.1)`;
   ctx.beginPath();
   if (axis === 'x') {
     ctx.moveTo(0, RULER - 0.5);
@@ -195,6 +195,8 @@ export function RulersAndGuides() {
   const shown = guides.filter((g) => g.id !== drag?.id);
   return (
     <div className="rulers ui">
+      <div className="ruler-strip x glass-css" />
+      <div className="ruler-strip y glass-css" />
       {shown.map((g) => {
         const c = toClient(g, vp);
         return (

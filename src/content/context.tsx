@@ -17,13 +17,20 @@ export type ExportStatus =
     }
   | { phase: 'error'; message: string };
 
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
+
 export interface EditorEnv {
   store: EditorStore;
   host: HTMLElement;
   shadow: ShadowRoot;
   close: () => void;
   runExport: (options: ExportOptions, onStatus: (status: ExportStatus) => void) => Promise<void>;
-  toast: (message: string) => void;
+  toast: (message: string, action?: ToastAction) => void;
+  /** Open the extension's settings page (cross-origin asset permission lives there). */
+  openSettings: () => void;
 }
 
 const EnvContext = createContext<EditorEnv | null>(null);
@@ -78,23 +85,38 @@ export function useViewport(): Viewport {
   return vp;
 }
 
-/** Bumps when page layout may have changed (resize, DOM mutations), so anchored pins can follow. */
+/**
+ * Bumps when page layout may have changed, so element-anchored pins follow their element:
+ * resizes (debounced) and any scroll (per frame — covers inner scroll containers and
+ * position: fixed/sticky elements, which move relative to the document as the page scrolls).
+ */
 export function useLayoutVersion(): number {
   const [version, setVersion] = useState(0);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let frame = 0;
     const bump = () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => setVersion((v) => v + 1), 120);
     };
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        setVersion((v) => v + 1);
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
     const resize = new ResizeObserver(bump);
     resize.observe(document.documentElement);
     if (document.body) resize.observe(document.body);
     window.addEventListener('resize', bump);
     return () => {
       if (timer) clearTimeout(timer);
+      cancelAnimationFrame(frame);
       resize.disconnect();
       window.removeEventListener('resize', bump);
+      window.removeEventListener('scroll', onScroll, { capture: true });
     };
   }, []);
   return version;

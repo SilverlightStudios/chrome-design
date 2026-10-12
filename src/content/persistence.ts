@@ -1,4 +1,9 @@
-import { type AnnotationDoc, DEFAULT_GRID, type GridSettings } from '../shared/model';
+import {
+  type AnnotationDoc,
+  DEFAULT_GRID,
+  type GridSettings,
+  type ShapeStyle,
+} from '../shared/model';
 
 /**
  * Annotations are stored in extension storage (never on the site) keyed by page URL
@@ -26,8 +31,14 @@ export function gridKey(href: string): string {
 export const UI_KEY = 'ui:toolbar';
 
 export interface UiPrefs {
-  toolbarOffset: { x: number; y: number };
+  /** Toolbar position: which viewport edge it docks to and its offset along/away from it. */
+  toolbar: { edge: 'bottom' | 'top'; x: number; y: number };
+  style?: ShapeStyle;
+  drawTool?: string;
+  onboarded?: boolean;
 }
+
+const DEFAULT_PREFS: UiPrefs = { toolbar: { edge: 'bottom', x: 0, y: 0 } };
 
 function area(): chrome.storage.StorageArea | null {
   return typeof chrome !== 'undefined' && chrome.storage?.local ? chrome.storage.local : null;
@@ -93,12 +104,14 @@ export function saveGrid(href: string, grid: GridSettings): Promise<void> {
 }
 
 export async function loadUiPrefs(): Promise<UiPrefs> {
-  const prefs = await read<UiPrefs>(UI_KEY);
-  return prefs ?? { toolbarOffset: { x: 0, y: 0 } };
+  const prefs = await read<Partial<UiPrefs>>(UI_KEY);
+  return { ...DEFAULT_PREFS, ...prefs, toolbar: { ...DEFAULT_PREFS.toolbar, ...prefs?.toolbar } };
 }
 
-export function saveUiPrefs(prefs: UiPrefs): Promise<void> {
-  return write(UI_KEY, prefs);
+/** Merge a partial update into the stored prefs. */
+export async function saveUiPrefs(patch: Partial<UiPrefs>): Promise<void> {
+  const current = await loadUiPrefs();
+  return write(UI_KEY, { ...current, ...patch });
 }
 
 export function debounce<A extends unknown[]>(

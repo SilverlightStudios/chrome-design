@@ -1,26 +1,51 @@
-import { useCallback, useEffect, useState } from 'react';
-import { type EditorEnv, EnvProvider, useEditor } from './context';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { type EditorEnv, EnvProvider, type ToastAction, useEditor } from './context';
 import { handleShortcut } from './keyboard';
 import { AnnotationLayer } from './overlay/AnnotationLayer';
 import { InspectOverlay } from './overlay/InspectOverlay';
 import { InspectorCard } from './overlay/InspectorCard';
 import { InteractionLayer } from './overlay/InteractionLayer';
 import { GridOverlay, RulersAndGuides } from './overlay/Rulers';
+import { StatusChip } from './ui/StatusChip';
 import { Toolbar } from './ui/Toolbar';
 
-function Toasts({ items }: { items: { id: number; text: string }[] }) {
+interface ToastItem {
+  id: number;
+  text: string;
+  action?: ToastAction;
+}
+
+/** Remote Desktop-style toast: one glass pill at the top, optional action (Undo). */
+function Toast({ item, onDone }: { item: ToastItem | null; onDone: () => void }) {
   return (
-    <div className="toasts ui" role="status" aria-live="polite">
-      {items.map((t) => (
-        <div key={t.id} className="toast">
-          {t.text}
-        </div>
-      ))}
+    <div
+      className="toast glass-css ui"
+      data-on={item ? '' : undefined}
+      role="status"
+      aria-live="polite"
+    >
+      {item ? (
+        <>
+          <span className="toast-text">{item.text}</span>
+          {item.action ? (
+            <button
+              type="button"
+              className="toast-btn"
+              onClick={() => {
+                item.action?.run();
+                onDone();
+              }}
+            >
+              {item.action.label}
+            </button>
+          ) : null}
+        </>
+      ) : null}
     </div>
   );
 }
 
-function Root({ toasts }: { toasts: { id: number; text: string }[] }) {
+function Root({ toast, onToastDone }: { toast: ToastItem | null; onToastDone: () => void }) {
   const tool = useEditor((s) => s.tool);
   return (
     <div className="root" data-tool={tool}>
@@ -30,35 +55,66 @@ function Root({ toasts }: { toasts: { id: number; text: string }[] }) {
       <InspectOverlay />
       <RulersAndGuides />
       <InspectorCard />
+      <StatusChip />
       <Toolbar />
-      <Toasts items={toasts} />
+      <Toast item={toast} onDone={onToastDone} />
     </div>
   );
 }
 
-export function App({ env }: { env: Omit<EditorEnv, 'toast'> }) {
-  const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
-  const toast = useCallback((text: string) => {
-    const id = Date.now() + Math.random();
-    setToasts((list) => [...list.slice(-2), { id, text }]);
-    setTimeout(() => setToasts((list) => list.filter((t) => t.id !== id)), 2200);
+export function App({
+  env,
+  onReady,
+}: {
+  env: Omit<EditorEnv, 'toast'>;
+  /** Hands the toast function to non-React code (navigation notices). */
+  onReady?: (toast: (message: string) => void) => void;
+}) {
+  const [toast, setToast] = useState<ToastItem | null>(null);
+  const timer = useRef(0);
+  const showToast = useCallback((text: string, action?: ToastAction) => {
+    window.clearTimeout(timer.current);
+    setToast({ id: Date.now(), text, ...(action ? { action } : {}) });
+    timer.current = window.setTimeout(() => setToast(null), action ? 5000 : 2200);
   }, []);
-  const full: EditorEnv = { ...env, toast };
+  const clearToast = useCallback(() => {
+    window.clearTimeout(timer.current);
+    setToast(null);
+  }, []);
+  const full: EditorEnv = { ...env, toast: showToast };
+  useEffect(() => onReady?.(showToast), [onReady, showToast]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (handleShortcut(e, env.store, env.close)) {
+    // Keys we handle are swallowed on keydown *and* the matching keyup/keypress, so page
+    // shortcuts listening to either never see them.
+    const swallowed = new Set<string>();
+    const onKeyDown = (e: KeyboardEvent) => {
+      const undoable = (msg: string) => showToast(msg, { label: 'Undo', run: env.store.undo });
+      if (handleShortcut(e, env.store, env.close, undoable)) {
         e.preventDefault();
         e.stopImmediatePropagation();
+        swallowed.add(e.code);
       }
     };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [env.store, env.close]);
+    const onKeyUpOrPress = (e: KeyboardEvent) => {
+      if (!swallowed.has(e.code)) return;
+      if (e.type === 'keyup') swallowed.delete(e.code);
+      e.stopImmediatePropagation();
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('keyup', onKeyUpOrPress, true);
+    window.addEventListener('keypress', onKeyUpOrPress, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('keyup', onKeyUpOrPress, true);
+      window.removeEventListener('keypress', onKeyUpOrPress, true);
+      window.clearTimeout(timer.current);
+    };
+  }, [env.store, env.close, showToast]);
 
   return (
     <EnvProvider value={full}>
-      <Root toasts={toasts} />
+      <Root toast={toast} onToastDone={clearToast} />
     </EnvProvider>
   );
 }

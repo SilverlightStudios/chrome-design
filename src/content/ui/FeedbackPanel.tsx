@@ -5,6 +5,7 @@ import { useEditor, useEnv } from '../context';
 import { plural } from './format';
 
 type Filter = 'all' | 'open' | 'resolved';
+const FILTERS: Filter[] = ['all', 'open', 'resolved'];
 
 function targetLabel(thread: CommentThread): string {
   const t = thread.target;
@@ -14,7 +15,8 @@ function targetLabel(thread: CommentThread): string {
 }
 
 export function FeedbackPanel() {
-  const { store } = useEnv();
+  const { store, toast } = useEnv();
+  const [armed, setArmed] = useState(false);
   const annotations = useEditor((s) => s.doc.annotations);
   const openId = useEditor((s) => s.openThreadId);
   const [filter, setFilter] = useState<Filter>('all');
@@ -23,15 +25,21 @@ export function FeedbackPanel() {
   const visible = threads.filter((t) => filter === 'all' || t.status === filter);
 
   return (
-    <div className="panel list-panel" role="dialog" aria-label="Feedback">
+    <div className="panel list-panel">
       <div className="panel-head">
         <h2>Feedback</h2>
         <span className="muted">
           {plural(threads.length, 'comment')} · {plural(shapes, 'drawing')}
         </span>
       </div>
-      <div className="segmented small" role="radiogroup" aria-label="Filter">
-        {(['all', 'open', 'resolved'] as const).map((f) => (
+      <div
+        className="seg"
+        role="radiogroup"
+        aria-label="Filter"
+        style={{ ['--n' as string]: 3, ['--i' as string]: FILTERS.indexOf(filter) }}
+      >
+        <span className="seg-loz" aria-hidden="true" />
+        {FILTERS.map((f) => (
           <button
             key={f}
             type="button"
@@ -84,16 +92,23 @@ export function FeedbackPanel() {
           <button
             type="button"
             className="btn ghost danger"
+            data-armed={armed ? '' : undefined}
             onClick={() => {
-              if (
-                window.confirm(
-                  'Remove all comments, drawings and guides on this page? You can undo this.',
-                )
-              )
-                store.clearAll();
+              if (!armed) {
+                setArmed(true);
+                window.setTimeout(() => setArmed(false), 3000);
+                return;
+              }
+              setArmed(false);
+              const count = annotations.length;
+              store.clearAll();
+              toast(`Cleared ${count} annotation${count === 1 ? '' : 's'}`, {
+                label: 'Undo',
+                run: store.undo,
+              });
             }}
           >
-            Clear page
+            {armed ? 'Tap again to clear everything' : 'Clear page'}
           </button>
         </div>
       )}

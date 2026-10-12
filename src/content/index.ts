@@ -1,4 +1,5 @@
 import type { PingResponse, ToContentMessage } from '../shared/messages';
+import { reportState } from './ext';
 import { type Mounted, mountEditor } from './mount';
 
 /**
@@ -24,8 +25,10 @@ if (!window.__chromeDesign) {
   let opening: Promise<void> | null = null;
 
   const close = () => {
-    mounted?.unmount();
+    if (!mounted) return;
+    mounted.unmount();
     mounted = null;
+    reportState(false);
   };
   const open = async () => {
     if (mounted) return;
@@ -33,6 +36,7 @@ if (!window.__chromeDesign) {
       opening = mountEditor(close).then((m) => {
         mounted = m;
         opening = null;
+        reportState(true);
       });
     }
     await opening;

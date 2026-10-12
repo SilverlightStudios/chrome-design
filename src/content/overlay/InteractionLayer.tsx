@@ -51,6 +51,7 @@ export function InteractionLayer() {
   const { store } = useEnv();
   const tool = useEditor((s) => s.tool);
   const drawTool = useEditor((s) => s.drawTool);
+  const hoverShape = useEditor((s) => s.tool === 'select' && s.hoverShapeId !== null);
   const gesture = useRef<Gesture | null>(null);
   const hoverFrame = useRef(0);
 
@@ -145,6 +146,11 @@ export function InteractionLayer() {
     const s = store.getState();
     if (!g) {
       if (s.tool === 'select' || s.tool === 'comment') updateHover(e.clientX, e.clientY);
+      if (s.tool === 'select') {
+        const hit = hitShape(store, toPage(e.clientX, e.clientY));
+        const id = hit?.id ?? null;
+        if (id !== s.hoverShapeId) store.set({ hoverShapeId: id });
+      }
       return;
     }
     const p = toPage(e.clientX, e.clientY);
@@ -249,13 +255,16 @@ export function InteractionLayer() {
       className="capture"
       data-tool={tool}
       data-draw-tool={tool === 'draw' ? drawTool : undefined}
+      data-hover={hoverShape ? 'shape' : undefined}
       style={{ pointerEvents: tool === 'browse' ? 'none' : 'auto' }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={(e) => finish(e, false)}
       onPointerCancel={(e) => finish(e, true)}
       onPointerLeave={() => {
-        if (!gesture.current && store.getState().hoverEl) store.set({ hoverEl: null });
+        if (!gesture.current && (store.getState().hoverEl || store.getState().hoverShapeId)) {
+          store.set({ hoverEl: null, hoverShapeId: null });
+        }
       }}
       onContextMenu={(e) => {
         if (gesture.current) e.preventDefault();

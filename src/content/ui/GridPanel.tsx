@@ -82,7 +82,7 @@ export function GridPanel() {
   const update = (patch: Partial<GridSettings>) =>
     store.set({ grid: { ...store.getState().grid, ...patch } });
   return (
-    <div className="panel grid-panel" role="dialog" aria-label="Layout grid settings">
+    <div className="panel grid-panel">
       <div className="segmented" role="radiogroup" aria-label="Grid type">
         {(['stretch', 'fixed'] as const).map((mode) => (
           <button

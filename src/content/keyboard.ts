@@ -23,6 +23,8 @@ export function handleShortcut(
   event: KeyboardEvent,
   store: EditorStore,
   close: () => void,
+  /** Called after a destructive shortcut so the UI can offer Undo. */
+  notify?: (message: string) => void,
 ): boolean {
   if (isTypingEvent(event)) return false;
   const s = store.getState();
@@ -30,10 +32,12 @@ export function handleShortcut(
   const key = event.key;
   const lower = key.length === 1 ? key.toLowerCase() : key;
 
-  if (event.altKey && event.shiftKey && lower === 'd') {
+  if (event.altKey && event.shiftKey && (lower === 'd' || event.code === 'KeyD')) {
     close();
     return true;
   }
+  // Paused: the page owns the keyboard (its own shortcuts, undo, Escape) until a tool is picked.
+  if (s.tool === 'browse') return false;
   if (mod && lower === 'z') {
     if (event.shiftKey) store.redo();
     else store.undo();
@@ -58,7 +62,10 @@ export function handleShortcut(
   }
 
   if ((key === 'Delete' || key === 'Backspace') && s.selectedId) {
+    const target = s.doc.annotations.find((a) => a.id === s.selectedId);
     store.removeAnnotations([s.selectedId]);
+    if (target)
+      notify?.(target.type === 'comment' ? `Deleted comment ${target.number}` : 'Deleted drawing');
     return true;
   }
 

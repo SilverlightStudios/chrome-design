@@ -39,3 +39,13 @@ export const backgroundFetcher: AssetFetcher = async (url, maxBytes) => {
   if (!response) return { ok: false, error: 'extension background unavailable' };
   return response;
 };
+
+/** Opens the extension's settings page (or does nothing on the demo page). */
+export function openSettings(): void {
+  void send<{ ok: boolean }>({ type: 'cd:open-options' });
+}
+
+/** Keeps the toolbar icon's badge in sync when the toolbar is closed from the page. */
+export function reportState(open: boolean): void {
+  void send<unknown>({ type: 'cd:state', open });
+}

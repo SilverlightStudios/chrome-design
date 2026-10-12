@@ -181,6 +181,9 @@ function Pin({
       }}
     >
       <span>{thread.number}</span>
+      <span className="pin-preview" aria-hidden="true">
+        {thread.messages[0]?.body}
+      </span>
     </button>
   );
 }
@@ -235,6 +238,7 @@ export function AnnotationLayer() {
   const region = useEditor((s) => s.region);
   const textEdit = useEditor((s) => s.textEdit);
   const tool = useEditor((s) => s.tool);
+  const hoverShapeId = useEditor((s) => s.hoverShapeId);
 
   const shapes = annotations.filter(isShape);
   const threads = annotations.filter(isComment);
@@ -251,6 +255,24 @@ export function AnnotationLayer() {
           return <ShapeView key={shape.id} shape={s} />;
         })}
         {preview && <ShapeView shape={preview} />}
+        {hoverShapeId && hoverShapeId !== selectedId && !moving
+          ? (() => {
+              const hovered = shapes.find((s) => s.id === hoverShapeId);
+              if (!hovered) return null;
+              const b = shapeBounds(hovered);
+              const pad = 6 + hovered.style.width / 2;
+              return (
+                <rect
+                  className="hover-box"
+                  x={b.x - pad}
+                  y={b.y - pad}
+                  width={b.width + pad * 2}
+                  height={b.height + pad * 2}
+                  rx={4}
+                />
+              );
+            })()
+          : null}
         {selectedShape && !erasing.includes(selectedShape.id) && (
           <SelectionBox
             shape={

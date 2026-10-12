@@ -25,13 +25,14 @@ function popoverWidth(): number {
   return Math.min(POPOVER_WIDTH, (document.documentElement.clientWidth || window.innerWidth) - 16);
 }
 
-function placement(p: Point): { left: number; top: number } {
+function placement(p: Point): { left: number; top: number; originX: number; originY: number } {
   const width = popoverWidth();
   const right = window.scrollX + (document.documentElement.clientWidth || window.innerWidth);
   const left =
     p.x + 34 + width > right - 8 ? Math.max(window.scrollX + 8, p.x - width - 12) : p.x + 34;
   const top = Math.max(window.scrollY + 8, p.y - 36);
-  return { left, top };
+  // Pops out of the pin it belongs to (transform-origin at the pin, in popover space).
+  return { left, top, originX: p.x - left, originY: p.y - top - 15 };
 }
 
 function draftPoint(draft: DraftComment): Point {
@@ -55,8 +56,16 @@ function IntentPicker({
   value: CommentIntent;
   onChange: (v: CommentIntent) => void;
 }) {
+  const index = INTENTS.indexOf(value);
   return (
-    <div className="intent-picker" role="radiogroup" aria-label="Comment type">
+    <div
+      className="seg"
+      role="radiogroup"
+      aria-label="Comment type"
+      data-value={value}
+      style={{ ['--n' as string]: INTENTS.length, ['--i' as string]: index }}
+    >
+      <span className="seg-loz" aria-hidden="true" />
       {INTENTS.map((intent) => (
         <button
           key={intent}
@@ -82,7 +91,7 @@ export function CommentPopover({
   draft?: DraftComment;
   thread?: CommentThread;
 }) {
-  const { store } = useEnv();
+  const { store, toast } = useEnv();
   const [text, setText] = useState('');
   const [intent, setIntent] = useState<CommentIntent>(thread?.intent ?? 'change');
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -141,7 +150,8 @@ export function CommentPopover({
     if (e.key === 'Escape') {
       e.preventDefault();
       close();
-    } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    } else if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      // Enter posts (Shift+Enter for a new line), like chat and Figma comments.
       e.preventDefault();
       submit();
     }
@@ -156,7 +166,13 @@ export function CommentPopover({
       className="popover ui"
       role="dialog"
       aria-label={thread ? `Comment ${thread.number}` : 'New comment'}
-      style={{ left: pos.left, top: pos.top, width: popoverWidth() }}
+      style={{
+        left: pos.left,
+        top: pos.top,
+        width: popoverWidth(),
+        ['--origin-x' as string]: `${pos.originX}px`,
+        ['--origin-y' as string]: `${pos.originY}px`,
+      }}
       onKeyDown={onKeyDown}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -177,7 +193,7 @@ export function CommentPopover({
               type="button"
               className="icon-btn"
               aria-label={thread.status === 'open' ? 'Resolve' : 'Reopen'}
-              data-tip={thread.status === 'open' ? 'Resolve' : 'Reopen'}
+              title={thread.status === 'open' ? 'Resolve' : 'Reopen'}
               onClick={() =>
                 store.updateAnnotation(thread.id, (a) =>
                   isComment(a)
@@ -196,8 +212,11 @@ export function CommentPopover({
               type="button"
               className="icon-btn"
               aria-label="Delete thread"
-              data-tip="Delete"
-              onClick={() => store.removeAnnotations([thread.id])}
+              title="Delete"
+              onClick={() => {
+                store.removeAnnotations([thread.id]);
+                toast(`Deleted comment ${thread.number}`, { label: 'Undo', run: store.undo });
+              }}
             >
               <Icon.trash />
             </button>
@@ -275,7 +294,9 @@ export function CommentPopover({
           onChange={(e) => setText(e.target.value)}
         />
         <div className="composer-actions">
-          <span className="muted small kbd-hint">⌘↵ to {draft ? 'post' : 'reply'}</span>
+          <span className="muted small kbd-hint">
+            ↵ to {draft ? 'post' : 'reply'} · ⇧↵ new line
+          </span>
           <button type="button" className="btn primary" disabled={!text.trim()} onClick={submit}>
             {draft ? 'Post' : 'Reply'}
           </button>

@@ -122,8 +122,10 @@ export function InspectOverlay() {
   const hoverEl = useEditor((s) => s.hoverEl);
   const pickedEl = useEditor((s) => s.pickedEl);
   const region = useEditor((s) => s.region);
+  const hoverShapeId = useEditor((s) => s.hoverShapeId);
   if (tool !== 'select' && tool !== 'comment') return null;
-  const showHover = hoverEl && !region && hoverEl.isConnected && hoverEl !== pickedEl;
+  const showHover =
+    hoverEl && !region && !hoverShapeId && hoverEl.isConnected && hoverEl !== pickedEl;
   return (
     <div className="inspect-layer" aria-hidden="true">
       {pickedEl?.isConnected && tool === 'select' && (

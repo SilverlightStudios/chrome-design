@@ -9,7 +9,9 @@ export type ToContentMessage =
 
 export type ToBackgroundMessage =
   | { type: 'cd:capture-visible-tab' }
-  | { type: 'cd:fetch-asset'; url: string; maxBytes: number };
+  | { type: 'cd:fetch-asset'; url: string; maxBytes: number }
+  | { type: 'cd:open-options' }
+  | { type: 'cd:state'; open: boolean };
 
 export type CaptureVisibleTabResponse =
   | { ok: true; dataUrl: string }

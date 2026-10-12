@@ -139,7 +139,7 @@ export function InspectorCard() {
           type="button"
           className="icon-btn"
           aria-label="Select parent"
-          data-tip="Parent ↑"
+          title="Parent ↑"
           disabled={!parent || parent === document.documentElement}
           onClick={() => parent && store.set({ pickedEl: parent })}
         >
@@ -149,7 +149,7 @@ export function InspectorCard() {
           type="button"
           className="icon-btn flip"
           aria-label="Select first child"
-          data-tip="Child ↓"
+          title="Child ↓"
           disabled={!child}
           onClick={() => child && store.set({ pickedEl: child })}
         >
@@ -159,7 +159,7 @@ export function InspectorCard() {
           type="button"
           className="icon-btn"
           aria-label="Copy selector"
-          data-tip="Copy selector"
+          title="Copy selector"
           onClick={() => {
             const sel = uniqueSelector(pickedEl);
             void copyText(sel).then((ok) => env.toast(ok ? `Copied ${sel}` : sel));

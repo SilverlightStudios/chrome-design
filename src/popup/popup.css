@@ -1,116 +1,334 @@
+/* Extension pages, in the Remote Desktop / Spark visual language (desk.css shell, pills, switch). */
 :root {
   color-scheme: light dark;
-  --bg: light-dark(#ffffff, #18191c);
-  --ink: light-dark(#111318, #f4f5f7);
-  --muted: light-dark(#5d6470, #a3a8b3);
-  --line: light-dark(#e5e7eb, #2d2e33);
-  --accent: #3b82f6;
-  --warn-bg: light-dark(#fff7ed, #2a2010);
-  --warn-ink: light-dark(#9a3412, #fcd34d);
+  --deep-blue: hsl(226 74% 40%);
+  --deep-blue-bright: hsl(222 92% 64%);
+  --accent: light-dark(var(--deep-blue), var(--deep-blue-bright));
+  --accent-soft: color-mix(in oklab, var(--accent), transparent 88%);
+  --page: light-dark(hsl(0 0% 97%), hsl(0 0% 3%));
+  --shell: light-dark(hsl(0 0% 100% / 0.62), hsl(0 0% 7% / 0.62));
+  --card: light-dark(hsl(0 0% 100%), hsl(0 0% 6%));
+  --chip: color-mix(in oklab, var(--ink), transparent 93%);
+  --ink: light-dark(hsl(0 0% 12%), hsl(0 0% 96%));
+  --ink-muted: light-dark(hsl(0 0% 46%), hsl(0 0% 58%));
+  --ink-faint: light-dark(hsl(0 0% 62%), hsl(0 0% 40%));
+  --line: light-dark(hsl(0 0% 88%), hsl(0 0% 18%));
+  --line-strong: light-dark(hsl(0 0% 78%), hsl(0 0% 26%));
+  --success: light-dark(hsl(146 62% 37%), hsl(146 56% 40%));
+  --warn: hsl(40 92% 50%);
+  --danger: light-dark(hsl(352 70% 47%), hsl(352 86% 70%));
+  --ease: linear(
+    0,
+    0.2688 9.91%,
+    0.3859 15%,
+    0.4917 20.19%,
+    0.5865 25.5%,
+    0.6705 30.93%,
+    0.7441 36.51%,
+    0.8075 42.26%,
+    0.8593 47.98%,
+    0.9022 53.93%,
+    0.9366 60.13%,
+    0.963 66.67%,
+    0.9812 73.4%,
+    0.9929 80.76%,
+    0.9986 88.89%,
+    1
+  );
+  --ease-settle: linear(
+    0,
+    0.0728 5%,
+    0.237 10%,
+    0.431 15%,
+    0.6161 20%,
+    0.7715 25%,
+    0.8895 30%,
+    0.9708 35%,
+    1.0206 40%,
+    1.0459 45%,
+    1.0541 50%,
+    1.0516 55%,
+    1.0433 60%,
+    1.0328 65%,
+    1.0226 70%,
+    1.0138 75%,
+    1.007 80%,
+    1.0023 85%,
+    0.9993 90%,
+    0.9977 95%,
+    1
+  );
+  --elastic: linear(
+    0,
+    -0.0055 4.83%,
+    -0.0317 15.58%,
+    -0.0351 20.24%,
+    -0.031 23.11%,
+    -0.0216 25.78%,
+    -0.0065 28.32%,
+    0.0143 30.74%,
+    0.0478 33.58%,
+    0.0907 36.32%,
+    0.2048 41.53%,
+    0.3517 46.27%,
+    0.6096 52.68%,
+    0.7371 56.42%,
+    0.8583 61.09%,
+    0.9466 66.02%,
+    0.9811 68.81%,
+    1.0068 71.72%,
+    1.0241 74.79%,
+    1.0334 78.07%,
+    1.0326 83.83%,
+    1.0053 95.23%,
+    1
+  );
+  --shadow-shell:
+    0 0.5px 0.6px hsl(0 0% 0% / 0.04), 0 1.8px 2.3px -0.5px hsl(0 0% 0% / 0.05), 0 4.2px 5.3px -1.1px hsl(
+      0 0% 0% /
+      0.07
+    ),
+    0 9.7px 12.1px -1.6px hsl(0 0% 0% / 0.08), 0 24px 34px -2.2px hsl(0 0% 0% / 0.09);
   font:
-    13px / 1.45 ui-sans-serif,
-    system-ui,
+    14px / 1.4 "SF Pro Text",
     -apple-system,
-    "Segoe UI",
+    system-ui,
+    "Helvetica Neue",
     sans-serif;
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
 }
 * {
   box-sizing: border-box;
 }
 body {
   margin: 0;
-  width: 320px;
-  background: var(--bg);
+  background: var(--page);
   color: var(--ink);
 }
-main {
-  padding: 14px;
-  display: grid;
-  gap: 12px;
+body:not(.page) {
+  width: 330px;
 }
-header {
-  display: flex;
-  gap: 10px;
-  align-items: center;
+body.page {
+  min-height: 100vh;
+  /* Spark grid behind the shell */
+  background:
+    linear-gradient(90deg, color-mix(in hsl, canvasText, transparent 92%) 1px, transparent 1px 45px)
+    16px 0 / 45px 45px,
+    linear-gradient(color-mix(in hsl, canvasText, transparent 92%) 1px, transparent 1px 45px) 0 14px
+    / 45px 45px,
+    var(--page);
 }
-h1 {
-  margin: 0;
-  font-size: 15px;
-}
+h1,
+h2,
 p {
   margin: 0;
 }
-.logo {
+h1 {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+h2 {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  margin-bottom: 10px;
+}
+.shell {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+.shell.wide {
+  width: min(620px, calc(100% - 32px));
+  margin: 48px auto;
+  padding: 18px;
+  border-radius: 24px;
+  background: var(--shell);
+  backdrop-filter: blur(2px) saturate(1.25);
+  box-shadow: var(--shadow-shell);
+  animation: shell-in 0.6s var(--ease-settle) both;
+}
+@keyframes shell-in {
+  from {
+    opacity: 0;
+    translate: 0 18px;
+    scale: 0.98;
+  }
+}
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tagline {
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+.mark img {
+  display: block;
   width: 32px;
   height: 32px;
   border-radius: 9px;
-  background:
-    url("/icons/icon-128.png") center / cover,
-    #18191c;
-  flex: none;
+}
+.card {
+  padding: 16px;
+  border-radius: 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.card + .card {
+  margin-top: 0;
 }
 .muted {
-  color: var(--muted);
-}
-.small {
-  font-size: 12px;
-}
-button.primary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 10px 12px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--accent);
-  color: #fff;
-  font: 600 13px / 1.2 inherit;
-  font-family: inherit;
-  cursor: pointer;
-  transition: scale 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-button.primary:active {
-  scale: 0.98;
-}
-button.primary:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-kbd {
-  font:
-    600 11px ui-monospace,
-    Menlo,
-    monospace;
-  padding: 1px 6px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.2);
+  color: var(--ink-muted);
+  font-size: 13px;
 }
 .notice {
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--warn-bg);
-  color: var(--warn-ink);
-  display: grid;
-  gap: 4px;
-}
-.option {
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  padding: 10px 0 0;
+  padding: 12px;
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--warn), transparent 88%);
+}
+.notice p {
+  color: var(--ink-muted);
+  font-size: 13px;
+  margin-top: 2px;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+  margin-top: 4px;
+}
+.dot.warn {
+  background: var(--warn);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--warn), transparent 78%);
+}
+.dot.ok {
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--success), transparent 78%);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
   border-top: 1px solid var(--line);
 }
-.option > span {
+.card .row:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.row > div {
+  flex: 1;
   display: grid;
   gap: 2px;
 }
-.option input {
-  margin-top: 2px;
-  accent-color: var(--accent);
+.switch {
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 26px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--line-strong);
+  cursor: pointer;
+  transition: background-color 0.26s var(--ease);
 }
-footer {
-  border-top: 1px solid var(--line);
-  padding-top: 10px;
+.switch span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px hsl(0 0% 0% / 0.3);
+  transition: translate 0.444s var(--ease-settle);
+}
+.switch[aria-checked="true"] {
+  background: var(--accent);
+}
+.switch[aria-checked="true"] span {
+  translate: 18px 0;
+}
+.switch:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.link {
+  justify-self: start;
+  border: 0;
+  background: none;
+  padding: 2px 0;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.error {
+  color: var(--danger);
+  font-size: 13px;
+}
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.steps li {
+  display: flex;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 16px;
+  background: var(--chip);
+  animation: pop 0.4s var(--elastic) both;
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+.num {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 650;
+  flex: none;
+}
+kbd,
+code {
+  font:
+    600 12px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+}
+kbd {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--chip);
+  border: 1px solid var(--line);
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    /* biome-ignore lint/complexity/noImportantStyles: reduced motion wins */
+    animation: none !important;
+    /* biome-ignore lint/complexity/noImportantStyles: reduced motion wins */
+    transition: none !important;
+  }
 }

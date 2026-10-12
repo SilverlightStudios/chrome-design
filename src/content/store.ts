@@ -17,7 +17,7 @@ import {
 /** `browse` leaves the page fully interactive (no capture layer). */
 export type ToolId = 'browse' | 'select' | 'comment' | 'draw';
 export type DrawToolId = 'pen' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'text' | 'eraser';
-export type PanelId = 'none' | 'grid' | 'list' | 'export' | 'help';
+export type PanelId = 'none' | 'grid' | 'list' | 'export' | 'help' | 'welcome';
 
 /** Comment being composed (not yet part of the document / history). */
 export interface DraftComment {
@@ -40,6 +40,8 @@ export interface EditorState {
   pickedEl: Element | null;
   // ---- transient interaction state (never persisted, not in history) ----
   hoverEl: Element | null;
+  /** Drawing under the pointer in Inspect mode (move affordance). */
+  hoverShapeId: string | null;
   /** Shape being drawn. */
   preview: Shape | null;
   /** Selected shape being dragged. */
@@ -77,6 +79,7 @@ export function createInitialState(
     draft: null,
     pickedEl: null,
     hoverEl: null,
+    hoverShapeId: null,
     preview: null,
     moving: null,
     erasing: [],
@@ -174,6 +177,29 @@ export class EditorStore {
 
   private keepIfExists(doc: AnnotationDoc, id: string | null): string | null {
     return id && doc.annotations.some((a) => a.id === id) ? id : null;
+  }
+
+  /** Switch to another page's document (SPA navigation); history does not cross pages. */
+  replaceDoc(doc: AnnotationDoc): void {
+    const prev = this.state.doc;
+    this.state = {
+      ...this.state,
+      doc,
+      past: [],
+      future: [],
+      selectedId: null,
+      openThreadId: null,
+      draft: null,
+      pickedEl: null,
+      hoverEl: null,
+      hoverShapeId: null,
+      preview: null,
+      moving: null,
+      erasing: [],
+      region: null,
+      textEdit: null,
+    };
+    this.emit(prev);
   }
 
   canUndo(): boolean {

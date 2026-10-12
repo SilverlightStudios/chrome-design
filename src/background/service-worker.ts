@@ -12,16 +12,42 @@ import { activeTab, sendToTab } from './inject';
  * already references, and only succeed for origins the extension has host access to.
  */
 
+/**
+ * One click on the toolbar icon (or ⌥⇧D) toggles the in-page toolbar. When the page can't be
+ * scripted, the icon switches to a small explainer popup for that tab and opens it right away.
+ */
+async function toggle(tab: chrome.tabs.Tab | undefined): Promise<void> {
+  if (!tab || tab.id === undefined) return;
+  const result = await sendToTab(tab, { type: 'cd:toggle' });
+  if (result.ok) {
+    await chrome.action
+      .setBadgeText({ text: result.open ? 'on' : '', tabId: tab.id })
+      .catch(() => undefined);
+    await chrome.action
+      .setBadgeBackgroundColor({ color: '#1E3FA8', tabId: tab.id })
+      .catch(() => undefined);
+    return;
+  }
+  const popup = `popup.html?reason=${encodeURIComponent(result.reason)}`;
+  await chrome.action.setPopup({ tabId: tab.id, popup }).catch(() => undefined);
+  await chrome.action
+    .setTitle({ title: `Chrome Design: ${result.reason}`, tabId: tab.id })
+    .catch(() => undefined);
+  // Chrome 127+: open the explainer for this click; older versions show it on the next click.
+  await chrome.action.openPopup?.().catch(() => undefined);
+}
+
+chrome.action.onClicked.addListener((tab) => {
+  void toggle(tab);
+});
+
 chrome.commands.onCommand.addListener(async (command) => {
   if (command !== 'toggle-chrome-design') return;
-  const tab = await activeTab();
-  if (!tab) return;
-  const result = await sendToTab(tab, { type: 'cd:toggle' });
-  if (!result.ok && tab.id !== undefined) {
-    await chrome.action.setBadgeBackgroundColor({ color: '#EF4444', tabId: tab.id });
-    await chrome.action.setBadgeText({ text: '!', tabId: tab.id });
-    await chrome.action.setTitle({ title: `Chrome Design: ${result.reason}`, tabId: tab.id });
-  }
+  await toggle(await activeTab());
+});
+
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === 'install') void chrome.runtime.openOptionsPage();
 });
 
 const MAX_ASSET = 15 * 1024 * 1024;
@@ -73,6 +99,22 @@ chrome.runtime.onMessage.addListener((message: ToBackgroundMessage, sender, send
       );
     return true;
   }
+  if (message?.type === 'cd:state') {
+    const tabId = sender.tab.id;
+    if (tabId !== undefined) {
+      void chrome.action
+        .setBadgeText({ text: message.open ? 'on' : '', tabId })
+        .catch(() => undefined);
+      void chrome.action
+        .setBadgeBackgroundColor({ color: '#1E3FA8', tabId })
+        .catch(() => undefined);
+    }
+    return false;
+  }
+  if (message?.type === 'cd:open-options') {
+    void chrome.runtime.openOptionsPage().then(() => sendResponse({ ok: true }));
+    return true;
+  }
   if (message?.type === 'cd:fetch-asset') {
     void fetchAsset(message.url, message.maxBytes).then(sendResponse);
     return true;
@@ -82,6 +124,9 @@ chrome.runtime.onMessage.addListener((message: ToBackgroundMessage, sender, send
 
 chrome.tabs.onUpdated.addListener((tabId, info) => {
   if (info.status === 'loading') {
+    // A navigation removes the toolbar and may change what the page allows: reset the icon.
     void chrome.action.setBadgeText({ text: '', tabId }).catch(() => undefined);
+    void chrome.action.setPopup({ tabId, popup: '' }).catch(() => undefined);
+    void chrome.action.setTitle({ tabId, title: 'Chrome Design (⌥⇧D)' }).catch(() => undefined);
   }
 });

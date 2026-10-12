@@ -1,3 +1,5 @@
+import { useEnv } from '../context';
+
 const isMac =
   typeof navigator !== 'undefined' &&
   /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -14,7 +16,7 @@ const SECTIONS: { title: string; rows: [string, string][] }[] = [
       ['G', 'Toggle layout grid'],
       ['F', 'Feedback list'],
       ['⇧E', 'Export the AI handoff file'],
-      ['Esc', 'Cancel · deselect · back to Inspect · pause tools'],
+      ['Esc', 'Step back: close · deselect · Inspect · pause (the page then keeps its own keys)'],
     ],
   },
   {
@@ -27,15 +29,20 @@ const SECTIONS: { title: string; rows: [string, string][] }[] = [
       ['↑ / ↓', 'Inspect: select parent / first child'],
       ['Enter', 'Inspect: comment on selected element'],
       ['⇧ drag', 'Constrain lines to 45° and shapes to squares'],
-      [`${mod}Enter`, 'Save comment'],
-      ['⌥⇧D', 'Open / close Chrome Design'],
+      ['↵', 'Post a comment (⇧↵ for a new line)'],
+      ['⌥⇧D', 'Open / close Chrome Design (or click the extension icon)'],
+      [
+        'Drag',
+        'Move the toolbar by its edge; drop it near the top to dock there · double-click resets',
+      ],
     ],
   },
 ];
 
 export function HelpPanel() {
+  const { store } = useEnv();
   return (
-    <div className="panel help-panel" role="dialog" aria-label="Keyboard shortcuts">
+    <div className="panel help-panel">
       <div className="panel-head">
         <h2>Shortcuts</h2>
       </div>
@@ -54,6 +61,9 @@ export function HelpPanel() {
           </dl>
         </section>
       ))}
+      <button type="button" className="btn wide" onClick={() => store.set({ panel: 'welcome' })}>
+        Show the welcome tour
+      </button>
       <p className="muted small">
         Annotations are saved in this browser per page URL and never leave your machine until you
         export.
