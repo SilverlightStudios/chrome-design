@@ -113,7 +113,7 @@ export function uniqueSelector(el: Element): string {
 export function describePath(el: Element, depth = 4): string {
   const parts: string[] = [];
   let node: Element | null = el;
-  while (node && parts.length < depth && node.localName !== 'html') {
+  while (node && parts.length < depth && node.localName !== 'html' && node.localName !== 'body') {
     const cls = Array.from(node.classList).filter(isStableClass).slice(0, 1);
     parts.unshift(
       node.localName + (node.id ? `#${node.id}` : '') + cls.map((c) => `.${c}`).join(''),

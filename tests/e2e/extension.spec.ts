@@ -75,7 +75,7 @@ async function toggleToolbar(page: Page): Promise<void> {
 test('manifest requests only minimal permissions (production build)', () => {
   const manifest = JSON.parse(readFileSync(resolve(root, 'dist/manifest.json'), 'utf8'));
   expect(manifest.manifest_version).toBe(3);
-  expect(manifest.permissions.sort()).toEqual(['activeTab', 'scripting', 'storage']);
+  expect(manifest.permissions.toSorted()).toEqual(['activeTab', 'scripting', 'storage']);
   expect(manifest.host_permissions).toBeUndefined();
   expect(manifest.content_scripts).toBeUndefined();
   expect(manifest.optional_host_permissions).toEqual(['<all_urls>']);

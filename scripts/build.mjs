@@ -121,7 +121,7 @@ async function run() {
   ]);
   if (!watch)
     console.log(
-      `Built ${pkg.displayName} ${pkg.version} → dist/  (load it via chrome://extensions → Load unpacked)`,
+      `Built ${pkg.displayName} ${pkg.version} → ${e2e ? 'dist-e2e/ (test build only)' : 'dist/ (chrome://extensions → Load unpacked)'}`,
     );
 }
 
