@@ -37,6 +37,27 @@ const VOID_ELEMENTS = new Set([
   'keygen',
 ]);
 
+/** Neutral hatched placeholder for images that could not be embedded. */
+export const MISSING_IMAGE =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect width='16' height='16' fill='%23e2e8f0'/%3E%3Cpath d='M0 16L16 0' stroke='%2394a3b8'/%3E%3C/svg%3E";
+
+/** Attributes that make the browser fetch something when rendered. */
+function loadsResource(tag: string, attr: string): boolean {
+  if (
+    attr === 'src' ||
+    attr === 'poster' ||
+    attr === 'background' ||
+    attr === 'data' ||
+    attr === 'lowsrc' ||
+    attr === 'dynsrc'
+  ) {
+    return true;
+  }
+  if (attr === 'href' || attr === 'xlink:href')
+    return tag === 'image' || tag === 'use' || tag === 'feimage';
+  return false;
+}
+
 export interface SnapshotContext {
   doc: Document;
   baseUrl: string;
@@ -223,7 +244,7 @@ function emitElement(el: Element, ctx: SnapshotContext, out: string[]): void {
 }
 
 function rewriteSheetText(css: string, base: string, ctx: SnapshotContext): string {
-  return rewriteViewportUnits(rewriteCssUrls(css, base, ctx.assets), ctx.viewport);
+  return rewriteViewportUnits(rewriteCssUrls(css, base, ctx.assets, true), ctx.viewport);
 }
 
 function collectAttributes(el: Element, ctx: SnapshotContext): Map<string, string> {
@@ -244,7 +265,7 @@ function collectAttributes(el: Element, ctx: SnapshotContext): Map<string, strin
     if (lower.startsWith('data-cd-')) continue;
     if (lower === 'style') {
       value = sanitizeInlineCss(
-        rewriteDeclarations(rewriteCssUrls(value, ctx.baseUrl, ctx.assets), ctx.viewport),
+        rewriteDeclarations(rewriteCssUrls(value, ctx.baseUrl, ctx.assets, true), ctx.viewport),
       );
     } else if (URL_ATTRIBUTES.has(lower)) {
       if (isDangerousUrl(value)) {
@@ -252,10 +273,19 @@ function collectAttributes(el: Element, ctx: SnapshotContext): Map<string, strin
         continue;
       }
       value = absolutize(value, ctx.baseUrl);
+      const loads = loadsResource(lowerTag, lower);
       const embedded = ctx.assets.get(value);
-      if (embedded && lower !== 'cite' && !(lowerTag === 'a' && lower === 'href')) value = embedded;
+      if (embedded && loads) {
+        value = embedded;
+      } else if (loads && /^(https?|blob):/i.test(value)) {
+        // Not embeddable: keep the original for reference, never fetch it from the snapshot.
+        attrs.set(`data-cd-original-${lower.replace(':', '-')}`, value);
+        if (lowerTag === 'img' || lowerTag === 'input') attrs.set(name, MISSING_IMAGE);
+        continue;
+      }
     } else if (lower === 'srcset' || lower === 'imagesrcset') {
-      value = absolutizeSrcset(value, ctx.baseUrl);
+      attrs.set(`data-cd-original-${lower}`, absolutizeSrcset(value, ctx.baseUrl));
+      continue;
     }
     attrs.set(name, value);
   }
@@ -274,12 +304,24 @@ function applyLiveState(el: Element, attrs: Map<string, string>, ctx: SnapshotCo
     const img = el as HTMLImageElement;
     const url = currentImageUrl(img, ctx.baseUrl);
     const embedded = ctx.assets.get(url);
+    attrs.delete('sizes');
     if (embedded) {
       attrs.set('src', embedded);
-      attrs.delete('srcset');
-      attrs.delete('sizes');
-    } else if (url && !attrs.has('src')) {
-      attrs.set('src', url);
+      attrs.delete('data-cd-original-srcset');
+    } else if (url) {
+      attrs.set('src', MISSING_IMAGE);
+      attrs.set('data-cd-original-src', url);
+      attrs.set('data-cd-missing', '');
+      const r = img.getBoundingClientRect();
+      if (r.width > 0 && !img.hasAttribute('width')) {
+        attrs.set(
+          'style',
+          `${attrs.get('style') ?? ''};width:${Math.round(r.width)}px;height:${Math.round(r.height)}px`.replace(
+            /^;/,
+            '',
+          ),
+        );
+      }
     }
   } else if (tag === 'input') {
     const input = el as HTMLInputElement;

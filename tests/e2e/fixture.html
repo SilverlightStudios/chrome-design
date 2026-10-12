@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>E2E fixture</title>
+    <link rel="stylesheet" href="/style.css" />
+    <style>.hero{min-height:60vh;background:url(/bg.svg) center/cover}</style>
+  </head>
+  <body>
+    <main class="hero">
+      <h1 id="title" onclick="alert(1)">Hello, reviewer</h1>
+      <p class="lede">A page used by the Chrome Design end-to-end test.</p>
+      <img src="/logo.svg" alt="Logo" width="64" height="64" />
+      <img src="https://unreachable.invalid/missing.png" alt="Missing" width="32" height="32" />
+      <button id="cta" type="button">Buy now</button>
+    </main>
+    <script>document.body.dataset.ready = '1';</script>
+  </body>
+</html>

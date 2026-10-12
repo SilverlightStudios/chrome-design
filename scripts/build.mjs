@@ -9,7 +9,10 @@ import react from '@vitejs/plugin-react';
 import { build } from 'vite';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const dist = resolve(root, 'dist');
+const e2e = process.argv.includes('--e2e');
+// The e2e build lives in its own folder and adds <all_urls> host access so automated tests can
+// inject without a user gesture (activeTab). Never load dist-e2e for real use.
+const dist = resolve(root, e2e ? 'dist-e2e' : 'dist');
 const watch = process.argv.includes('--watch');
 const pkg = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
 
@@ -51,6 +54,7 @@ function manifest() {
     background: { service_worker: 'background.js', type: 'module' },
     permissions: ['activeTab', 'scripting', 'storage'],
     optional_host_permissions: ['<all_urls>'],
+    ...(e2e ? { host_permissions: ['<all_urls>'] } : {}),
     commands: {
       'toggle-chrome-design': {
         suggested_key: { default: 'Alt+Shift+D' },

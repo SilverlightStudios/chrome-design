@@ -1,6 +1,8 @@
 node_modules/
 dist/
+dist-e2e/
 demo-dist/
+dist-e2e/
 *.zip
 test-results/
 playwright-report/

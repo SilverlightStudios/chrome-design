@@ -377,7 +377,7 @@ export async function capturePage(options: CaptureOptions): Promise<CaptureResul
 
   const viewport = { width: meta.viewport.width, height: meta.viewport.height };
   const finalCss = (s: SheetSource) =>
-    rewriteViewportUnits(rewriteCssUrls(s.css, s.base, embedder.embedded), viewport);
+    rewriteViewportUnits(rewriteCssUrls(s.css, s.base, embedder.embedded, true), viewport);
   const stylesheetText = new Map<Node, string>(sheets.map((s) => [s.owner, finalCss(s)]));
   const adoptedCss = new Map<Document | ShadowRoot, string>();
   for (const [root, list] of adopted) adoptedCss.set(root, list.map(finalCss).join('\n'));

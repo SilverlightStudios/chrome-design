@@ -36,6 +36,8 @@ export function rewriteCssUrls(
   css: string,
   base: string,
   assets: ReadonlyMap<string, string>,
+  /** Replace remote URLs that were not embedded, so the snapshot never touches the network. */
+  offline = false,
 ): string {
   return css.replace(
     URL_RE,
@@ -46,6 +48,9 @@ export function rewriteCssUrls(
       const abs = resolveUrl(raw, base);
       if (!abs) return whole;
       const embedded = assets.get(abs);
+      if (!embedded && offline && /^(https?|blob):/i.test(abs)) {
+        return `url("data:,") /* cd-missing: ${abs.replace(/\*\//g, '*%2F')} */`;
+      }
       return `url("${(embedded ?? abs).replace(/"/g, '%22')}")`;
     },
   );

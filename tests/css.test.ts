@@ -33,6 +33,11 @@ describe('css url handling', () => {
     expect(out).not.toContain('javascript:');
   });
 
+  it('replaces non-embedded remote urls in offline mode', () => {
+    const out = rewriteCssUrls('a{background:url(/x.png)}', base, new Map(), true);
+    expect(out).toBe('a{background:url("data:,") /* cd-missing: https://example.com/x.png */}');
+  });
+
   it('finds @import statements with conditions', () => {
     const imports = extractImports(
       '@import url("theme.css") screen;\n@import "print.css" print;',

@@ -119,6 +119,12 @@ describe('capture → export pipeline', () => {
     expect(snapshot).toContain('href="https://example.com/pricing"');
   });
 
+  it('never references un-embeddable remote assets from the rendered snapshot', () => {
+    expect(snapshot).toContain('data-cd-original-src="https://cdn.other.com/missing.png"');
+    expect(snapshot).not.toMatch(/\ssrc="https?:/);
+    expect(snapshot).not.toMatch(/url\("https?:/);
+  });
+
   it('reflects live form state without leaking passwords', () => {
     expect(snapshot).toContain('value="designer@example.com"');
     expect(snapshot).not.toContain('hunter2');

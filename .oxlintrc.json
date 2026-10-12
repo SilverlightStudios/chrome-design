@@ -22,7 +22,13 @@
     "no-await-in-loop": "off",
     "no-underscore-dangle": "off"
   },
-  "ignorePatterns": ["dist/**", "demo-dist/**", "test-results/**", "playwright-report/**"],
+  "ignorePatterns": [
+    "dist/**",
+    "demo-dist/**",
+    "test-results/**",
+    "playwright-report/**",
+    "dist-e2e/**"
+  ],
   "overrides": [
     {
       "files": ["src/export/viewer-runtime.ts"],

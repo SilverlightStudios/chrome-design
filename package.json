@@ -16,10 +16,11 @@
     "format": "biome format --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "node scripts/build.mjs && playwright test",
+    "test:e2e": "node scripts/build.mjs --e2e && PLAYWRIGHT_BROWSERS_PATH=0 playwright test",
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
     "zip": "node scripts/build.mjs && node scripts/zip.mjs",
-    "demo:build": "vite build --config vite.demo.config.ts"
+    "demo:build": "vite build --config vite.demo.config.ts",
+    "e2e:install": "PLAYWRIGHT_BROWSERS_PATH=0 playwright install chromium"
   },
   "packageManager": "pnpm@8.15.0",
   "dependencies": {
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
+    "@playwright/test": "1.64.0",
     "@types/chrome": "^0.3.5",
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",

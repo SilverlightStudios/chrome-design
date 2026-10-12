@@ -6,7 +6,15 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!dist", "!demo-dist", "!test-results", "!playwright-report", "!**/*.min.js"]
+    "includes": [
+      "**",
+      "!dist",
+      "!demo-dist",
+      "!test-results",
+      "!playwright-report",
+      "!**/*.min.js",
+      "!dist-e2e"
+    ]
   },
   "formatter": {
     "enabled": true,
