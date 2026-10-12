@@ -179,6 +179,7 @@ svg {
 }
 
 :host([data-capturing]) .ui,
+:host([data-capturing]) .active-edge,
 :host([data-capturing]) .inspect-layer,
 :host([data-capturing]) .grid-overlay {
   /* biome-ignore lint/complexity/noImportantStyles: must win while taking the screenshot */
@@ -196,6 +197,24 @@ svg {
   box-shadow:
     var(--rim),
     0 10px 30px -12px hsl(0 0% 0% / 0.35);
+}
+
+/* ---------- active frame: a thin line with a soft fade inward, all round the screen ---------- */
+.active-edge {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    inset 0 0 0 2px color-mix(in oklab, var(--inspect), transparent 45%),
+    inset 0 0 22px 2px color-mix(in oklab, var(--inspect), transparent 78%);
+  transition: opacity 0.32s var(--ease);
+}
+.active-edge[data-on] {
+  opacity: 1;
+  @starting-style {
+    opacity: 0;
+  }
 }
 
 /* ---------- capture layer ---------- */
@@ -1846,6 +1865,38 @@ p.muted {
   font: 10.5px var(--mono);
   color: var(--ink-faint);
 }
+.ghost-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  border: 1.5px solid var(--card-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: 600 13.5px var(--font);
+  transition:
+    background-color var(--duration) var(--ease),
+    scale 0.16s var(--ease);
+}
+.ghost-action svg {
+  width: 17px;
+  height: 17px;
+}
+.ghost-action:active:not(:disabled) {
+  scale: 0.97;
+  background: var(--chip);
+}
+.ghost-action:disabled {
+  opacity: 0.5;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ghost-action:hover:not(:disabled) {
+    background: var(--chip);
+  }
+}
 .inline-link {
   border: 0;
   background: none;
@@ -3343,6 +3394,7 @@ details.options .checks {
     translate 0.24s var(--ease);
 }
 :host([data-closing]) .page-layer,
+:host([data-closing]) .active-edge,
 :host([data-closing]) .inspect-layer,
 :host([data-closing]) .status-chip,
 :host([data-closing]) .toast,

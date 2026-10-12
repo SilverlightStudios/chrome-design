@@ -2,6 +2,9 @@
 // Screenshots and cross-origin asset fetches need the extension and are skipped here.
 import '../src/content/index';
 
+// Exported files build in the toolbar script; the demo serves a built copy (vite.demo.config.ts).
+window.__chromeDesignRuntimeUrl = new URL('chrome-design.js', document.baseURI).href;
+
 void window.__chromeDesign?.open();
 
 const reopen = document.createElement('button');

@@ -15,6 +15,20 @@ extension (including a phone-width bottom-sheet test). Verified on the demo page
   plain-language element names (`src/content/describe.ts`) + floating selection bar + Details;
   comment bubble with send button; More sheet of tiles; contextual style bar; phone bottom sheets on
   the Remote Desktop drawer physics; exit animations everywhere (bubble, bars, sheets, whole UI).
+- R10: shareable handoff. The file *is* the page copy plus a marked wrapper
+  (`<!--chrome-design:begin/end-->`, `data-chrome-design-handoff` on <html>): CSP + width lock +
+  viewport in head; DSD `chrome-design-static` no-JS layer (overlay SVG + comment list), data
+  blocks and `#chrome-design-runtime` (the content script itself: SW `cd:get-runtime` reads
+  `content.js`; the demo serves `/chrome-design.js`; inside a file it's `document.currentScript`).
+  `content/index.ts` boots `bootHandoff` when the document is a handoff and there's no extension:
+  `prepareHandoffPage` freezes media queries to `page.media` (recorded at capture,
+  `capture/media.ts`), mounts with the payload doc (edits saved per file), Close pauses, Download
+  re-captures the copy (skip `[data-chrome-design]`) reusing original meta/screenshot/source.
+  Placed images get `placement {inside, covers}` at export; `images` index with file names;
+  prompt rewritten (scratch board, what/how/where for images, Python extractor); `.zip` for
+  agents (`export/zip.ts`, stored zip). Image links (drop html/uri-list, pasted URL) → canvas.
+  Active-tools edge frame (`.active-edge`). Missing images keep their live box in the copy.
+  Schema 2.0.0. Old iframe viewer (viewer-runtime/viewer-css) removed.
 - R9: images. `ImageShape` (kind `image`, data URL in `src`) placed by drop / paste / the Image
   button / ⇧⌘K (`content/images.ts`: downscale to 1600px, WebP, JPEG fallback in Safari when
   opaque; `placementRect` caps at 50% viewport width, 80% on phones); window-level capture

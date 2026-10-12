@@ -4,7 +4,6 @@ import Ajv2020 from 'ajv/dist/2020';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { capturePage } from '../src/capture/capture';
 import { buildHandoff } from '../src/export/build';
-import { unescapeScriptText } from '../src/shared/escape';
 import { type CommentThread, SCHEMA_VERSION } from '../src/shared/model';
 import { handoffSchema } from '../src/shared/schema';
 import { AT, fakeFetcher, sampleDoc } from './helpers';
@@ -143,23 +142,43 @@ describe('capture → export pipeline', () => {
     expect(snapshot).toMatch(/<h1 id="hero-title" data-cd-ref="cd-1">/);
   });
 
-  it('builds one self-contained HTML file with prompt, schema-valid payload and recoverable blocks', async () => {
+  it('builds the page itself as one shareable file: prompt, valid payload, static layer, toolbar', async () => {
     const doc = sampleDoc(PAGE_URL);
+    const runtime = 'window.__cdTest = "</script> and <!-- stay inert";';
     const out = await buildHandoff({
       capture: result.capture,
       doc,
       refs: result.refs,
       exportedAt: AT,
+      runtime,
     });
     const parsed = new DOMParser().parseFromString(out.html, 'text/html');
 
-    // Prominent agent prompt
-    const prompt = parsed.getElementById('agent-prompt')?.textContent ?? '';
+    // The agent instructions come first, in a comment, with the feedback spelled out
+    expect(out.html.indexOf('AGENT INSTRUCTIONS')).toBeLessThan(300);
+    const prompt = out.payload.agentPrompt;
     expect(prompt).toContain('Read EVERY comment thread and decision');
-    expect(prompt).toContain('Revise the snapshot HTML');
-    expect(out.html.indexOf('AGENT INSTRUCTIONS')).toBeLessThan(200);
+    expect(prompt).toContain('scratch board');
+    expect(prompt).toContain('PLACED IMAGES');
+    expect(out.html).toContain('PLACED IMAGE images/placed-01-hero-mockup.png');
+    expect(out.html).toContain('[attached image images/comment-02-1-brand.png');
 
-    // Payload validates against the embedded schema
+    // The document is the page: marked as a handoff and held at the reviewed width
+    expect(parsed.documentElement.getAttribute('data-chrome-design-handoff')).toBe(SCHEMA_VERSION);
+    expect(parsed.getElementById('hero-title')?.textContent).toBe('Welcome');
+    expect(out.html).toContain(`html{width:${result.capture.meta.viewport.width}px!important`);
+
+    // Strip the marked wrapper and the root attribute: the page snapshot, byte for byte
+    const begin = out.payload.blocks.snapshot.markers.begin;
+    const end = out.payload.blocks.snapshot.markers.end;
+    let clean = out.html;
+    for (let i = clean.indexOf(begin); i !== -1; i = clean.indexOf(begin)) {
+      clean = clean.slice(0, i) + clean.slice(clean.indexOf(end, i) + end.length);
+    }
+    clean = clean.replace(` data-chrome-design-handoff="${SCHEMA_VERSION}"`, '');
+    expect(clean).toBe(result.capture.snapshotHtml);
+
+    // Payload validates against the embedded schema and indexes every picture
     const payload = JSON.parse(parsed.getElementById('chrome-design-payload')?.textContent ?? '');
     const schema = JSON.parse(parsed.getElementById('chrome-design-schema')?.textContent ?? '');
     expect(schema).toEqual(JSON.parse(JSON.stringify(handoffSchema)));
@@ -175,46 +194,48 @@ describe('capture → export pipeline', () => {
       images: 2,
       openComments: 2,
     });
+    expect(payload.images.map((i: { file: string }) => i.file)).toEqual([
+      'images/placed-01-hero-mockup.png',
+      'images/comment-02-1-brand.png',
+    ]);
     expect(payload.annotations[0].target.anchor.ref).toBe('cd-1');
-
-    // Snapshot and source are recoverable byte-for-byte
-    const snapText = parsed.getElementById('chrome-design-snapshot')?.textContent ?? '';
-    expect(unescapeScriptText(snapText)).toBe(result.capture.snapshotHtml);
     const source = JSON.parse(parsed.getElementById('chrome-design-source')?.textContent ?? '""');
     expect(source).toBe(result.capture.sourceHtml);
 
-    // Comment text with markup is escaped, never live
-    expect(parsed.querySelectorAll('script').length).toBe(5);
-    expect(parsed.getElementById('change-1')?.textContent).toContain('</script> bolder');
+    // Without JavaScript: pins, drawings, the placed image and the comment list over the page
+    const layer = parsed.querySelector('chrome-design-static > template')?.innerHTML ?? '';
+    expect(layer.match(/class="cd-pin"/g)?.length).toBe(2);
+    expect(layer.match(/class="cd-shape"/g)?.length).toBe(3);
+    expect(layer).toMatch(/<image class="cd-shape"[^>]*href="data:image\/png/);
+    expect(layer).toContain('2 comments');
+    expect(layer).toContain('&lt;/script&gt; bolder');
 
-    // Strict CSP with a hash for the single inline script
+    // Data blocks, then the built-in toolbar, allowed by hash and nothing else
+    const scripts = Array.from(parsed.querySelectorAll('script')).map((el) => el.id);
+    expect(scripts).toEqual([
+      'chrome-design-payload',
+      'chrome-design-schema',
+      'chrome-design-source',
+      'chrome-design-runtime',
+    ]);
+    const inline = parsed.getElementById('chrome-design-runtime')?.textContent ?? '';
+    expect(inline).not.toMatch(/<\/script|<!--/i);
     const csp =
       parsed.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content') ??
       '';
     expect(csp).toContain("default-src 'none'");
     expect(csp).toContain("connect-src 'none'");
-    const inline = parsed.querySelector('script:not([type])')?.textContent ?? '';
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(inline));
     const hash = btoa(String.fromCharCode(...new Uint8Array(digest)));
-    expect(csp).toContain(`'sha256-${hash}'`);
-    expect(inline).not.toMatch(/<\/script|<!--/i);
-
-    // Snapshot iframe is sandboxed without scripts; overlay has pins
-    const frame = parsed.querySelector('iframe[data-cd-frame]');
-    expect(frame?.getAttribute('sandbox')).toBe('allow-same-origin');
-    expect(parsed.querySelectorAll('.cd-pin').length).toBe(2);
-    expect(parsed.querySelectorAll('.cd-shape').length).toBe(3);
-    // Placed pictures and comment attachments travel embedded, and the agent is told about them
-    expect(parsed.querySelector('image.cd-shape')?.getAttribute('href')).toMatch(
-      /^data:image\/png/,
-    );
-    expect(parsed.querySelector('#change-2 .msg-images img')?.getAttribute('alt')).toBe(
-      'brand.png',
-    );
-    expect(parsed.querySelector('.drawings')?.textContent).toContain(
-      'placed image “hero-mockup.png”',
-    );
-    expect(prompt).toContain('Placed images');
+    expect(csp).toContain(`script-src 'sha256-${hash}'`);
     expect(out.filename).toMatch(/^chrome-design-example\.com-\d{8}-\d{4}\.html$/);
+
+    // Without a runtime: still the page and the feedback, and no script may run
+    const bare = await buildHandoff({ capture: result.capture, doc, exportedAt: AT });
+    const bareDoc = new DOMParser().parseFromString(bare.html, 'text/html');
+    expect(
+      bareDoc.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content'),
+    ).toContain("script-src 'none'");
+    expect(bare.html).not.toContain('id="chrome-design-runtime"');
   });
 });

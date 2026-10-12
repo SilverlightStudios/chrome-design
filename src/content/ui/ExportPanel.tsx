@@ -88,10 +88,10 @@ export function ExportPanel() {
     return () => window.clearTimeout(t);
   }, [status.phase]);
 
-  const run = () => {
+  const run = (format: 'html' | 'zip') => {
     if (busy) return;
     setStatus({ phase: 'working', label: 'Getting ready…' });
-    void env.runExport({ includeScreenshot, includeSource }, setStatus);
+    void env.runExport({ includeScreenshot, includeSource, format }, setStatus);
   };
 
   const summary =
@@ -124,7 +124,7 @@ export function ExportPanel() {
         type="button"
         className="morph-pill"
         data-phase={status.phase}
-        onClick={run}
+        onClick={() => run('html')}
         disabled={busy}
         data-testid="cd-export-download"
         aria-live="polite"
@@ -146,7 +146,16 @@ export function ExportPanel() {
         </span>
         <span className="layer error">Couldn’t save — try again</span>
       </button>
-      {status.phase === 'done' && missing.length > 0 && (
+      <button
+        type="button"
+        className="ghost-action"
+        disabled={busy}
+        data-testid="cd-export-zip"
+        onClick={() => run('zip')}
+      >
+        <Icon.image /> Download .zip with images
+      </button>
+      {status.phase === 'done' && missing.length > 0 && !env.handoff && (
         <div className="export-result" role="status">
           <span className="warn">
             {plural(missing.length, 'image or style')} couldn’t be included
@@ -177,17 +186,19 @@ export function ExportPanel() {
           {status.message}
         </p>
       )}
-      <details className="options">
-        <summary>Options</summary>
-        <div className="checks">
-          <Switch
-            label="Include a screenshot"
-            on={includeScreenshot}
-            onChange={setIncludeScreenshot}
-          />
-          <Switch label="Include the page code" on={includeSource} onChange={setIncludeSource} />
-        </div>
-      </details>
+      {env.handoff ? null : (
+        <details className="options">
+          <summary>Options</summary>
+          <div className="checks">
+            <Switch
+              label="Include a screenshot"
+              on={includeScreenshot}
+              onChange={setIncludeScreenshot}
+            />
+            <Switch label="Include the page code" on={includeSource} onChange={setIncludeSource} />
+          </div>
+        </details>
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import type { ExportOptions, ExportStatus } from './context';
 import { HOST_TAG } from './dom';
 import { runExport } from './exporter';
 import { getSettings, openSettingsPage } from './ext';
+import { type HandoffData, handoffDoc } from './handoff';
 import { debounce, loadDoc, loadGrid, pageKey, saveDoc, saveGrid } from './persistence';
 import { createInitialState, EditorStore, emptyDoc } from './store';
 import css from './styles.css?inline';
@@ -98,11 +99,21 @@ function blockingDialog(preferred: HTMLDialogElement | null): HTMLDialogElement 
   return modals.at(-1) ?? null;
 }
 
-export async function mountEditor(onClose: () => void): Promise<Mounted> {
-  let href = currentHref();
-  const [savedDoc, grid] = await Promise.all([loadDoc(href), loadGrid(href)]);
-  const doc = savedDoc ?? emptyDoc(href, document.title);
-  const store = new EditorStore(createInitialState({ ...doc, title: document.title }, grid));
+/**
+ * `handoff`: running inside a shared handoff file. The feedback comes from the file (with any
+ * edits made in this copy remembered per file), Close pauses instead of removing the toolbar
+ * (the file has nothing else to go back to), and downloads rebuild the file from this copy.
+ */
+export async function mountEditor(onClose: () => void, handoff?: HandoffData): Promise<Mounted> {
+  let href = handoff ? handoff.storageKey : currentHref();
+  const [savedDoc, savedGrid] = await Promise.all([loadDoc(href), loadGrid(href)]);
+  const grid = handoff?.payload.grid ? { ...handoff.payload.grid, visible: false } : savedGrid;
+  const doc = savedDoc ?? (handoff ? handoffDoc(handoff.payload) : emptyDoc(href, document.title));
+  const title = handoff ? handoff.payload.page.title : document.title;
+  const store = new EditorStore(createInitialState({ ...doc, title }, grid));
+  const close = handoff
+    ? () => store.set({ tool: 'browse', hoverEl: null, selectedId: null, draft: null })
+    : onClose;
 
   const host = document.createElement(HOST_TAG);
   host.setAttribute('data-chrome-design', '');
@@ -165,6 +176,7 @@ export async function mountEditor(onClose: () => void): Promise<Mounted> {
 
   // Single-page apps: when the URL changes, save this page's notes and load the next page's.
   const navWatch = window.setInterval(async () => {
+    if (handoff) return;
     const next = currentHref();
     if (pageKey(next) === pageKey(href)) return;
     const prev = href;
@@ -175,7 +187,7 @@ export async function mountEditor(onClose: () => void): Promise<Mounted> {
   }, 600);
 
   const exportWith = (options: ExportOptions, onStatus: (s: ExportStatus) => void) =>
-    runExport(host, store, options, onStatus);
+    runExport(host, store, options, onStatus, handoff);
 
   const root: Root = createRoot(container);
   root.render(
@@ -185,10 +197,11 @@ export async function mountEditor(onClose: () => void): Promise<Mounted> {
           store,
           host,
           shadow,
-          close: onClose,
+          close,
           runExport: exportWith,
           openSettingsPage,
           getSettings,
+          ...(handoff ? { handoff: true } : {}),
         }}
       />
     </StrictMode>,

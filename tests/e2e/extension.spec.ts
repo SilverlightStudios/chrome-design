@@ -103,6 +103,13 @@ test.afterAll(async () => {
   server?.close();
 });
 
+/** Where each pin is placed on the page (not its box, which pops in with an animation). */
+const pinSpots = (pins: Element[]) =>
+  pins.map((p) => [
+    Math.round(Number.parseFloat((p as HTMLElement).style.left)),
+    Math.round(Number.parseFloat((p as HTMLElement).style.top)),
+  ]);
+
 /** Same path the popup / keyboard command uses: inject on demand, then toggle. */
 async function toggleToolbar(page: Page): Promise<void> {
   await worker.evaluate(async (url) => {
@@ -217,15 +224,16 @@ test('comment, draw and export a self-contained handoff from a live page', async
   await download.saveAs(path);
   const html = readFileSync(path, 'utf8');
   expect(download.suggestedFilename()).toMatch(/^chrome-design-127\.0\.0\.1-\d{8}-\d{4}\.html$/);
-  expect(html).toContain('Instructions for the AI agent');
-  expect(html).not.toContain('chrome-design-root');
+  expect(html.indexOf('AGENT INSTRUCTIONS')).toBeLessThan(300);
+  expect(html).not.toContain('<chrome-design-root');
   const payload = JSON.parse(
     html.match(
-      /<script type="application\/json" id="chrome-design-payload">\n([\s\S]*?)\n<\/script>/,
+      /<script type="application\/json" id="chrome-design-payload" data-chrome-design>([\s\S]*?)<\/script>/,
     )![1]!,
   );
   expect(payload.summary).toMatchObject({ comments: 2, decisions: 1, shapes: 2 });
   expect(payload.blocks.screenshot).toBeTruthy(); // captureVisibleTab through the service worker
+  expect(payload.blocks.runtime).toBeTruthy(); // the toolbar is built in
   expect(payload.warnings.map((w: { url?: string }) => w.url)).toContain(
     'https://unreachable.invalid/missing.png',
   );
@@ -235,8 +243,22 @@ test('comment, draw and export a self-contained handoff from a live page', async
 
   // Toolbar hides during the screenshot and comes back
   await expect(ui.locator('.toolbar')).toBeVisible();
+  const livePins = await ui.locator('.pin').evaluateAll(pinSpots);
 
-  // The exported file renders offline with no network requests
+  // The .zip for agents: the file, instructions, payload, clean page, screenshot
+  const [zipDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    ui.locator('[data-testid="cd-export-zip"]').click(),
+  ]);
+  expect(zipDownload.suggestedFilename()).toMatch(/\.zip$/);
+  const zipPath = resolve(root, 'test-results/last-export.zip');
+  await zipDownload.saveAs(zipPath);
+  const zipText = readFileSync(zipPath).toString('latin1');
+  expect(zipText.startsWith('PK')).toBe(true);
+  for (const name of ['AGENTS.md', 'handoff.json', 'page.html', 'screenshot.jpg'])
+    expect(zipText).toContain(`/${name}`);
+
+  // The shared file opens offline as the page, with the toolbar on and the feedback on top
   const viewer = await context.newPage();
   const requests: string[] = [];
   viewer.on('request', (r) => {
@@ -244,13 +266,37 @@ test('comment, draw and export a self-contained handoff from a live page', async
   });
   const errors: string[] = [];
   viewer.on('pageerror', (e) => errors.push(e.message));
+  viewer.on('console', (m) => {
+    if (m.type() === 'error') errors.push(m.text());
+  });
   await viewer.goto(`file://${path}`);
-  await expect(viewer.locator('html.cd-js')).toHaveCount(1);
-  const frameTitle = await viewer.evaluate(
-    () => document.querySelector('iframe')?.contentDocument?.querySelector('h1')?.textContent,
-  );
-  expect(frameTitle).toBe('Hello, reviewer');
-  expect(await viewer.locator('.cd-pin').count()).toBe(2);
+  const shared = viewer.locator('chrome-design-root');
+  await expect(shared.locator('.toolbar')).toBeVisible();
+  await expect(shared.locator('.root')).toHaveAttribute('data-tool', 'select');
+  expect(await viewer.locator('h1').first().textContent()).toBe('Hello, reviewer');
+  await expect(viewer.locator('chrome-design-static')).toHaveCount(0);
+  await expect(shared.locator('.pin')).toHaveCount(2);
+  const sharedPins = await shared.locator('.pin').evaluateAll(pinSpots);
+  expect(sharedPins).toEqual(livePins);
+
+  // A teammate replies in the file and downloads an updated copy
+  await shared.locator('.pin').first().click();
+  await shared.locator('.popover textarea').fill('Agreed, ship it');
+  await viewer.keyboard.press('Enter');
+  await expect(shared.locator('.popover .message')).toHaveCount(2);
+  await viewer.keyboard.press('Escape');
+  await viewer.keyboard.press('Shift+E');
+  const [again] = await Promise.all([
+    viewer.waitForEvent('download'),
+    shared.locator('[data-testid="cd-export-download"]').click(),
+  ]);
+  const againPath = resolve(root, 'test-results/reexport.html');
+  await again.saveAs(againPath);
+  const updated = readFileSync(againPath, 'utf8');
+  expect(updated).toContain('Agreed, ship it');
+  expect(updated.match(/id="chrome-design-runtime"/g)?.length).toBe(1);
+  expect(updated.match(/<meta name="chrome-design-snapshot" content="http/g)?.length).toBe(1);
+  expect(updated).toContain('Hello, reviewer');
   expect(requests).toEqual([]);
   expect(errors).toEqual([]);
 

@@ -5,6 +5,8 @@ import type { EditorState, EditorStore } from './store';
 export interface ExportOptions {
   includeScreenshot: boolean;
   includeSource: boolean;
+  /** One shareable .html (default), or a .zip with the pictures as files for AI agents. */
+  format?: 'html' | 'zip';
 }
 
 export type ExportStatus =
@@ -34,6 +36,8 @@ export interface EditorEnv {
   openSettingsPage: () => Promise<boolean>;
   /** Current extension settings; null without the extension (demo page). */
   getSettings: () => Promise<SettingsResponse | null>;
+  /** Running inside a shared handoff file (no extension; the page is a copy). */
+  handoff?: boolean;
 }
 
 const EnvContext = createContext<EditorEnv | null>(null);

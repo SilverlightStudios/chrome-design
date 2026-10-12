@@ -2,21 +2,19 @@ import {
   byteLength,
   escapeHtml,
   escapeHtmlComment,
-  escapeScriptText,
+  escapeInlineScript,
   jsonForScript,
-  SCRIPT_TEXT_ESCAPING,
 } from '../shared/escape';
-import { rectsIntersect, shapeBounds } from '../shared/geometry';
 import {
   type Annotation,
   type AnnotationDoc,
   APP_NAME,
   APP_VERSION,
-  type CommentMessage,
   type CommentThread,
   type ElementAnchor,
   type GridSettings,
   type HandoffPayload,
+  type ImageIndexEntry,
   INTENT_LABEL,
   isComment,
   isShape,
@@ -24,13 +22,16 @@ import {
   type PageCapture,
   SCHEMA_ID,
   SCHEMA_VERSION,
-  type Shape,
 } from '../shared/model';
 import { handoffSchema } from '../shared/schema';
-import { renderOverlaySvg, threadPoint } from './overlay';
-import { BLOCK_IDS, buildAgentPrompt } from './prompt';
-import { VIEWER_CSS } from './viewer-css';
-import { viewerRuntime } from './viewer-runtime';
+import { pinColor, renderOverlaySvg } from './overlay';
+import {
+  BLOCK_IDS,
+  buildAgentPrompt,
+  describeAnnotations,
+  MARKERS,
+  ROOT_ATTRIBUTE,
+} from './prompt';
 
 export interface BuildInput {
   capture: PageCapture;
@@ -39,6 +40,11 @@ export interface BuildInput {
   refs?: ReadonlyMap<string, string>;
   grid?: GridSettings;
   exportedAt?: string;
+  /**
+   * Source of the Chrome Design script, built into the file so it opens with the toolbar on.
+   * Without it the file still shows the page with the feedback drawn on top (no tools).
+   */
+  runtime?: string;
 }
 
 export interface BuildOutput {
@@ -59,7 +65,17 @@ export function linkAnnotations(
   refs: ReadonlyMap<string, string>,
 ): Annotation[] {
   return annotations.map((a) => {
-    if (!isComment(a)) return a;
+    if (isShape(a)) {
+      if (a.kind !== 'image' || !a.placement) return a;
+      const { inside, covers } = a.placement;
+      return {
+        ...a,
+        placement: {
+          ...(inside ? { inside: withRef(inside, refs) } : {}),
+          covers: covers.map((x) => withRef(x, refs)),
+        },
+      };
+    }
     const t = a.target;
     if (t.type === 'region')
       return { ...a, target: { ...t, anchors: t.anchors.map((x) => withRef(x, refs)) } };
@@ -87,7 +103,73 @@ export function summarize(annotations: Annotation[]): HandoffPayload['summary'] 
 }
 
 const pad2 = (v: number) => String(v).padStart(2, '0');
-const at = (x: number, y: number) => `at (${Math.round(x)}, ${Math.round(y)})`;
+
+function slug(name: string): string {
+  const base = name.replace(/\.[a-z0-9]+$/i, '');
+  return (
+    base
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || 'image'
+  );
+}
+
+const EXTENSIONS: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'image/svg+xml': 'svg',
+  'image/avif': 'avif',
+};
+
+function extensionOf(src: string): string {
+  const mime = /^data:([^;,]+)/.exec(src)?.[1]?.toLowerCase();
+  if (mime) return EXTENSIONS[mime] ?? 'img';
+  const ext = /\.([a-z0-9]{2,5})(?:[?#]|$)/i.exec(src)?.[1]?.toLowerCase();
+  return ext === 'jpeg' ? 'jpg' : (ext ?? 'img');
+}
+
+/** Every picture in the handoff, with the file name it gets when unpacked. */
+export function imageIndex(annotations: Annotation[]): ImageIndexEntry[] {
+  const entries: ImageIndexEntry[] = [];
+  let placed = 0;
+  for (const a of annotations) {
+    if (!isShape(a) || a.kind !== 'image') continue;
+    placed++;
+    entries.push({
+      file: `images/placed-${pad2(placed)}-${slug(a.name)}.${extensionOf(a.src)}`,
+      kind: 'placed',
+      name: a.name,
+      annotationId: a.id,
+      rect: a.rect,
+      embedded: a.src.startsWith('data:'),
+    });
+  }
+  const comments = annotations.filter(isComment).toSorted((x, y) => x.number - y.number);
+  for (const c of comments) {
+    let n = 0;
+    for (const m of c.messages) {
+      for (const att of m.attachments ?? []) {
+        n++;
+        entries.push({
+          file: `images/comment-${pad2(c.number)}-${n}-${slug(att.name)}.${extensionOf(att.src)}`,
+          kind: 'attachment',
+          name: att.name,
+          annotationId: c.id,
+          messageId: m.id,
+          attachmentId: att.id,
+          comment: c.number,
+          width: att.width,
+          height: att.height,
+          embedded: att.src.startsWith('data:'),
+        });
+      }
+    }
+  }
+  return entries;
+}
 
 export function exportFilename(url: string, date: Date): string {
   let host = 'page';
@@ -108,93 +190,60 @@ async function sha256Base64(text: string): Promise<string> {
   return btoa(binary);
 }
 
-function targetDescription(thread: CommentThread): string {
-  const t = thread.target;
-  if (t.type === 'region') {
-    const r = t.rect;
-    const inside = t.anchors.length
-      ? ` containing ${t.anchors.map((a) => `<code>${escapeHtml(a.selector)}</code>`).join(', ')}`
-      : '';
-    return `Region ${Math.round(r.width)}×${Math.round(r.height)} ${at(r.x, r.y)}${inside}`;
-  }
-  const anchor = t.type === 'element' ? t.anchor : t.anchor;
-  const where = at(t.point.x, t.point.y);
-  if (!anchor) return `Point ${where}`;
-  const ref = anchor.ref ? ` · <code>[data-cd-ref="${escapeHtml(anchor.ref)}"]</code>` : '';
-  const text = anchor.text ? ` — “${escapeHtml(anchor.text)}”` : '';
-  return `${t.type === 'element' ? 'Element' : 'Point on'} <code>${escapeHtml(anchor.selector)}</code>${ref}${text} ${where}`;
-}
+const STATIC_CSS = `
+:host{all:initial}
+.ov{position:absolute;left:0;top:0;pointer-events:none}
+.ov svg{display:block;overflow:visible}
+.list{position:fixed;right:12px;bottom:12px;width:min(360px,calc(100vw - 24px));max-height:min(70vh,560px);overflow:auto;box-sizing:border-box;background:#fff;color:#1f1f1f;border:1px solid #d6d6d6;border-radius:16px;box-shadow:0 18px 40px -16px rgba(0,0,0,.35);font:13px/1.4 -apple-system,system-ui,"Segoe UI",sans-serif;pointer-events:auto}
+.list summary{cursor:pointer;padding:12px 14px;font-weight:600;list-style:none}
+.list summary::-webkit-details-marker{display:none}
+.list ol{margin:0;padding:0 14px 12px;list-style:none;display:grid;gap:12px}
+.num{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:11px 11px 11px 3px;color:#fff;font-weight:700;font-size:11px;margin-right:6px}
+.kind{color:#6b6b6b;font-size:12px}
+.msg{margin:6px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.reply{margin:6px 0 0 10px;padding-left:8px;border-left:2px solid #e3e3e3}
+.imgs{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.imgs img{display:block;max-height:140px;max-width:100%;border-radius:8px;border:1px solid #e3e3e3}
+@media (prefers-color-scheme:dark){.list{background:#1c1c1c;color:#f2f2f2;border-color:#333}.kind{color:#9a9a9a}.reply{border-color:#333}}
+`;
 
-function anchorDetails(thread: CommentThread): string {
-  const t = thread.target;
-  const anchor = t.type === 'region' ? t.anchors[0] : t.anchor;
-  if (!anchor) return '';
-  const rows = [
-    ['path', anchor.path],
-    [
-      'box',
-      `${Math.round(anchor.rect.width)}×${Math.round(anchor.rect.height)} at (${Math.round(anchor.rect.x)}, ${Math.round(anchor.rect.y)})`,
-    ],
-    ...Object.entries(anchor.styles),
-  ]
-    .map(([k, v]) => `<dt>${escapeHtml(k ?? '')}</dt><dd>${escapeHtml(v ?? '')}</dd>`)
-    .join('');
-  return `<details><summary>Element details</summary><dl class="kv">${rows}</dl></details>`;
-}
-
-/** Pictures attached to a message. (No links: browsers won't open data: URLs in a tab.) */
-function attachmentsMarkup(message: CommentMessage): string {
-  const images = message.attachments ?? [];
-  if (images.length === 0) return '';
-  return `<div class="msg-images">${images
-    .map(
-      (img) =>
-        `<img src="${escapeHtml(img.src)}" alt="${escapeHtml(img.name)}" title="${escapeHtml(img.name)}" width="${img.width}" height="${img.height}" loading="lazy">`,
-    )
-    .join('')}</div>`;
-}
-
-function changeItem(thread: CommentThread): string {
+function staticThread(thread: CommentThread): string {
   const messages = thread.messages
-    .map(
-      (m, i) =>
-        `<div class="msg"><time datetime="${escapeHtml(m.createdAt)}">${i === 0 ? 'Designer' : 'Reply'} · ${escapeHtml(m.createdAt.replace('T', ' ').slice(0, 16))}</time>${m.body ? `<p>${escapeHtml(m.body)}</p>` : ''}${attachmentsMarkup(m)}</div>`,
-    )
+    .map((m, i) => {
+      const imgs = (m.attachments ?? [])
+        .filter((a) => a.src.startsWith('data:image/'))
+        .map(
+          (a) =>
+            `<img src="${escapeHtml(a.src)}" alt="${escapeHtml(a.name)}" width="${a.width}" height="${a.height}">`,
+        )
+        .join('');
+      const body = m.body ? `<p class="msg">${escapeHtml(m.body)}</p>` : '';
+      const inner = `${body}${imgs ? `<div class="imgs">${imgs}</div>` : ''}`;
+      return i === 0 ? inner : `<div class="reply">${inner}</div>`;
+    })
     .join('');
-  const status =
-    thread.status === 'resolved'
-      ? '<span class="chip status-chip-resolved">Resolved</span>'
-      : '<span class="chip">Open</span>';
-  return `<li class="change intent-${thread.intent} status-${thread.status}" id="change-${thread.number}" data-cd-change data-annotation-id="${escapeHtml(thread.id)}" tabindex="0">
-<div class="change-head"><span class="num">${thread.number}</span><span class="chip intent-chip-${thread.intent}">${INTENT_LABEL[thread.intent]}</span>${status}</div>
-<p class="target">${targetDescription(thread)}</p>
-${messages}
-${anchorDetails(thread)}
-</li>`;
+  const status = thread.status === 'resolved' ? ' · Resolved' : '';
+  return `<li><span class="num" style="background:${pinColor(thread)}">${thread.number}</span><span class="kind">${INTENT_LABEL[thread.intent]}${status}</span>${messages}</li>`;
 }
 
-function describeShape(shape: Shape, comments: CommentThread[]): string {
-  const b = shapeBounds(shape);
-  const pad = 80;
-  const near = comments
-    .filter((c) => {
-      const p = threadPoint(c);
-      return rectsIntersect(
-        { x: b.x - pad, y: b.y - pad, width: b.width + pad * 2, height: b.height + pad * 2 },
-        { x: p.x, y: p.y, width: 1, height: 1 },
-      );
-    })
-    .map((c) => `#${c.number}`);
-  const label =
-    shape.kind === 'text'
-      ? `text “${escapeHtml(shape.text)}”`
-      : shape.kind === 'pen'
-        ? 'freehand mark'
-        : shape.kind === 'image'
-          ? `placed image “${escapeHtml(shape.name)}”`
-          : shape.kind;
-  const colour = shape.kind === 'image' ? '' : ` (${escapeHtml(shape.style.color)})`;
-  return `<li>${label}${colour} around ${Math.round(b.width)}×${Math.round(b.height)} at (${Math.round(b.x)}, ${Math.round(b.y)})${near.length ? ` — near comment ${near.join(', ')}` : ''}</li>`;
+/**
+ * What shows without JavaScript (file previews, mail apps, agents rendering the page): the
+ * drawings and pins drawn over the page, and the comments in a corner list. Declarative shadow
+ * DOM keeps the page's CSS away from it. The built-in toolbar replaces it when it starts.
+ */
+function staticLayer(annotations: Annotation[], width: number, height: number): string {
+  const comments = annotations.filter(isComment).toSorted((a, b) => a.number - b.number);
+  const list = comments.length
+    ? `<details class="list"><summary>${comments.length} comment${comments.length === 1 ? '' : 's'}</summary><ol>${comments.map(staticThread).join('')}</ol></details>`
+    : '';
+  return `<chrome-design-static data-chrome-design style="display:block;position:absolute;left:0;top:0;width:0;height:0;margin:0;padding:0;border:0;z-index:2147483647"><template shadowrootmode="open"><style>${STATIC_CSS}</style><div class="ov">${renderOverlaySvg(annotations, width, height)}</div>${list}</template></chrome-design-static>`;
+}
+
+const wrap = (html: string) => `${MARKERS.begin}${html}${MARKERS.end}`;
+
+/** Index of `needle` in `haystack` ignoring ASCII case, searching from the end. */
+function lastIndexOfCi(haystack: string, needle: string): number {
+  return haystack.toLowerCase().lastIndexOf(needle.toLowerCase());
 }
 
 export async function buildHandoff(input: BuildInput): Promise<BuildOutput> {
@@ -203,12 +252,9 @@ export async function buildHandoff(input: BuildInput): Promise<BuildOutput> {
   const refs = input.refs ?? new Map<string, string>();
   const exportedAt = input.exportedAt ?? new Date().toISOString();
   const annotations = linkAnnotations(doc.annotations, refs);
-  const comments = annotations.filter(isComment).toSorted((a, b) => a.number - b.number);
-  const shapes = annotations.filter(isShape);
-  const agentPrompt = buildAgentPrompt(doc, meta);
-
-  const snapshotText = escapeScriptText(capture.snapshotHtml);
-  const sourceJson = jsonForScript(capture.sourceHtml);
+  const images = imageIndex(annotations);
+  const agentPrompt = buildAgentPrompt(doc, meta, images);
+  const runtime = input.runtime ? escapeInlineScript(input.runtime) : '';
 
   const payload: HandoffPayload = {
     $schema: SCHEMA_ID,
@@ -221,15 +267,16 @@ export async function buildHandoff(input: BuildInput): Promise<BuildOutput> {
     agentPrompt,
     summary: summarize(annotations),
     annotations,
+    images,
     guides: doc.guides,
     sanitize: capture.sanitize,
     assets: capture.assets,
     warnings: capture.warnings,
     blocks: {
       snapshot: {
-        elementId: BLOCK_IDS.snapshot,
-        mediaType: 'text/html',
-        escaping: SCRIPT_TEXT_ESCAPING,
+        location: 'document',
+        markers: { begin: MARKERS.begin, end: MARKERS.end },
+        rootAttribute: ROOT_ATTRIBUTE,
         bytes: byteLength(capture.snapshotHtml),
       },
       source: {
@@ -248,192 +295,72 @@ export async function buildHandoff(input: BuildInput): Promise<BuildOutput> {
       height: capture.screenshot.height,
     };
   }
+  if (runtime)
+    payload.blocks.runtime = { elementId: BLOCK_IDS.runtime, bytes: byteLength(runtime) };
 
-  const viewerScript = `(${viewerRuntime.toString()})();`;
-  const scriptHash = await sha256Base64(viewerScript);
   const csp = [
     "default-src 'none'",
     'img-src data: blob:',
-    'media-src data:',
+    'media-src data: blob:',
     'font-src data:',
     "style-src 'unsafe-inline'",
-    `script-src 'sha256-${scriptHash}'`,
-    "frame-src 'self' about:",
+    runtime ? `script-src 'sha256-${await sha256Base64(runtime)}'` : "script-src 'none'",
     "connect-src 'none'",
+    "frame-src 'none'",
     "base-uri 'none'",
     "form-action 'none'",
   ].join('; ');
 
-  const s = payload.summary;
-  const pageW = meta.viewport.width;
-  const pageH = meta.document.height;
-  const warnings = capture.warnings;
-  const assetWarnings = warnings.filter(
-    (w) => w.code === 'asset-not-embedded' || w.code === 'asset-too-large',
-  );
+  const width = Math.max(1, meta.viewport.width);
+  const height = Math.max(1, meta.document.height);
 
-  const warningsSection = warnings.length
-    ? `<section class="card warnings" id="capture-warnings" aria-labelledby="warnings-title">
-<h2 id="warnings-title">⚠ ${warnings.length} capture warning${warnings.length === 1 ? '' : 's'}${assetWarnings.length ? ` — ${assetWarnings.length} asset${assetWarnings.length === 1 ? '' : 's'} could not be embedded` : ''}</h2>
-<p>The snapshot is still usable, but these parts of the page may be missing or unstyled offline. Use the viewport screenshot to see how they looked.</p>
-<ul>${warnings.map((w) => `<li><b>${escapeHtml(w.code)}</b>: ${escapeHtml(w.message)}${w.url ? ` <code>${escapeHtml(w.url)}</code>` : ''}</li>`).join('')}</ul>
-</section>`
-    : '';
-
-  const changes = comments.length
-    ? `<ol>${comments.map(changeItem).join('\n')}</ol>`
-    : '<p class="empty">No comments were added. Use the drawings and the brief.</p>';
-  const drawings = shapes.length
-    ? `<h2 style="margin-top:18px">Drawings (${shapes.length})</h2><ul class="drawings">${shapes.map((sh) => describeShape(sh, comments)).join('')}</ul>`
-    : '';
-
-  const metaRows: [string, string][] = [
-    ['URL', meta.url],
-    ['Title', meta.title],
-    ['Captured', meta.capturedAt],
-    ['Exported', exportedAt],
-    ['Time zone', meta.timeZone],
-    [
-      'Viewport',
-      `${meta.viewport.width}×${meta.viewport.height} @${meta.viewport.devicePixelRatio}x`,
-    ],
-    ['Document', `${meta.document.width}×${meta.document.height}`],
-    ['Scroll position', `${meta.scroll.x}, ${meta.scroll.y}`],
-    ['Color scheme', meta.colorScheme],
-    ['Language', meta.lang || '—'],
-    ['User agent', meta.userAgent],
-    [
-      'Embedded assets',
-      `${capture.assets.embedded} (${(capture.assets.embeddedBytes / 1024).toFixed(0)} KB), ${capture.assets.failed} failed`,
-    ],
-    [
-      'Removed for safety',
-      `${capture.sanitize.scripts} scripts, ${capture.sanitize.eventHandlers} event handlers, ${capture.sanitize.javascriptUrls} javascript: URLs, ${capture.sanitize.frames} frames, ${capture.sanitize.embeds} embeds, ${capture.sanitize.other} other`,
-    ],
-    ['Schema', `${SCHEMA_ID}`],
-    ['Generator', `${APP_NAME} ${APP_VERSION}`],
-  ];
-
-  const html = `<!DOCTYPE html>
-<!--
+  const header = wrap(`\n<!--
 ${escapeHtmlComment(`CHROME DESIGN HANDOFF · schema ${SCHEMA_VERSION}
 
 AGENT INSTRUCTIONS
 ${agentPrompt}
 
-FILE MAP
-- #${BLOCK_IDS.prompt}: this prompt (visible)
-- #${BLOCK_IDS.changes}: numbered requested changes, comments and decisions (visible)
-- #${BLOCK_IDS.payload}: machine-readable annotations + metadata (application/json)
-- #${BLOCK_IDS.schema}: JSON Schema for the payload
-- #${BLOCK_IDS.snapshot}: sanitized page snapshot, raw HTML (escaping: ${SCRIPT_TEXT_ESCAPING})
-- #${BLOCK_IDS.source}: original rendered DOM as a JSON string (reference only)
-- #${BLOCK_IDS.screenshot}: viewport screenshot (if captured)`)}
--->
-<html lang="en" data-chrome-design-schema="${SCHEMA_VERSION}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}">
-<meta name="generator" content="${APP_NAME} ${APP_VERSION}">
-<meta name="robots" content="noindex">
-<title>Design feedback — ${escapeHtml(meta.title || meta.url)}</title>
-<style>${VIEWER_CSS}</style>
-</head>
-<body>
-<div class="wrap">
-<header class="top">
-  <div>
-    <div class="eyebrow">Design feedback handoff · ${APP_NAME}</div>
-    <h1>${escapeHtml(meta.title || 'Untitled page')}</h1>
-    <div class="page-url">${escapeHtml(meta.url)}</div>
-  </div>
-  <div class="stats" aria-label="Summary">
-    <span class="stat"><b>${s.comments}</b> comment${s.comments === 1 ? '' : 's'}</span>
-    <span class="stat"><b>${s.openComments}</b> open</span>
-    <span class="stat"><b>${s.decisions}</b> decision${s.decisions === 1 ? '' : 's'}</span>
-    <span class="stat"><b>${s.shapes}</b> drawing${s.shapes === 1 ? '' : 's'}</span>
-    <span class="stat">${meta.viewport.width}×${meta.viewport.height}</span>
-  </div>
-</header>
+THE FEEDBACK
+${describeAnnotations(annotations, images) || '(no comments or drawings; see the brief)'}`)}
+-->\n`);
 
-<section class="card prompt" id="${BLOCK_IDS.prompt}" aria-labelledby="prompt-title" data-cd-section="agent-prompt">
-  <h2 id="prompt-title">Instructions for the AI agent</h2>
-  <div class="actions"><button class="btn" type="button" data-cd-copy-prompt>Copy prompt</button></div>
-  <pre id="agent-prompt-text">${escapeHtml(agentPrompt)}</pre>
-</section>
+  // Before anything can load: the policy, a phone-friendly viewport, and the page held at the
+  // width it was reviewed at (so everything drawn lines up in any window).
+  const head = wrap(
+    `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}" data-chrome-design><meta name="viewport" content="width=device-width, initial-scale=1" data-chrome-design><meta name="generator" content="${APP_NAME} ${APP_VERSION}" data-chrome-design><style data-chrome-design>html{width:${width}px!important;min-width:${width}px!important;max-width:none!important}</style>`,
+  );
 
-${warningsSection}
+  const tail = wrap(
+    [
+      staticLayer(annotations, width, height),
+      `<script type="application/json" id="${BLOCK_IDS.payload}" data-chrome-design>${jsonForScript(payload)}</script>`,
+      `<script type="application/schema+json" id="${BLOCK_IDS.schema}" data-chrome-design>${jsonForScript(handoffSchema)}</script>`,
+      `<script type="application/json" id="${BLOCK_IDS.source}" data-chrome-design>${jsonForScript(capture.sourceHtml)}</script>`,
+      capture.screenshot
+        ? `<script type="text/plain" id="${BLOCK_IDS.screenshot}" data-chrome-design data-width="${capture.screenshot.width}" data-height="${capture.screenshot.height}">${escapeHtml(capture.screenshot.dataUrl)}</script>`
+        : '',
+      runtime ? `<script id="${BLOCK_IDS.runtime}" data-chrome-design>${runtime}</script>` : '',
+    ].join('\n'),
+  );
 
-<div class="layout">
-  <section class="card changes" id="${BLOCK_IDS.changes}" aria-labelledby="changes-title" data-cd-section="annotations">
-    <h2 id="changes-title">Requested changes (${comments.length})</h2>
-    ${changes}
-    ${drawings}
-  </section>
+  const snap = capture.snapshotHtml;
+  const doctype = /^\s*<!DOCTYPE[^>]*>\s*/i.exec(snap);
+  let page = doctype ? snap.slice(doctype[0].length) : snap;
+  page = /<html\b/i.test(page)
+    ? page.replace(/<html\b/i, `<html ${ROOT_ATTRIBUTE}="${SCHEMA_VERSION}"`)
+    : `<html ${ROOT_ATTRIBUTE}="${SCHEMA_VERSION}">${page}</html>`;
+  const headOpen = /<head\b[^>]*>/i.exec(page);
+  page = headOpen
+    ? page.slice(0, headOpen.index + headOpen[0].length) +
+      head +
+      page.slice(headOpen.index + headOpen[0].length)
+    : page.replace(/<html\b[^>]*>/i, (tag) => `${tag}<head>${head}</head>`);
+  let end = lastIndexOfCi(page, '</body>');
+  if (end === -1) end = lastIndexOfCi(page, '</html>');
+  page = end === -1 ? page + tail : page.slice(0, end) + tail + page.slice(end);
 
-  <section class="card viewer" aria-labelledby="viewer-title" data-cd-section="snapshot">
-    <div class="viewer-bar">
-      <h2 id="viewer-title">Page snapshot + annotations</h2>
-      <label><input type="checkbox" data-cd-toggle="annotations" checked> Annotations</label>
-      <label><input type="checkbox" data-cd-toggle="drawings" checked> Drawings</label>
-      <span class="zoom">
-        <button class="btn" type="button" data-cd-action="zoom-out" aria-label="Zoom out">−</button>
-        <output data-cd-zoom-label>100%</output>
-        <button class="btn" type="button" data-cd-action="zoom-in" aria-label="Zoom in">+</button>
-        <button class="btn" type="button" data-cd-action="fit">Fit</button>
-        <button class="btn" type="button" data-cd-action="actual">1:1</button>
-      </span>
-    </div>
-    <div class="stage" data-cd-stage tabindex="0" aria-label="Snapshot canvas. Drag or scroll to pan, Ctrl/⌘ + scroll or pinch to zoom, + and − keys to zoom, 0 to fit.">
-      <div class="canvas" data-cd-canvas style="width:${pageW}px;height:${pageH}px">
-        <iframe data-cd-frame title="Static snapshot of ${escapeHtml(meta.title || meta.url)}" sandbox="allow-same-origin" referrerpolicy="no-referrer" loading="eager" style="width:${pageW}px;height:${pageH}px"></iframe>
-        ${renderOverlaySvg(annotations, pageW, pageH)}
-      </div>
-    </div>
-    <noscript><p class="noscript-note">The interactive snapshot needs JavaScript. The snapshot HTML is stored in <code>#${BLOCK_IDS.snapshot}</code>; the screenshot below shows the captured viewport.</p></noscript>
-  </section>
-</div>
-
-${
-  capture.screenshot
-    ? `<section class="card screenshot" aria-labelledby="shot-title">
-  <h2 id="shot-title">Viewport screenshot (as the designer saw it, annotations visible)</h2>
-  <img id="${BLOCK_IDS.screenshot}" alt="Screenshot of the annotated viewport" width="${capture.screenshot.width}" height="${capture.screenshot.height}" src="${escapeHtml(capture.screenshot.dataUrl)}">
-</section>`
-    : ''
-}
-
-<section class="card meta" aria-labelledby="meta-title" data-cd-section="metadata">
-  <h2 id="meta-title">Capture metadata</h2>
-  <dl>${metaRows.map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join('')}</dl>
-</section>
-
-<section class="card blocks" aria-labelledby="blocks-title">
-  <h2 id="blocks-title">Embedded data</h2>
-  <ul>
-    <li><code>#${BLOCK_IDS.payload}</code> — annotations, decisions and metadata as JSON (schema <code>${SCHEMA_ID}</code>). <button class="btn" type="button" data-cd-download="payload">Save JSON</button></li>
-    <li><code>#${BLOCK_IDS.snapshot}</code> — sanitized snapshot HTML (${(payload.blocks.snapshot.bytes / 1024).toFixed(0)} KB). <button class="btn" type="button" data-cd-download="snapshot">Save snapshot.html</button></li>
-    <li><code>#${BLOCK_IDS.source}</code> — original rendered DOM, JSON string (${(payload.blocks.source.bytes / 1024).toFixed(0)} KB). Reference only; never execute.</li>
-    <li><code>#${BLOCK_IDS.schema}</code> — JSON Schema (draft 2020-12).</li>
-  </ul>
-</section>
-<footer>Generated by ${APP_NAME} ${APP_VERSION}. Everything in this file stays local; it makes no network requests.</footer>
-</div>
-
-<script type="application/json" id="${BLOCK_IDS.payload}">
-${jsonForScript(payload, 2)}
-</script>
-<script type="application/schema+json" id="${BLOCK_IDS.schema}">
-${jsonForScript(handoffSchema, 2)}
-</script>
-<script type="text/html" id="${BLOCK_IDS.snapshot}" data-escaping="chrome-design/script-text-v1">${snapshotText}</script>
-<script type="application/json" id="${BLOCK_IDS.source}">${sourceJson}</script>
-<script>${viewerScript}</script>
-</body>
-</html>
-`;
-
+  // Strip every marked part and the root attribute and the page is back byte for byte.
+  const html = `${doctype ? doctype[0] : ''}${header}${page}`;
   return {
     html,
     payload,

@@ -170,10 +170,13 @@ function emitElement(el: Element, ctx: SnapshotContext, out: string[]): void {
   if (html) {
     if (lower === 'meta') {
       if (el.hasAttribute('http-equiv') || el.hasAttribute('charset')) return;
+      // Our own stamp from an earlier export (re-exporting a handoff file) is written afresh.
+      if (el.getAttribute('name') === 'chrome-design-snapshot') return;
     } else if (lower === 'link') {
       emitLink(el, ctx, out);
       return;
     } else if (lower === 'style') {
+      if (el.hasAttribute('data-cd-freeze')) return;
       const css =
         ctx.stylesheetText.get(el) ?? rewriteSheetText(el.textContent ?? '', ctx.baseUrl, ctx);
       const media = el.getAttribute('media');
@@ -196,6 +199,7 @@ function emitElement(el: Element, ctx: SnapshotContext, out: string[]): void {
 
   const attrs = collectAttributes(el, ctx);
   applyLiveState(el, attrs, ctx);
+  keepMissingImageBox(el, attrs);
   const ref = ctx.refs.get(el);
   if (ref) attrs.set('data-cd-ref', ref);
 
@@ -262,7 +266,7 @@ function collectAttributes(el: Element, ctx: SnapshotContext): Map<string, strin
       if (lower === 'action' || lower === 'formaction' || lower === 'srcdoc') ctx.report.other++;
       continue;
     }
-    if (lower.startsWith('data-cd-')) continue;
+    if (lower.startsWith('data-cd-') || lower.startsWith('data-chrome-design')) continue;
     if (lower === 'style') {
       value = sanitizeInlineCss(
         rewriteDeclarations(rewriteCssUrls(value, ctx.baseUrl, ctx.assets, true), ctx.viewport),
@@ -290,6 +294,19 @@ function collectAttributes(el: Element, ctx: SnapshotContext): Map<string, strin
     attrs.set(name, value);
   }
   return attrs;
+}
+
+/**
+ * An image that couldn't be embedded gets a placeholder, which would take its own size and
+ * shift the page under the feedback. Pin it to the box the live image had.
+ */
+function keepMissingImageBox(el: Element, attrs: Map<string, string>): void {
+  if (el.localName.toLowerCase() !== 'img' || !attrs.has('data-cd-original-src')) return;
+  const r = el.getBoundingClientRect();
+  if (r.width === 0 && r.height === 0) return;
+  const box = `width:${Math.round(r.width * 100) / 100}px;height:${Math.round(r.height * 100) / 100}px;object-fit:contain`;
+  const style = attrs.get('style');
+  attrs.set('style', style ? `${style.replace(/;?\s*$/, ';')}${box}` : box);
 }
 
 export function currentImageUrl(img: HTMLImageElement, base: string): string {

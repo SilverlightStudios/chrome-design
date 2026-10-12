@@ -396,13 +396,15 @@ export function Toolbar() {
       if (p.style) patch.style = p.style;
       if (p.lastShape && (SHAPE_TOOLS as string[]).includes(p.lastShape))
         patch.lastShape = p.lastShape as ShapeToolId;
-      if (!p.onboarded && store.getState().panel === 'none') patch.panel = 'welcome';
+      // Someone opening a shared file is shown the feedback, not the intro.
+      if (!p.onboarded && !env.handoff && store.getState().panel === 'none')
+        patch.panel = 'welcome';
       store.set(patch);
     });
     const onResize = () => force((n) => n + 1);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [store]);
+  }, [store, env.handoff]);
 
   // The intro counts as seen once it has been put away, however that happened.
   const prevPanel = useRef(panel);

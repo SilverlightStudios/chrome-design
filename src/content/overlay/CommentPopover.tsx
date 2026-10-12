@@ -18,7 +18,16 @@ import {
 import { livePinPoint } from '../actions';
 import { useEnv } from '../context';
 import { friendlyAnchorLabel } from '../describe';
-import { dragHasFiles, imageFiles, loadImageFiles, pickImageFiles, toAttachment } from '../images';
+import {
+  dragHasImage,
+  imageFiles,
+  imageUrls,
+  type LoadedImage,
+  loadImageFiles,
+  loadImageUrls,
+  pickImageFiles,
+  toAttachment,
+} from '../images';
 import { type DraftComment, nextCommentNumber } from '../store';
 import { Icon } from '../ui/icons';
 
@@ -152,8 +161,10 @@ export function CommentPopover({
   const close = () => store.set({ draft: null, openThreadId: null });
 
   const attach = (files: File[]) => {
-    if (files.length === 0) return;
-    void loadImageFiles(files).then((images) => {
+    if (files.length) attachLoaded(loadImageFiles(files));
+  };
+  const attachLoaded = (loading: Promise<LoadedImage[]>) => {
+    void loading.then((images) => {
       if (images.length === 0) {
         toast('That image couldn’t be opened');
         return;
@@ -163,7 +174,7 @@ export function CommentPopover({
     });
   };
   const onDragOver = (e: ReactDragEvent) => {
-    if (!dragHasFiles(e.dataTransfer)) return;
+    if (!dragHasImage(e.dataTransfer)) return;
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'copy';
@@ -173,11 +184,16 @@ export function CommentPopover({
     if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false);
   };
   const onDrop = (e: ReactDragEvent) => {
-    if (!dragHasFiles(e.dataTransfer)) return;
+    if (!dragHasImage(e.dataTransfer)) return;
     e.preventDefault();
     e.stopPropagation();
     setDropping(false);
-    attach(imageFiles(e.dataTransfer));
+    const files = imageFiles(e.dataTransfer);
+    if (files.length) attach(files);
+    else {
+      const urls = imageUrls(e.dataTransfer);
+      if (urls.length) attachLoaded(loadImageUrls(urls));
+    }
   };
 
   const submit = () => {
@@ -348,7 +364,13 @@ export function CommentPopover({
                       aria-label={`Open ${img.name}`}
                       onClick={() => store.set({ viewImage: img })}
                     >
-                      <img src={img.src} alt="" width={img.width} height={img.height} />
+                      <img
+                        src={img.src}
+                        alt=""
+                        width={img.width}
+                        height={img.height}
+                        draggable={false}
+                      />
                     </button>
                   ))}
                 </div>
@@ -363,7 +385,13 @@ export function CommentPopover({
           <div className="attach-strip">
             {attachments.map((img) => (
               <span key={img.id} className="attach-item">
-                <img src={img.src} alt={img.name} width={img.width} height={img.height} />
+                <img
+                  src={img.src}
+                  alt={img.name}
+                  width={img.width}
+                  height={img.height}
+                  draggable={false}
+                />
                 <button
                   type="button"
                   className="attach-remove"

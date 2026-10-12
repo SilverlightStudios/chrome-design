@@ -11,7 +11,7 @@ export function hasExtensionRuntime(): boolean {
   return typeof chrome !== 'undefined' && !!chrome.runtime?.id;
 }
 
-function send<T>(message: ToBackgroundMessage): Promise<T | null> {
+export function sendToBackground<T>(message: ToBackgroundMessage): Promise<T | null> {
   if (!hasExtensionRuntime()) return Promise.resolve(null);
   return new Promise((resolve) => {
     try {
@@ -26,7 +26,9 @@ function send<T>(message: ToBackgroundMessage): Promise<T | null> {
 }
 
 export async function captureVisibleTab(): Promise<string | null> {
-  const response = await send<CaptureVisibleTabResponse>({ type: 'cd:capture-visible-tab' });
+  const response = await sendToBackground<CaptureVisibleTabResponse>({
+    type: 'cd:capture-visible-tab',
+  });
   return response?.ok ? response.dataUrl : null;
 }
 
@@ -36,22 +38,26 @@ export async function captureVisibleTab(): Promise<string | null> {
  */
 export const backgroundFetcher: AssetFetcher = async (url, maxBytes) => {
   if (!/^https?:/i.test(url)) return { ok: false, error: 'unsupported scheme' };
-  const response = await send<FetchAssetResponse>({ type: 'cd:fetch-asset', url, maxBytes });
+  const response = await sendToBackground<FetchAssetResponse>({
+    type: 'cd:fetch-asset',
+    url,
+    maxBytes,
+  });
   if (!response) return { ok: false, error: 'extension background unavailable' };
   return response;
 };
 
 /** Opens the extension's full settings page in a tab. False on the demo page (no extension). */
 export async function openSettingsPage(): Promise<boolean> {
-  return (await send<{ ok: boolean }>({ type: 'cd:open-options' }))?.ok === true;
+  return (await sendToBackground<{ ok: boolean }>({ type: 'cd:open-options' }))?.ok === true;
 }
 
 /** Current extension settings, or null on the demo page. */
 export function getSettings(): Promise<SettingsResponse | null> {
-  return send<SettingsResponse>({ type: 'cd:get-settings' });
+  return sendToBackground<SettingsResponse>({ type: 'cd:get-settings' });
 }
 
 /** Keeps the toolbar icon's badge in sync when the toolbar is closed from the page. */
 export function reportState(open: boolean): void {
-  void send<unknown>({ type: 'cd:state', open });
+  void sendToBackground<unknown>({ type: 'cd:state', open });
 }

@@ -8,18 +8,18 @@ Personal-use prototype. No accounts, no server, no analytics: page content never
 
 ## Using it
 
-Click the Chrome Design icon (or press `⌥⇧D`) on any page to open the toolbar; click again to close it. The first time, a short three-step welcome explains the basics and puts the Comment tool in your hand.
+Click the Chrome Design icon (or press `⌥⇧D`) on any page to open the toolbar; click again to close it. The first time, a short three-step welcome explains the basics and puts the Comment tool in your hand. While the tools are on, a thin blue line with a soft fade frames the screen; it fades away when you pause.
 
 The toolbar is one row: **Close · Select · Comment · Pencil · Shapes · Text · Image · More ⋯ · Send to AI**. Hover a button for its name and shortcut (on touch screens, press and hold).
 
 | Tool | Key | What it does |
 | --- | --- | --- |
 | Select | `V` | Click any element to select it. A small bar above it names it and offers **Comment**, **Details** (size, text style, colours you can copy, spacing, corners) and **Select the surrounding element** (`↑`; `↓` selects the first element inside). The selection shows its outline, its size and a spacing line from each side to the next thing on the page: a neighbour in line with it, the inside edge of the box it sits in, or the page edge (dashed), each with its gap in px (pills sit just above horizontal lines and beside vertical ones; the size label moves aside for the bottom line). Drag over empty page to select an area. Hold `⌥` to see padding and margin (labelled the same way, in green and orange), or the distance to whatever you hover. Click a drawing to select it: drag to move, pull a handle to resize (`⇧` keeps proportions, or snaps lines to 45°), double-click a label to edit it, arrow keys nudge, `⌫` deletes (with Undo). `Enter` comments on the selection. |
-| Comment | `C` | Hover to see what you'll comment on, click to open a comment bubble, type and press `Enter` (`⇧Enter` for a new line). Drag to comment on an area. Each comment is a Change, Decision, Question or Note, and can have replies, be resolved or deleted (with Undo). Drag a pin to move it. Attach images with the picture button in the bubble, by dropping them onto the bubble, or by pasting into it (up to 6 per message; a message can be just images). Tap an attached image to see it full size. |
+| Comment | `C` | Hover to see what you'll comment on, click to open a comment bubble, type and press `Enter` (`⇧Enter` for a new line). Drag to comment on an area. Each comment is a Change, Decision, Question or Note, and can have replies, be resolved or deleted (with Undo). Drag a pin to move it. Attach images with the picture button in the bubble, by dropping them onto the bubble (files, or a picture dragged from another website), or by pasting into it (up to 6 per message; a message can be just images). Tap an attached image to see it full size. |
 | Pencil | `P` | Freehand drawing. It stays selected so you can keep sketching; the eraser (`E`) is in the style bar. |
 | Shapes | `R` `O` `A` `L` | Rectangle, ellipse, arrow and line. The button shows the last shape you used; press and hold (or right-click) it for the others. `⇧` makes squares and circles and snaps lines to 45°. After drawing, you're back in Select with the new shape selected, ready to adjust. |
 | Text | `T` | Click to place a text label. |
-| Image | `⇧⌘K` | Pick images to place on the page, like on a canvas. While any tool is on you can also drag images straight onto the page (they land where you drop them) or paste one with `⌘V` (it lands in the middle of the screen). A placed image is selected right away: drag to move, pull a corner to resize (proportions kept; `⇧` frees them), `⌫` deletes. Large pictures are scaled down to 1600 px on the long edge before they're saved. When the tools are paused, drops and pastes go to the page as usual. |
+| Image | `⇧⌘K` | Pick images to place on the page, like on a canvas. While any tool is on you can also drag images straight onto the page (they land where you drop them), including a picture dragged from another website, or paste an image or an image link with `⌘V` (it lands in the middle of the screen). A linked picture is copied in when its site allows it; otherwise the link is kept and embedded at download time if possible. A placed image is selected right away: drag to move, pull a corner to resize (proportions kept; `⇧` frees them), `⌫` deletes. Large pictures are scaled down to 1600 px on the long edge before they're saved. When the tools are paused, drops and pastes go to the page as usual. |
 | Style bar | | Appears above the toolbar while drawing or when a drawing is selected: colour, stroke width, dashed, eraser, delete, undo and redo. Changes apply to the selected drawing. |
 | More ⋯ | | Comments list (`F`, filter by open or resolved, click to jump to one), Use the page (pauses the tools so the page works normally), Rulers (`M`, drag from a ruler to add a guide), Columns (`G` toggles; the ⋯ on the tile opens its settings: Stretch / Left / Center / Right / Space between / around / evenly, DialKit-style sliders for count, width, gutter, margin and opacity where a typed number can go past the slider, colour swatches), Shortcuts (`?`, desktop only), Quick tour, Settings and Clear this page. Panels opened from More have a back button. |
 | Send to AI | `⇧E` | Shows what will be included, takes an optional note for the assistant, and downloads the file. |
@@ -66,28 +66,31 @@ Measured in Chrome DevTools (`document.getAnimations()`, rAF sampling) against t
 
 ## The handoff file
 
-`chrome-design-<host>-<yyyymmdd-hhmm>.html` is a single file that works offline:
+**Send to AI → Download file** saves `chrome-design-<host>-<yyyymmdd-hhmm>.html`. It is one file, it works offline, and it is meant to be shared:
 
-1. **Agent prompt.** A prominent block at the top (also repeated in an HTML comment at the very start of the file and in the JSON payload). It tells the agent to read every comment thread and decision, find each target in the snapshot, implement the open change requests, respect the decisions, answer the questions, and return the revised HTML along with a checklist.
-2. **Requested changes.** A numbered list of threads showing type, status, replies, attached images and target (selector, `data-cd-ref`, text excerpt, coordinates and computed styles), followed by a list of drawings and placed images with the comments closest to each. Placed images also appear on the annotated snapshot, and the agent prompt explains they are the designer's references.
-3. **Snapshot + annotations.** The static page snapshot in a sandboxed iframe with an SVG overlay of pins, region outlines and drawings. You can zoom (buttons, `+`/`-`/`0`/`1`, Ctrl/⌘ + scroll, pinch) and pan (drag or scroll). Clicking a change highlights its element in the snapshot.
-4. **Viewport screenshot.** Taken with the annotations visible and the toolbar hidden.
-5. **Capture warnings.** Lists every asset that could not be embedded, every frame that was replaced, and similar issues.
-6. **Machine-readable blocks:**
-   - `#chrome-design-payload` (`application/json`): metadata, annotations, decisions, guides, grid, sanitize report and warnings.
-   - `#chrome-design-schema` (`application/schema+json`): JSON Schema draft 2020-12, `$id` `urn:chrome-design:handoff:1.0.0` (source: `src/shared/schema.ts`).
-   - `#chrome-design-snapshot` (`text/html`): the sanitized snapshot as raw HTML. In the stored text, only `</script`, `<script` and `<!--` get a backslash inserted after the `<`; remove one backslash to restore the original (`unescapeScriptText` in `src/shared/escape.ts`).
-   - `#chrome-design-source` (`application/json` string): the original rendered DOM, unsanitized, kept for reference and never executed.
+- **It is the page.** The file *is* the page copy (scripts removed, images, fonts and CSS embedded) with the Chrome Design toolbar built in. Whoever opens it in a browser sees the page with every comment, drawing and placed image on top and the tools already on: they can read, reply, resolve, draw, place images, and **Download** an updated file. No extension is needed. Close pauses the tools. Edits made in a copy are remembered per file in that browser.
+- **Lined up in any window.** The page is held at the width it was reviewed at, and every media query is answered the way the designer's screen answered it (recorded at capture, applied when the file opens; the stored CSS keeps its original queries). On a phone you see the page 1:1 and pan sideways, with the normal phone toolbar.
+- **Without JavaScript** (file previews, mail apps) it still shows the page with pins, outlines, drawings and placed images drawn on top, plus a corner list of the comments and their pictures (declarative shadow DOM, so page CSS can't touch it).
+- **For AI agents.** An HTML comment at the very top holds the instructions and the whole feedback in plain text (every comment with replies and attached pictures, every drawing, every placed image with where it sits). The instructions explain that the board is a scratch board (nothing is pixel-perfect unless a comment says so), and that a placed image is usually a screenshot of the intended design, often a component from Figma. It tells the agent *what* to build (what the picture shows, with nearby comments), *how* it should look (in the page's own design system), and *where* it goes: where it was dropped, `placement.inside` (the section it belongs in) and `placement.covers` (what it sits on). The top comment also carries a short Python script that unpacks every picture into `images/`, the clean page into `page.html` and the payload into `handoff.json`.
+- **Download .zip with images** saves the same thing as a folder for coding agents and chat uploads: the `.html`, `AGENTS.md` (instructions + feedback), `handoff.json`, `page.html`, `screenshot.jpg` and `images/placed-NN-….png` / `images/comment-NN-k-….png`.
 
-Annotation coordinates are CSS pixels from the document's top-left corner at the recorded viewport width. Anchored elements carry `data-cd-ref="cd-N"` in the snapshot.
+What's inside the file:
+
+- The handoff wrapper is everything between `<!--chrome-design:begin-->` and `<!--chrome-design:end-->`, plus `data-chrome-design-handoff` on `<html>`. Remove those and you have the page copy byte for byte. Anchored elements carry `data-cd-ref="cd-N"`.
+- `#chrome-design-payload` (`application/json`): metadata (including the recorded media-query answers), annotations, `images` (every picture with its file name), guides, grid, sanitize report and warnings.
+- `#chrome-design-schema` (`application/schema+json`): JSON Schema draft 2020-12, `$id` `urn:chrome-design:handoff:2.0.0` (source: `src/shared/schema.ts`).
+- `#chrome-design-source`: the original rendered DOM as a JSON string, for reference only, never executed.
+- `#chrome-design-screenshot`: the designer's viewport with the feedback visible.
+- `#chrome-design-runtime`: the toolbar (the extension's own `content.js`).
+
+Annotation coordinates are CSS pixels from the document's top-left corner at the recorded viewport width.
 
 ### Safety of the exported file
 
-- **Sanitized snapshot.** Scripts, `noscript`, event-handler attributes, `javascript:`/`vbscript:`/HTML `data:` URLs, `srcdoc`, `<base>`, meta refresh, form actions and SVG `href` animations are removed. Iframes, objects and embeds become same-size placeholders. Canvases and videos are flattened to images. Password values are masked.
-- **Sandboxed rendering.** The snapshot renders in `<iframe sandbox="allow-same-origin">` (no `allow-scripts`).
-- **CSP.** The whole file is under `default-src 'none'`. Only data URLs are allowed for images and fonts, and the single viewer script runs through a SHA-256 hash.
-- **No network.** Assets that could not be embedded are replaced by a hatched placeholder (`data-cd-original-src` keeps the URL), so opening the file makes no network requests.
-- **Escaped data.** JSON blocks escape `<`, `>`, `&`, U+2028 and U+2029. Comment text is HTML-escaped wherever it is shown.
+- **Sanitized page copy.** Scripts, `noscript`, event-handler attributes, `javascript:`/`vbscript:`/HTML `data:` URLs, `srcdoc`, `<base>`, meta refresh, form actions and SVG `href` animations are removed. Iframes, objects and embeds become same-size placeholders. Canvases and videos are flattened to images. Password values are masked. Images that couldn't be embedded keep their on-page box.
+- **CSP.** The file is under `default-src 'none'` with `connect-src 'none'`: only data/blob URLs for images and fonts, and exactly one script, the built-in toolbar, allowed by its SHA-256 hash. Nothing in the page copy can run.
+- **No network.** Opening the file makes no requests (the end-to-end test checks this).
+- **Escaped data.** JSON blocks escape `<`, `>`, `&`, U+2028 and U+2029; the inline toolbar script has `</script` and `<!--` neutralised. Comment text is HTML-escaped wherever it is shown.
 
 ## Setup
 
@@ -115,14 +118,14 @@ After changing code, run `pnpm build` again and click the reload icon on the ext
 | --- | --- |
 | `pnpm build` | Production build into `dist/` |
 | `pnpm dev` | Watch build into `dist/` |
-| `pnpm demo` | Runs the real in-page UI on a sample site at http://127.0.0.1:5173 (open it on a phone to test the touch layout). There is no extension runtime there, so screenshots are skipped and annotations go to `localStorage`. |
+| `pnpm demo` | Runs the real in-page UI on a sample site at http://127.0.0.1:5173 (open it on a phone to test the touch layout). There is no extension runtime there, so screenshots are skipped and annotations go to `localStorage`. It also serves `/chrome-design.js` (the content script, built on request) so files downloaded from the demo open with the toolbar too. |
 | `pnpm demo:build` | Static build of the demo into `demo-dist/` |
 | `pnpm typecheck` | `tsc --noEmit` (TypeScript 7) |
 | `pnpm lint` | Oxlint + Biome check |
 | `pnpm lint:fix` / `pnpm format` | Auto-fix / format |
 | `pnpm test` | Vitest unit tests (schema/export, sanitizer, CSS rewriting, geometry incl. resize handles, store history, shortcuts, plain-language element names) |
 | `pnpm e2e:install` | One-time project-local Chromium download for e2e (`PLAYWRIGHT_BROWSERS_PATH=0`, stored in `node_modules`) |
-| `pnpm test:e2e` | Builds `dist-e2e/` and runs Playwright against the real unpacked extension: welcome, comment, select and comment from the selection bar, draw then move and resize, undo/redo, export (then opens the file offline and asserts zero network requests), hostile pages (transformed root, max z-index widgets, page shortcuts, inner scrollers, modal dialogs), single-page apps, strict CSP, an image dropped on a strict-CSP page (placed, painted, undoable), and phone-width bottom sheets. |
+| `pnpm test:e2e` | Builds `dist-e2e/` and runs Playwright against the real unpacked extension: welcome, comment, select and comment from the selection bar, draw then move and resize, undo/redo, export (then opens the file offline and asserts zero network requests), hostile pages (transformed root, max z-index widgets, page shortcuts, inner scrollers, modal dialogs), single-page apps, strict CSP, an image dropped on a strict-CSP page (placed, painted, undoable), the .zip download, opening the downloaded file offline (toolbar on, pins exactly where they were on the live page, a reply, a re-download, zero network requests and console errors), and phone-width bottom sheets. |
 | `pnpm check` | typecheck + lint + unit tests + build |
 
 `dist-e2e/` is a test-only build that adds `<all_urls>` host access, because automated tests can't click the toolbar icon to grant `activeTab`. Don't load it for real use.

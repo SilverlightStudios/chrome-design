@@ -1,6 +1,8 @@
 import type { PingResponse, ToContentMessage } from '../shared/messages';
-import { reportState } from './ext';
+import { hasExtensionRuntime, reportState } from './ext';
+import { isHandoffDocument, prepareHandoffPage, readHandoff } from './handoff';
 import { type Mounted, mountEditor } from './mount';
+import { setRuntimeSource } from './runtime';
 
 /**
  * Content script entry. Injected on demand (activeTab + scripting), never declared for all
@@ -20,7 +22,52 @@ declare global {
   }
 }
 
-if (!window.__chromeDesign) {
+// Read synchronously: inside a handoff file this is the file's own copy of this script.
+const ownScript = document.currentScript?.textContent ?? '';
+
+/**
+ * Opened as a shared handoff file (the extension isn't needed): start the toolbar on the page
+ * copy with the feedback from the file. Close pauses; the toolbar never leaves.
+ */
+function bootHandoff(): void {
+  const data = readHandoff(ownScript);
+  if (!data) return;
+  setRuntimeSource(ownScript);
+  prepareHandoffPage(data);
+  let mounted: Mounted | null = null;
+  const ready = mountEditor(() => undefined, data).then((m) => {
+    mounted = m;
+  });
+  const resume = () => mounted?.store.set({ tool: 'select' });
+  window.__chromeDesign = {
+    open: async () => {
+      await ready;
+      resume();
+    },
+    close: () => mounted?.store.set({ tool: 'browse' }),
+    toggle: async () => {
+      await ready;
+      if (mounted?.store.getState().tool === 'browse') resume();
+      else mounted?.store.set({ tool: 'browse' });
+    },
+    isOpen: () => !!mounted,
+    exportNow: async () => {
+      await ready;
+      return mounted?.exportNow();
+    },
+  };
+}
+
+if (isHandoffDocument() && !hasExtensionRuntime()) {
+  if (!window.__chromeDesign) bootHandoff();
+} else if (isHandoffDocument()) {
+  // The extension was started on a handoff file: the file's own toolbar is already running.
+  if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage)
+    chrome.runtime.onMessage.addListener((_message, _sender, sendResponse) => {
+      sendResponse({ ok: true, open: true } satisfies PingResponse);
+      return false;
+    });
+} else if (!window.__chromeDesign) {
   let mounted: Mounted | null = null;
   let opening: Promise<void> | null = null;
 

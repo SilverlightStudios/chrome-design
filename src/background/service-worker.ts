@@ -1,9 +1,11 @@
 import { guessMime, toDataUrl } from '../shared/base64';
-import type {
-  CaptureVisibleTabResponse,
-  FetchAssetResponse,
-  SettingsResponse,
-  ToBackgroundMessage,
+import {
+  type CaptureVisibleTabResponse,
+  CONTENT_SCRIPT_FILE,
+  type FetchAssetResponse,
+  type RuntimeResponse,
+  type SettingsResponse,
+  type ToBackgroundMessage,
 } from '../shared/messages';
 import { activeTab, sendToTab } from './inject';
 
@@ -128,6 +130,17 @@ chrome.runtime.onMessage.addListener((message: ToBackgroundMessage, sender, send
   }
   if (message?.type === 'cd:fetch-asset') {
     void fetchAsset(message.url, message.maxBytes).then(sendResponse);
+    return true;
+  }
+  if (message?.type === 'cd:get-runtime') {
+    // The content script's own source, built into exported files so they open with the toolbar.
+    void fetch(chrome.runtime.getURL(CONTENT_SCRIPT_FILE))
+      .then((r) => r.text())
+      .then(
+        (source) => sendResponse({ ok: true, source } satisfies RuntimeResponse),
+        (error: unknown) =>
+          sendResponse({ ok: false, error: String(error) } satisfies RuntimeResponse),
+      );
     return true;
   }
   return false;

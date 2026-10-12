@@ -78,7 +78,11 @@ function pinMarkup(thread: CommentThread): string {
   const p = threadPoint(thread);
   const color = pinColor(thread);
   const label = String(thread.number);
-  return `<g class="cd-pin" data-annotation-id="${escapeHtml(thread.id)}" data-number="${thread.number}" transform="translate(${n(p.x)} ${n(p.y)})" tabindex="0" role="button" aria-label="Comment ${thread.number}"><path d="M0 0 L0 -18 A12 12 0 1 1 12 -6 Z" transform="translate(0 0)" fill="${color}" stroke="#fff" stroke-width="2"/><text x="12" y="-17.5" text-anchor="middle" dominant-baseline="middle" fill="#fff" font-size="${label.length > 2 ? 9 : 11}" font-weight="700" font-family="system-ui, -apple-system, Segoe UI, sans-serif">${label}</text></g>`;
+  const text = thread.messages
+    .map((m) => m.body)
+    .filter(Boolean)
+    .join('\n');
+  return `<g class="cd-pin" data-annotation-id="${escapeHtml(thread.id)}" data-number="${thread.number}" transform="translate(${n(p.x)} ${n(p.y)})" aria-label="Comment ${thread.number}"><title>${escapeHtml(`${thread.number}. ${text}`)}</title><path d="M0 0 L0 -18 A12 12 0 1 1 12 -6 Z" transform="translate(0 0)" fill="${color}" stroke="#fff" stroke-width="2"/><text x="12" y="-17.5" text-anchor="middle" dominant-baseline="middle" fill="#fff" font-size="${label.length > 2 ? 9 : 11}" font-weight="700" font-family="system-ui, -apple-system, Segoe UI, sans-serif">${label}</text></g>`;
 }
 
 /** Static SVG overlay (page coordinates) shown above the snapshot in the exported viewer. */

@@ -15,6 +15,7 @@ import {
   simplifyFontFaceSources,
   wrapMedia,
 } from './css';
+import { recordMediaAnswers } from './media';
 import { emptySanitizeReport } from './sanitize';
 import { currentImageUrl, serializeSnapshot } from './serialize';
 
@@ -32,6 +33,11 @@ export interface CaptureOptions {
   onProgress?: (stage: CaptureStage, detail?: string) => void;
   limits?: Partial<typeof DEFAULT_EMBED_LIMITS>;
   shadowRootOf?: (el: Element) => ShadowRoot | null;
+  /**
+   * Page facts to record instead of reading them from `doc` (re-exporting from a handoff file,
+   * where the document is a copy of a page that lives elsewhere).
+   */
+  meta?: PageMeta;
 }
 
 export interface CaptureResult {
@@ -336,7 +342,7 @@ export async function capturePage(options: CaptureOptions): Promise<CaptureResul
   const shadowRootOf = options.shadowRootOf ?? defaultShadowRootOf;
   const warnings: CaptureWarning[] = [];
   const report = emptySanitizeReport();
-  const meta = collectPageMeta(doc);
+  const meta = options.meta ?? collectPageMeta(doc);
   const base = doc.baseURI;
 
   options.onProgress?.('styles');
@@ -381,6 +387,19 @@ export async function capturePage(options: CaptureOptions): Promise<CaptureResul
   const stylesheetText = new Map<Node, string>(sheets.map((s) => [s.owner, finalCss(s)]));
   const adoptedCss = new Map<Document | ShadowRoot, string>();
   for (const [root, list] of adopted) adoptedCss.set(root, list.map(finalCss).join('\n'));
+  if (!options.meta) {
+    const attributeQueries = roots.flatMap((root) =>
+      Array.from(root.querySelectorAll('style[media], link[media]'))
+        .filter((el) => !skip(el))
+        .map((el) => el.getAttribute('media') ?? ''),
+    );
+    const answers = recordMediaAnswers(
+      [...stylesheetText.values(), ...adoptedCss.values()],
+      attributeQueries,
+      (q) => (doc.defaultView ?? window).matchMedia(q).matches,
+    );
+    if (Object.keys(answers).length) meta.media = answers;
+  }
 
   const refsByElement = new Map<Element, string>();
   const refs = new Map<string, string>();

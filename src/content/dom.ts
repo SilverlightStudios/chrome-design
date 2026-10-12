@@ -63,6 +63,66 @@ export function elementsInRect(
 }
 
 /**
+ * The smallest page element whose box holds the whole page-space rect (the section or
+ * container something dropped there belongs in). Null when only the page itself does.
+ */
+export function containerOfRect(rect: Rect, tolerance = 2): Element | null {
+  const sx = window.scrollX;
+  const sy = window.scrollY;
+  const holds = (el: Element) => {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return false;
+    return (
+      r.left + sx <= rect.x + tolerance &&
+      r.top + sy <= rect.y + tolerance &&
+      r.right + sx >= rect.x + rect.width - tolerance &&
+      r.bottom + sy >= rect.y + rect.height - tolerance
+    );
+  };
+  let found: Element | null = null;
+  let current: Element | null = document.body;
+  while (current) {
+    // The last matching child paints on top when siblings overlap.
+    const next: Element | undefined = Array.from(current.children).findLast(
+      (child) => !child.localName.startsWith('chrome-design') && holds(child),
+    );
+    if (!next) break;
+    found = next;
+    current = next;
+  }
+  return found;
+}
+
+/**
+ * Children of `container` (the page body when null) that a page-space rect overlaps, most
+ * overlapped first: what something dropped there sits on.
+ */
+export function overlappedChildren(container: Element | null, rect: Rect, limit = 4): Element[] {
+  const parent = container ?? document.body;
+  if (!parent) return [];
+  const sx = window.scrollX;
+  const sy = window.scrollY;
+  return Array.from(parent.children)
+    .filter((child) => !child.localName.startsWith('chrome-design'))
+    .map((child) => {
+      const r = child.getBoundingClientRect();
+      const ix = Math.max(
+        0,
+        Math.min(r.right + sx, rect.x + rect.width) - Math.max(r.left + sx, rect.x),
+      );
+      const iy = Math.max(
+        0,
+        Math.min(r.bottom + sy, rect.y + rect.height) - Math.max(r.top + sy, rect.y),
+      );
+      return { child, area: ix * iy };
+    })
+    .filter((c) => c.area > 0)
+    .toSorted((a, b) => b.area - a.area)
+    .slice(0, limit)
+    .map((c) => c.child);
+}
+
+/**
  * Page-space boxes of the visible elements a selection can be measured against: everything
  * except the selection itself and what's inside it, the page root, and this UI. Capped so a
  * huge page stays quick (first `limit` in document order).

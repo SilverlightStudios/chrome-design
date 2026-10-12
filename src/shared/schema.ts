@@ -27,6 +27,7 @@ export const handoffSchema = {
     'agentPrompt',
     'summary',
     'annotations',
+    'images',
     'guides',
     'sanitize',
     'assets',
@@ -64,6 +65,27 @@ export const handoffSchema = {
       },
     },
     annotations: { type: 'array', items: { $ref: '#/$defs/annotation' } },
+    images: {
+      type: 'array',
+      description: 'Every picture (placed on the page or attached to a comment) and its file name.',
+      items: {
+        type: 'object',
+        required: ['file', 'kind', 'name', 'annotationId', 'embedded'],
+        properties: {
+          file: str,
+          kind: { enum: ['placed', 'attachment'] },
+          name: str,
+          annotationId: str,
+          messageId: str,
+          attachmentId: str,
+          comment: { type: 'integer', minimum: 1 },
+          rect: { $ref: '#/$defs/rect' },
+          width: num,
+          height: num,
+          embedded: { type: 'boolean' },
+        },
+      },
+    },
     guides: {
       type: 'array',
       items: {
@@ -115,11 +137,17 @@ export const handoffSchema = {
       properties: {
         snapshot: {
           type: 'object',
-          required: ['elementId', 'mediaType', 'escaping', 'bytes'],
+          description:
+            'The page snapshot is the HTML document itself; the handoff wrapper is everything between the markers plus rootAttribute on <html>.',
+          required: ['location', 'markers', 'rootAttribute', 'bytes'],
           properties: {
-            elementId: str,
-            mediaType: { const: 'text/html' },
-            escaping: str,
+            location: { const: 'document' },
+            markers: {
+              type: 'object',
+              required: ['begin', 'end'],
+              properties: { begin: str, end: str },
+            },
+            rootAttribute: str,
             bytes: { type: 'integer', minimum: 0 },
           },
         },
@@ -137,6 +165,11 @@ export const handoffSchema = {
           type: 'object',
           required: ['elementId', 'width', 'height'],
           properties: { elementId: str, width: num, height: num },
+        },
+        runtime: {
+          type: 'object',
+          required: ['elementId', 'bytes'],
+          properties: { elementId: str, bytes: { type: 'integer', minimum: 0 } },
         },
       },
     },
@@ -175,6 +208,11 @@ export const handoffSchema = {
           type: 'object',
           required: ['width', 'height'],
           properties: { width: num, height: num },
+        },
+        media: {
+          type: 'object',
+          description: "How each media query evaluated on the designer's screen.",
+          additionalProperties: { type: 'boolean' },
         },
       },
     },
@@ -302,8 +340,21 @@ export const handoffSchema = {
         point: { $ref: '#/$defs/point' },
         text: str,
         fontSize: num,
-        src: { type: 'string', description: 'Embedded picture (data:image/… URL), kind "image".' },
+        src: {
+          type: 'string',
+          description: 'Embedded picture (data:image/… URL, or the original link), kind "image".',
+        },
         name: str,
+        placement: {
+          type: 'object',
+          description:
+            'Where a placed image sits: the element containing it and the elements it mostly covers. Approximate.',
+          required: ['covers'],
+          properties: {
+            inside: { $ref: '#/$defs/anchor' },
+            covers: { type: 'array', items: { $ref: '#/$defs/anchor' } },
+          },
+        },
       },
       allOf: [
         { if: { properties: { kind: { const: 'pen' } } }, then: { required: ['points'] } },

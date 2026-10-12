@@ -1,5 +1,7 @@
+import { pageFetcher } from '../capture/assets';
 import { createId, nowIso } from '../shared/ids';
 import type { ImageAttachment, ImageShape, Point, Rect } from '../shared/model';
+import { backgroundFetcher } from './ext';
 import type { EditorStore } from './store';
 
 /**
@@ -34,6 +36,49 @@ export function dragHasFiles(data: DataTransfer | null): boolean {
   return !!data && Array.from(data.types).includes('Files');
 }
 
+/** Whether a drag may carry a picture: files, or an image/link dragged from another page. */
+export function dragHasImage(data: DataTransfer | null): boolean {
+  if (!data) return false;
+  const types = new Set(data.types);
+  return types.has('Files') || types.has('text/uri-list') || types.has('text/html');
+}
+
+const URL_RE = /^(https?:\/\/\S+|data:image\/[\w.+-]+[;,]\S+)$/i;
+
+/** A pasted or dropped string that is just a link (http(s) or a data:image URL). */
+export function asImageLink(text: string): string | null {
+  const t = text.trim();
+  return URL_RE.test(t) ? t : null;
+}
+
+/**
+ * Picture links in a drop or paste from another page: an <img> in the dragged HTML first
+ * (dragging an image inside a link carries the link too), then the URL list, then plain text.
+ */
+export function imageUrls(data: DataTransfer | null): string[] {
+  if (!data) return [];
+  const urls: string[] = [];
+  const html = data.getData('text/html');
+  if (html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    for (const img of Array.from(doc.images)) {
+      const src = img.getAttribute('src');
+      if (src && asImageLink(src)) urls.push(src);
+    }
+  }
+  if (urls.length === 0) {
+    for (const line of data.getData('text/uri-list').split(/\r?\n/)) {
+      const link = !line.startsWith('#') && asImageLink(line);
+      if (link) urls.push(link);
+    }
+  }
+  if (urls.length === 0) {
+    const link = asImageLink(data.getData('text/plain'));
+    if (link) urls.push(link);
+  }
+  return [...new Set(urls)];
+}
+
 /** Scale (w, h) down so the longest edge is at most `max`. */
 export function fitWithin(width: number, height: number, max: number): [number, number] {
   const scale = Math.min(1, max / Math.max(width, height, 1));
@@ -66,6 +111,10 @@ function decode(src: string): Promise<HTMLImageElement> {
 export async function loadImageFile(file: File): Promise<LoadedImage> {
   if (!isImageFile(file) || file.size > MAX_FILE_BYTES) throw new Error('Not a usable image');
   const original = await readAsDataUrl(file);
+  return fromDataUrl(file, original);
+}
+
+async function fromDataUrl(file: File, original: string): Promise<LoadedImage> {
   const img = await decode(original);
   const w = img.naturalWidth || 300;
   const h = img.naturalHeight || 150;
@@ -107,6 +156,61 @@ function isOpaque(img: HTMLImageElement): boolean {
   const data = ctx.getImageData(0, 0, 64, 64).data;
   for (let i = 3; i < data.length; i += 4) if (data[i]! < 255) return false;
   return true;
+}
+
+function dataUrlToFile(dataUrl: string, name: string): File | null {
+  const match = /^data:([^;,]+)(;base64)?,(.*)$/s.exec(dataUrl);
+  if (!match) return null;
+  const [, mime = '', b64, body = ''] = match;
+  try {
+    const bytes = b64
+      ? Uint8Array.from(atob(body), (c) => c.charCodeAt(0))
+      : new TextEncoder().encode(decodeURIComponent(body));
+    return new File([bytes], name, { type: mime });
+  } catch {
+    return null;
+  }
+}
+
+function nameFromUrl(url: string): string {
+  if (url.startsWith('data:')) return 'Pasted image';
+  try {
+    const last = new URL(url).pathname.split('/').findLast((part) => part.length > 0);
+    return last ? decodeURIComponent(last).slice(0, 80) : new URL(url).hostname;
+  } catch {
+    return 'Image';
+  }
+}
+
+/**
+ * A picture from a link (dragged from another site, or a pasted URL). It's copied in when the
+ * site allows it (CORS, or the extension may read that site); otherwise it's kept as the link,
+ * shown live on the page and embedded at export time if it can be by then.
+ */
+export async function loadImageUrl(url: string): Promise<LoadedImage> {
+  const name = nameFromUrl(url);
+  if (url.startsWith('data:')) {
+    const file = dataUrlToFile(url, name);
+    if (!file || !isImageFile(file)) throw new Error('Not an image');
+    return fromDataUrl(file, url);
+  }
+  for (const fetcher of [pageFetcher, backgroundFetcher]) {
+    try {
+      const result = await fetcher(url, MAX_FILE_BYTES);
+      if (!result.ok || !result.mime.startsWith('image/')) continue;
+      const file = dataUrlToFile(result.dataUrl, name);
+      if (file) return await fromDataUrl(file, result.dataUrl);
+    } catch {
+      // try the next way in
+    }
+  }
+  const img = await decode(url);
+  return { name, src: url, width: img.naturalWidth || 300, height: img.naturalHeight || 150 };
+}
+
+export async function loadImageUrls(urls: string[]): Promise<LoadedImage[]> {
+  const loaded = await Promise.allSettled(urls.map(loadImageUrl));
+  return loaded.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
 }
 
 export async function loadImageFiles(files: File[]): Promise<LoadedImage[]> {

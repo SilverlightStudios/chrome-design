@@ -1,50 +1,210 @@
-import type { AnnotationDoc, PageMeta } from '../shared/model';
-import { isComment } from '../shared/model';
+import { shapeBounds } from '../shared/geometry';
+import type {
+  Annotation,
+  AnnotationDoc,
+  CommentThread,
+  ElementAnchor,
+  ImageIndexEntry,
+  PageMeta,
+  Shape,
+} from '../shared/model';
+import { INTENT_LABEL, isComment, isShape } from '../shared/model';
 
 export const BLOCK_IDS = {
   payload: 'chrome-design-payload',
   schema: 'chrome-design-schema',
-  snapshot: 'chrome-design-snapshot',
   source: 'chrome-design-source',
   screenshot: 'chrome-design-screenshot',
-  prompt: 'agent-prompt',
-  changes: 'requested-changes',
+  runtime: 'chrome-design-runtime',
 } as const;
 
+/** Comment markers around every part of the file that is the handoff, not the page. */
+export const MARKERS = {
+  begin: '<!--chrome-design:begin-->',
+  end: '<!--chrome-design:end-->',
+} as const;
+export const ROOT_ATTRIBUTE = 'data-chrome-design-handoff';
+
+const round = (n: number) => Math.round(n);
+
+function where(anchor: ElementAnchor | undefined): string {
+  if (!anchor) return '';
+  const ref = anchor.ref ? ` [data-cd-ref="${anchor.ref}"]` : '';
+  const text = anchor.text ? ` "${anchor.text.slice(0, 60)}"` : '';
+  return `\`${anchor.selector}\`${ref}${text}`;
+}
+
+function threadPointOf(thread: CommentThread): { x: number; y: number } {
+  const t = thread.target;
+  return t.type === 'region' ? { x: t.rect.x, y: t.rect.y } : t.point;
+}
+
+/** Comments within ~120px of a box: what a drawing or image most likely belongs to. */
+function nearbyComments(
+  box: { x: number; y: number; width: number; height: number },
+  comments: CommentThread[],
+): string[] {
+  const pad = 120;
+  return comments
+    .filter((c) => {
+      const p = threadPointOf(c);
+      return (
+        p.x >= box.x - pad &&
+        p.x <= box.x + box.width + pad &&
+        p.y >= box.y - pad &&
+        p.y <= box.y + box.height + pad
+      );
+    })
+    .map((c) => `#${c.number}`);
+}
+
+function describeTarget(thread: CommentThread): string {
+  const t = thread.target;
+  if (t.type === 'region') {
+    const inside = t.anchors.length ? `, containing ${t.anchors.map(where).join(', ')}` : '';
+    return `area ${round(t.rect.width)}×${round(t.rect.height)} at (${round(t.rect.x)}, ${round(t.rect.y)})${inside}`;
+  }
+  const anchor = t.type === 'element' ? t.anchor : t.anchor;
+  return `${anchor ? where(anchor) : 'a spot'} at (${round(t.point.x)}, ${round(t.point.y)})`;
+}
+
+function imageFileFor(images: ImageIndexEntry[], test: (e: ImageIndexEntry) => boolean): string {
+  const entry = images.find(test);
+  return entry ? entry.file : '';
+}
+
+function describeShape(shape: Shape, comments: CommentThread[], images: ImageIndexEntry[]): string {
+  const b = shapeBounds(shape);
+  const box = `${round(b.width)}×${round(b.height)} at (${round(b.x)}, ${round(b.y)})`;
+  const near = nearbyComments(b, comments);
+  const nearText = near.length ? `; near comment ${near.join(', ')}` : '';
+  if (shape.kind === 'image') {
+    const file = imageFileFor(images, (e) => e.annotationId === shape.id);
+    const lines = [`- PLACED IMAGE ${file || shape.name} ("${shape.name}"), ${box}${nearText}`];
+    const p = shape.placement;
+    if (p?.inside) lines.push(`    sits inside ${where(p.inside)}`);
+    if (p?.covers.length) lines.push(`    covers ${p.covers.map(where).join(', ')}`);
+    return lines.join('\n');
+  }
+  const label =
+    shape.kind === 'text'
+      ? `text label "${shape.text}"`
+      : shape.kind === 'pen'
+        ? 'freehand mark'
+        : shape.kind;
+  return `- ${label} (${shape.style.color}), ${box}${nearText}`;
+}
+
+/** Plain-text list of everything the designer left, for the top of the file and AGENTS.md. */
+export function describeAnnotations(annotations: Annotation[], images: ImageIndexEntry[]): string {
+  const comments = annotations.filter(isComment).toSorted((a, b) => a.number - b.number);
+  const shapes = annotations.filter(isShape);
+  const lines: string[] = [];
+  if (comments.length) {
+    lines.push('COMMENTS');
+    for (const c of comments) {
+      lines.push(`#${c.number} ${INTENT_LABEL[c.intent]} (${c.status}) on ${describeTarget(c)}`);
+      for (const [i, m] of c.messages.entries()) {
+        const who = i === 0 ? '' : 'reply: ';
+        if (m.body) lines.push(`    ${who}${m.body.replace(/\n/g, '\n    ')}`);
+        for (const att of m.attachments ?? []) {
+          const file = imageFileFor(images, (e) => e.attachmentId === att.id);
+          lines.push(`    ${who}[attached image ${file || att.name} ("${att.name}")]`);
+        }
+      }
+    }
+  }
+  if (shapes.length) {
+    if (lines.length) lines.push('');
+    lines.push('DRAWINGS AND PLACED IMAGES');
+    for (const s of shapes) lines.push(describeShape(s, comments, images));
+  }
+  return lines.join('\n');
+}
+
 /**
- * The explicit instruction block for the receiving AI agent. Plain text so it reads the same
- * in the HTML comment header, the visible prompt panel and the JSON payload.
+ * A self-contained script that unpacks this file: images/ (every picture as a real image file),
+ * page.html (the clean page) and handoff.json. Coding agents can then look at the pictures.
+ * Written without double hyphens so it survives inside an HTML comment.
  */
-export function buildAgentPrompt(doc: AnnotationDoc, meta: PageMeta): string {
+export function extractScript(): string {
+  return [
+    `python3 - "FILE.html" <<'PY'`,
+    'import base64, json, os, re, sys',
+    'path = sys.argv[1]',
+    "src = open(path, encoding='utf-8').read()",
+    `data = json.loads(re.findall(r'<script[^>]*id="${BLOCK_IDS.payload}" data-chrome-design>(.*?)</script>', src, re.S)[-1])`,
+    "out = os.path.splitext(path)[0] + '_handoff'",
+    "os.makedirs(os.path.join(out, 'images'), exist_ok=True)",
+    'srcs = {}',
+    "for a in data['annotations']:",
+    "    if a.get('kind') == 'image': srcs[a['id']] = a['src']",
+    "    for m in a.get('messages', []):",
+    "        for f in m.get('attachments', []): srcs[f['id']] = f['src']",
+    "for img in data['images']:",
+    "    s = srcs.get(img.get('attachmentId') or img['annotationId'], '')",
+    "    if s.startswith('data:'):",
+    "        head, body = s.split(',', 1)",
+    "        raw = base64.b64decode(body) if head.endswith(';base64') else body.encode()",
+    "        open(os.path.join(out, img['file']), 'wb').write(raw)",
+    // The markers are spelled out piecewise: "<!" and double hyphens can't appear in a comment.
+    "dash = '-' * 2",
+    "begin, end = '<' + '!' + dash + 'chrome-design:begin' + dash + '>', '<' + '!' + dash + 'chrome-design:end' + dash + '>'",
+    "page = re.sub(re.escape(begin) + '.*?' + re.escape(end), '', src, flags=re.S)",
+    `page = re.sub(r' ${ROOT_ATTRIBUTE}="[^"]*"', '', page)`,
+    "open(os.path.join(out, 'page.html'), 'w', encoding='utf-8').write(page)",
+    "json.dump(data, open(os.path.join(out, 'handoff.json'), 'w'), indent=2)",
+    'print(out)',
+    'PY',
+  ].join('\n');
+}
+
+/**
+ * The instruction block for the receiving AI agent. Plain text so it reads the same in the
+ * HTML comment at the top of the file, the JSON payload and the .zip's AGENTS.md.
+ */
+export function buildAgentPrompt(
+  doc: AnnotationDoc,
+  meta: PageMeta,
+  images: ImageIndexEntry[] = [],
+): string {
   const comments = doc.annotations.filter(isComment);
   const open = comments.filter((c) => c.status === 'open');
   const decisions = comments.filter((c) => c.intent === 'decision');
   const shapes = doc.annotations.length - comments.length;
+  const placed = images.filter((i) => i.kind === 'placed').length;
+  const attached = images.length - placed;
   const lines = [
     'ROLE: You are an expert front-end engineer and product designer receiving a design-feedback handoff.',
     '',
-    `This file was exported by Chrome Design from ${meta.url} ("${meta.title}") at ${meta.capturedAt}, viewport ${meta.viewport.width}×${meta.viewport.height}.`,
-    `It contains ${comments.length} comment thread(s) (${open.length} open, ${decisions.length} decision(s)) and ${shapes} drawing(s).`,
+    `Exported by Chrome Design from ${meta.url} ("${meta.title}") at ${meta.capturedAt}, viewport ${meta.viewport.width}×${meta.viewport.height}.`,
+    `It holds ${comments.length} comment thread(s) (${open.length} open, ${decisions.length} decision(s)), ${shapes} drawing(s) and image(s) on the page, and ${images.length} image(s) in all (${placed} placed on the page, ${attached} attached to comments).`,
     '',
-    'WHAT IS IN THIS FILE',
-    `- PAGE SNAPSHOT — <script type="text/html" id="${BLOCK_IDS.snapshot}">: a static, sanitized copy of the page as it was rendered. Scripts and event handlers were removed and complex interactions are intentionally flattened. This is the HTML you will revise.`,
-    `- ANNOTATIONS — the numbered "Requested changes" list (#${BLOCK_IDS.changes}) and the JSON payload <script type="application/json" id="${BLOCK_IDS.payload}">. Annotations are NOT part of the page; they are the designer's feedback layered on top of it.`,
-    `- ORIGINAL SOURCE — <script type="application/json" id="${BLOCK_IDS.source}">: the live rendered DOM (JSON string, unsanitized) for reference only. Never execute it.`,
-    `- JSON SCHEMA — <script type="application/schema+json" id="${BLOCK_IDS.schema}"> describes the payload.`,
+    'WHAT THIS FILE IS',
+    '- This HTML file IS a static copy of the page (scripts removed, assets embedded), with the designer’s feedback layered on top. Opened in a browser it shows the page at the reviewed width with the Chrome Design toolbar built in, so a person can read, reply and draw.',
+    `- The handoff wrapper is every part between the "chrome-design:begin" and "chrome-design:end" HTML comments, plus the ${ROOT_ATTRIBUTE} attribute on <html>. Remove those and you have the page you will revise. \`data-cd-ref\` attributes mark the elements comments point at.`,
+    `- ANNOTATIONS: <script type="application/json" id="${BLOCK_IDS.payload}"> (schema in #${BLOCK_IDS.schema}). Coordinates are CSS px from the top-left of the document at the recorded viewport width. \`images\` lists every picture with a file name.`,
+    `- ORIGINAL SOURCE: #${BLOCK_IDS.source} holds the live DOM as a JSON string, for reference only. Never execute it.`,
+    '- To get the pictures as real image files (plus page.html and handoff.json), run this with FILE.html replaced by this file’s path:',
+    extractScript(),
     '',
-    'YOUR TASK',
-    '1. Read EVERY comment thread and decision, in number order. Do not skip any. Each thread may contain follow-up replies; the latest reply wins when they conflict.',
-    '2. Inspect the snapshot and locate what each annotation refers to: use `target.anchor.ref` (matches a `data-cd-ref` attribute in the snapshot), then `target.anchor.selector`, then the page coordinates (CSS px from the top-left of the document at the recorded viewport width).',
-    '3. Treat drawings (arrows, lines, rectangles, ellipses, freehand marks, text labels) as visual pointers that clarify nearby comments. Interpret what they highlight; never reproduce them in the page.',
-    '   Placed images (shape kind "image") and images attached to comment messages (`messages[].attachments`) are references from the designer — a mockup to match, an example of the look they want, or a replacement asset — shown where the designer put them. Read them alongside the nearby comments and implement what they show; never paste the reference picture itself into the page unless a comment asks for it.',
-    '4. Revise the snapshot HTML/CSS to implement every OPEN "change" request. Treat every "decision" as a binding constraint that must remain true after your edits. Answer every "question" in your reply. "note" items are context. Resolved threads are history: keep them true but do not re-do them.',
-    '5. Preserve everything the designer did not ask to change: content, layout, responsive behaviour, accessibility and visual style.',
-    '6. Return (a) the complete revised HTML document — the page only, with no Chrome Design markup (`data-cd-*` attributes, annotation overlay or this handoff wrapper) — and (b) a checklist mapping each annotation number to what you changed, or why you could not.',
+    'HOW TO READ THE FEEDBACK',
+    '1. Read EVERY comment thread and decision, in number order. The latest reply wins when replies conflict.',
+    '2. Find what each comment points at: `target.anchor.ref` (a `data-cd-ref` attribute in the page), then `target.anchor.selector`, then the coordinates.',
+    '3. The canvas is a scratch board. Drawings (arrows, boxes, circles, freehand marks, text labels) point at things and clarify nearby comments; never reproduce them. Nothing placed on the board is pixel-perfect: positions, sizes and spacing of drawings and images are approximate unless a comment asks for exact values.',
+    '4. PLACED IMAGES (shape kind "image") are usually a screenshot of the intended design — often a component copied from Figma — or a reference to match. Treat each one as a brief:',
+    '   - WHAT to build: the component or change the picture shows (read it with the comments near it; `placement` and the list below give those).',
+    '   - HOW it should look: layout, content, hierarchy, colours, type and states visible in the picture. Match the page’s existing design system (fonts, colours, spacing, components) rather than copying the screenshot’s pixels, unless told to.',
+    '   - WHERE it goes: where it was dropped. `placement.inside` is the page element that contains it (the section or container it belongs in) and `placement.covers` are the elements under it, most covered first (what it may replace or sit next to). Use those, the coordinates and nearby comments to decide whether it replaces, goes next to, or is inserted between existing content.',
+    '   - Never paste the screenshot itself into the page as an <img> unless a comment asks for that; build it in HTML/CSS.',
+    '5. IMAGES ATTACHED TO COMMENTS (`messages[].attachments`) illustrate that comment: an example, a mockup or the asset to use.',
+    '6. Revise the page to implement every OPEN "change" request. Every "decision" is a binding constraint that must stay true. Answer every "question" in your reply. "note" items are context. Resolved threads are history: keep them true but do not redo them.',
+    '7. Preserve everything the designer did not ask to change: content, layout, responsive behaviour, accessibility and visual style.',
+    '8. Return (a) the revised page (without the handoff wrapper) and (b) a checklist mapping each comment number and each placed image to what you changed, or why you could not.',
     '',
-    'If you also have access to the real source code of this site, apply the equivalent changes there instead of (or in addition to) the snapshot, using the snapshot to confirm what the designer saw.',
+    'If you have the real source code of this site, apply the equivalent changes there instead (or as well), using this page to confirm what the designer saw.',
   ];
-  if (doc.brief.trim()) {
+  if (doc.brief.trim())
     lines.push('', 'DESIGNER BRIEF (applies to the whole page)', doc.brief.trim());
-  }
   return lines.join('\n');
 }

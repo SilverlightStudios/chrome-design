@@ -50,6 +50,15 @@ export function unescapeScriptText(text: string): string {
   return text.replace(UNESCAPE_RE, (_m, slashes: string, rest: string) => `<${slashes}${rest}`);
 }
 
+/**
+ * JavaScript for an inline `<script>`: `</script` and `<!--` would change how the HTML parser
+ * reads it, so they become `<\/script` and `<\!--`, which mean the same inside JS strings,
+ * templates and (non-unicode) regular expressions. Idempotent.
+ */
+export function escapeInlineScript(js: string): string {
+  return js.replace(/<\/(script)/gi, '<\\/$1').replace(/<!--/g, '<\\!--');
+}
+
 /** Escape text for inclusion inside an HTML comment (`--` is not allowed). */
 export function escapeHtmlComment(text: string): string {
   return text.replace(/--/g, '- -').replace(/<!/g, '< !');

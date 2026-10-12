@@ -12,6 +12,7 @@ export type ToBackgroundMessage =
   | { type: 'cd:fetch-asset'; url: string; maxBytes: number }
   | { type: 'cd:open-options' }
   | { type: 'cd:get-settings' }
+  | { type: 'cd:get-runtime' }
   | { type: 'cd:state'; open: boolean };
 
 export interface SettingsResponse {
@@ -30,5 +31,8 @@ export type FetchAssetResponse =
   | { ok: false; error: string };
 
 export type PingResponse = { ok: true; open: boolean };
+
+/** The content script's source, built into exported files. */
+export type RuntimeResponse = { ok: true; source: string } | { ok: false; error: string };
 
 export const CONTENT_SCRIPT_FILE = 'content.js';

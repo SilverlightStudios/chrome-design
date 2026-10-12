@@ -6,7 +6,7 @@
 
 export const APP_NAME = 'Chrome Design';
 export const APP_VERSION = '0.1.0';
-export const SCHEMA_VERSION = '1.0.0';
+export const SCHEMA_VERSION = '2.0.0';
 export const SCHEMA_ID = `urn:chrome-design:handoff:${SCHEMA_VERSION}`;
 export const PAYLOAD_KIND = 'chrome-design.handoff';
 
@@ -123,9 +123,38 @@ export interface TextShape extends ShapeBase {
 export interface ImageShape extends ShapeBase {
   kind: 'image';
   rect: Rect;
-  /** `data:image/...` URL. */
+  /** `data:image/...` URL, or the original link when the site wouldn't let it be copied. */
   src: string;
   name: string;
+  /** Where it sits on the page, worked out at export (the image's place is approximate). */
+  placement?: ImagePlacement;
+}
+
+export interface ImagePlacement {
+  /** The smallest page element that contains the whole image: the area it belongs in. */
+  inside?: ElementAnchor;
+  /** Page elements under the image (mostly covered first): what it may replace or sit on. */
+  covers: ElementAnchor[];
+}
+
+/** One picture in the handoff, with the file name the extractor / .zip gives it. */
+export interface ImageIndexEntry {
+  file: string;
+  kind: 'placed' | 'attachment';
+  name: string;
+  /** The placed image (shape id) or the comment thread it's attached to. */
+  annotationId: string;
+  messageId?: string;
+  attachmentId?: string;
+  /** Comment number, for attachments. */
+  comment?: number;
+  /** Placed images: where it is on the page (CSS px, document coordinates). */
+  rect?: Rect;
+  /** Pixel size of the picture itself, when known. */
+  width?: number;
+  height?: number;
+  /** False when only a link could be kept (the site didn't allow copying the picture). */
+  embedded: boolean;
 }
 
 export type Shape = PenShape | SegmentShape | BoxShape | TextShape | ImageShape;
@@ -182,6 +211,11 @@ export interface PageMeta {
   viewport: { width: number; height: number; devicePixelRatio: number };
   scroll: { x: number; y: number };
   document: { width: number; height: number };
+  /**
+   * How each media query in the page's CSS evaluated on the designer's screen. The handoff file
+   * forces these answers so the page lays out the same in any window.
+   */
+  media?: Record<string, boolean>;
 }
 
 export type WarningCode =
@@ -249,16 +283,29 @@ export interface HandoffPayload {
     images: number;
   };
   annotations: Annotation[];
+  /** Every picture (placed on the page or attached to a comment) and its file name. */
+  images: ImageIndexEntry[];
   guides: Guide[];
   grid?: GridSettings;
   sanitize: SanitizeReport;
   assets: AssetReport;
   warnings: CaptureWarning[];
   blocks: {
-    snapshot: { elementId: string; mediaType: 'text/html'; escaping: string; bytes: number };
+    /**
+     * The page snapshot is this HTML document itself. The handoff wrapper is everything between
+     * the begin/end comment markers, plus `rootAttribute` on <html>: remove those for the page.
+     */
+    snapshot: {
+      location: 'document';
+      markers: { begin: string; end: string };
+      rootAttribute: string;
+      bytes: number;
+    };
     source: { elementId: string; mediaType: 'application/json'; bytes: number };
     schema: { elementId: string };
     screenshot?: { elementId: string; width: number; height: number };
+    /** The built-in Chrome Design toolbar (runs when the file is opened in a browser). */
+    runtime?: { elementId: string; bytes: number };
   };
 }
 

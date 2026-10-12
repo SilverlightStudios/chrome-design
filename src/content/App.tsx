@@ -53,6 +53,12 @@ function Root({ toast, onToastDone }: { toast: ToastItem | null; onToastDone: ()
   useEffect(() => (ref.current ? installIconMotion(ref.current) : undefined), []);
   return (
     <div ref={ref} className="root" data-tool={tool}>
+      {/* A soft frame around the screen says the tools are on (gone while paused). */}
+      <div
+        className="active-edge"
+        data-on={tool !== 'browse' ? '' : undefined}
+        aria-hidden="true"
+      />
       <GridOverlay />
       <InteractionLayer />
       <AnnotationLayer />

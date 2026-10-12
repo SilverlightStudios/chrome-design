@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { useEditor, useEnv } from '../context';
 import { toPage } from '../dom';
-import { dragHasFiles, imageFiles, loadImageFiles, placeImages, viewportCentre } from '../images';
+import {
+  asImageLink,
+  dragHasImage,
+  imageFiles,
+  imageUrls,
+  type LoadedImage,
+  loadImageFiles,
+  loadImageUrls,
+  placeImages,
+  viewportCentre,
+} from '../images';
 import { Icon } from '../ui/icons';
 
 /** Anything marked `data-drop-attach` (the comment bubble) takes dropped images itself. */
@@ -18,9 +28,9 @@ function isTypingTarget(e: Event): boolean {
 }
 
 /**
- * The page as a canvas: while a tool is on, images dragged in from the desktop or another
- * tab land where they're dropped, and an image pasted with ⌘V lands in the middle of the
- * screen. Paused, the page gets its drops and pastes as usual.
+ * The page as a canvas: while a tool is on, images dragged in from the desktop or from another
+ * website land where they're dropped, and an image (or an image link) pasted with ⌘V lands in
+ * the middle of the screen. Paused, the page gets its drops and pastes as usual.
  */
 export function ImageDrop() {
   const { store, toast } = useEnv();
@@ -32,7 +42,7 @@ export function ImageDrop() {
     let timer = 0;
     // A drag that leaves the window (or is cancelled) stops sending dragover; hide shortly after.
     const onOver = (e: DragEvent) => {
-      if (!dragHasFiles(e.dataTransfer)) return;
+      if (!dragHasImage(e.dataTransfer)) return;
       if (overAttachTarget(e)) {
         setOver(false);
         return;
@@ -44,32 +54,41 @@ export function ImageDrop() {
       window.clearTimeout(timer);
       timer = window.setTimeout(() => setOver(false), 160);
     };
-    const place = (files: File[], at: { x: number; y: number }) => {
-      if (files.length === 0) {
-        toast('Only images can be placed on the page');
-        return;
-      }
-      void loadImageFiles(files).then((images) => {
+    const place = (loading: Promise<LoadedImage[]>, at: { x: number; y: number }) => {
+      void loading.then((images) => {
         if (images.length) placeImages(store, images, at);
         else toast('That image couldn’t be opened');
       });
     };
+    // Files first; otherwise a picture (or its link) dragged or copied from a website.
+    const fromData = (data: DataTransfer | null): Promise<LoadedImage[]> | null => {
+      const files = imageFiles(data);
+      if (files.length) return loadImageFiles(files);
+      const urls = imageUrls(data);
+      return urls.length ? loadImageUrls(urls) : null;
+    };
     const onDrop = (e: DragEvent) => {
-      if (!dragHasFiles(e.dataTransfer) || overAttachTarget(e)) return;
+      if (!dragHasImage(e.dataTransfer) || overAttachTarget(e)) return;
       e.preventDefault();
       e.stopPropagation();
       window.clearTimeout(timer);
       setOver(false);
-      place(imageFiles(e.dataTransfer), toPage(e.clientX, e.clientY));
+      const loading = fromData(e.dataTransfer);
+      if (loading) place(loading, toPage(e.clientX, e.clientY));
+      else toast('Only images can be placed on the page');
     };
     const onPaste = (e: ClipboardEvent) => {
       // Text fields handle their own paste (the comment box attaches images).
       if (isTypingTarget(e)) return;
-      const files = imageFiles(e.clipboardData);
-      if (files.length === 0) return;
+      const data = e.clipboardData;
+      const loading =
+        imageFiles(data).length || asImageLink(data?.getData('text/plain') ?? '')
+          ? fromData(data)
+          : null;
+      if (!loading) return;
       e.preventDefault();
       e.stopPropagation();
-      place(files, viewportCentre());
+      place(loading, viewportCentre());
     };
     window.addEventListener('dragenter', onOver, true);
     window.addEventListener('dragover', onOver, true);
@@ -114,7 +133,13 @@ export function ImageViewer() {
         }
       }}
     >
-      <img src={image.src} alt={image.name} width={image.width} height={image.height} />
+      <img
+        src={image.src}
+        alt={image.name}
+        width={image.width}
+        height={image.height}
+        draggable={false}
+      />
       <button ref={closeRef} type="button" className="lightbox-close" aria-label="Close">
         <Icon.close />
       </button>
