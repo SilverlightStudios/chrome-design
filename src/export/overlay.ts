@@ -51,6 +51,12 @@ export function shapeToSvg(shape: Shape): string {
         .join('');
       return `<text class="cd-shape" ${id} x="${n(shape.point.x)}" y="${n(shape.point.y + shape.fontSize)}" fill="${escapeHtml(color)}" font-size="${shape.fontSize}" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-weight="600" paint-order="stroke" stroke="#ffffff" stroke-width="3" stroke-linejoin="round">${tspans}</text>`;
     }
+    case 'image': {
+      const { x, y, width: w, height: h } = shape.rect;
+      // Only embedded pictures: anything else would be a request out of the offline file.
+      if (!shape.src.startsWith('data:image/')) return '';
+      return `<image class="cd-shape" ${id} href="${escapeHtml(shape.src)}" x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" preserveAspectRatio="none"><title>${escapeHtml(shape.name)}</title></image>`;
+    }
   }
 }
 

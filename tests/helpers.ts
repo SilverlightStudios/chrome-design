@@ -3,6 +3,10 @@ import type { AnnotationDoc, CommentThread, Shape } from '../src/shared/model';
 
 export const AT = '2026-10-11T12:00:00.000Z';
 
+/** A 1×1 PNG. */
+export const PIXEL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
 /** Fake network: serves fixed bodies for known URLs, fails everything else. */
 export function fakeFetcher(files: Record<string, { body: string; mime: string }>): AssetFetcher {
   return async (url) => {
@@ -50,7 +54,14 @@ export function sampleDoc(url: string): AnnotationDoc {
     intent: 'decision',
     status: 'open',
     target: { type: 'region', rect: { x: 0, y: 100, width: 300, height: 200 }, anchors: [] },
-    messages: [{ id: 'm2', body: 'Keep the brand blue here.', createdAt: AT }],
+    messages: [
+      {
+        id: 'm2',
+        body: 'Keep the brand blue here.',
+        createdAt: AT,
+        attachments: [{ id: 'i1', name: 'brand.png', src: PIXEL, width: 1, height: 1 }],
+      },
+    ],
     createdAt: AT,
     updatedAt: AT,
   };
@@ -75,11 +86,21 @@ export function sampleDoc(url: string): AnnotationDoc {
     style: { color: '#3b82f6', width: 2, dashed: true },
     createdAt: AT,
   };
+  const mockup: Shape = {
+    id: 's3',
+    type: 'shape',
+    kind: 'image',
+    name: 'hero-mockup.png',
+    src: PIXEL,
+    rect: { x: 500, y: 40, width: 240, height: 160 },
+    style: { color: '#3b82f6', width: 3, dashed: false },
+    createdAt: AT,
+  };
   return {
     url,
     title: 'Fixture',
     brief: 'Tighten the hero.',
-    annotations: [comment, decision, arrow, pen],
+    annotations: [comment, decision, arrow, pen, mockup],
     guides: [],
     updatedAt: AT,
   };

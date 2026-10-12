@@ -58,7 +58,7 @@ describe('EditorStore history', () => {
     expect(store.getState().doc.annotations).toEqual([]);
     store.undo();
     store.undo();
-    expect(store.getState().doc.annotations).toHaveLength(4);
+    expect(store.getState().doc.annotations).toHaveLength(5);
   });
 
   it('numbers comments after the highest existing number', () => {

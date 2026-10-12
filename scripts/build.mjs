@@ -52,7 +52,7 @@ function manifest() {
     },
     background: { service_worker: 'background.js', type: 'module' },
     options_ui: { page: 'options.html', open_in_tab: true },
-    permissions: ['activeTab', 'scripting', 'storage'],
+    permissions: ['activeTab', 'scripting', 'storage', 'unlimitedStorage'],
     optional_host_permissions: ['<all_urls>'],
     ...(e2e ? { host_permissions: ['<all_urls>'] } : {}),
     commands: {

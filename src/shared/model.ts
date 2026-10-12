@@ -46,10 +46,21 @@ export interface ElementAnchor {
 export type CommentIntent = 'change' | 'decision' | 'question' | 'note';
 export type CommentStatus = 'open' | 'resolved';
 
+/** An image attached to a comment message (downscaled, embedded as a data URL). */
+export interface ImageAttachment {
+  id: string;
+  name: string;
+  /** `data:image/...` URL. */
+  src: string;
+  width: number;
+  height: number;
+}
+
 export interface CommentMessage {
   id: string;
   body: string;
   createdAt: string;
+  attachments?: ImageAttachment[];
 }
 
 export type CommentTarget =
@@ -70,7 +81,7 @@ export interface CommentThread {
   updatedAt: string;
 }
 
-export type ShapeKind = 'pen' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'text';
+export type ShapeKind = 'pen' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'text' | 'image';
 
 export interface ShapeStyle {
   color: string;
@@ -108,7 +119,16 @@ export interface TextShape extends ShapeBase {
   fontSize: number;
 }
 
-export type Shape = PenShape | SegmentShape | BoxShape | TextShape;
+/** A picture placed on the page (dropped, pasted or picked), e.g. a mockup or reference. */
+export interface ImageShape extends ShapeBase {
+  kind: 'image';
+  rect: Rect;
+  /** `data:image/...` URL. */
+  src: string;
+  name: string;
+}
+
+export type Shape = PenShape | SegmentShape | BoxShape | TextShape | ImageShape;
 export type Annotation = CommentThread | Shape;
 
 export interface Guide {
@@ -226,6 +246,7 @@ export interface HandoffPayload {
     decisions: number;
     questions: number;
     shapes: number;
+    images: number;
   };
   annotations: Annotation[];
   guides: Guide[];

@@ -7,6 +7,7 @@ import {
   DEFAULT_STYLE,
   type GridSettings,
   type Guide,
+  type ImageAttachment,
   isComment,
   type Point,
   type Rect,
@@ -79,6 +80,8 @@ export interface EditorState {
   panel: PanelId;
   /** Where the open panel's back button leads (set when it was opened from another panel). */
   panelBack: PanelId | null;
+  /** A comment's attached image shown full size. */
+  viewImage: ImageAttachment | null;
 }
 
 const HISTORY_LIMIT = 200;
@@ -117,6 +120,7 @@ export function createInitialState(
     rulers: false,
     panel: 'none',
     panelBack: null,
+    viewImage: null,
   };
 }
 
@@ -231,6 +235,7 @@ export class EditorStore {
       erasing: [],
       region: null,
       textEdit: null,
+      viewImage: null,
     };
     this.emit(prev);
   }

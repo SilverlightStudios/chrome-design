@@ -66,6 +66,8 @@ section.card{background:var(--panel);border:1px solid var(--line);border-radius:
 .msg{margin:6px 0 0;padding-left:10px;border-left:2px solid var(--line)}
 .msg p{margin:0;white-space:pre-wrap;word-break:break-word}
 .msg time{display:block;font-size:11px;color:var(--muted)}
+.msg-images{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.msg-images img{display:block;max-height:240px;width:auto;height:auto;max-width:100%;border-radius:8px;border:1px solid var(--line)}
 .change details{margin-top:8px;font-size:12.5px}
 .change summary{cursor:pointer;color:var(--muted)}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:6px 0 0}

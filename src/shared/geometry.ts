@@ -115,6 +115,7 @@ export function shapeBounds(shape: Shape): Rect {
       return rectFromPoints(shape.from, shape.to);
     case 'rect':
     case 'ellipse':
+    case 'image':
       return shape.rect;
     case 'text': {
       const lines = shape.text.split('\n');
@@ -170,6 +171,8 @@ export function hitTestShape(shape: Shape, p: Point, tolerance: number): boolean
     }
     case 'text':
       return rectContains(shapeBounds(shape), p, tolerance);
+    case 'image':
+      return rectContains(shape.rect, p, tolerance);
   }
 }
 
@@ -183,6 +186,7 @@ export function translateShape<T extends Shape>(shape: T, dx: number, dy: number
       return { ...shape, from: move(shape.from), to: move(shape.to) };
     case 'rect':
     case 'ellipse':
+    case 'image':
       return { ...shape, rect: { ...shape.rect, x: shape.rect.x + dx, y: shape.rect.y + dy } };
     case 'text':
       return { ...shape, point: move(shape.point) };
@@ -213,7 +217,8 @@ function oppositeCorner(r: Rect, handle: Handle): Point {
 
 /**
  * Drag `handle` of `shape` to `p`. Corners keep the opposite corner fixed (Shift keeps the
- * aspect ratio); line/arrow endpoints move on their own (Shift snaps to 45°).
+ * aspect ratio; images keep it unless Shift is held); line/arrow endpoints move on their own
+ * (Shift snaps to 45°).
  */
 export function resizeShape<T extends Shape>(
   shape: T,
@@ -230,7 +235,8 @@ export function resizeShape<T extends Shape>(
   const bounds = shapeBounds(shape);
   const anchor = oppositeCorner(bounds, handle);
   let end = p;
-  if (constrain && bounds.width > 0 && bounds.height > 0) {
+  const keepRatio = shape.kind === 'image' ? !constrain : constrain;
+  if (keepRatio && bounds.width > 0 && bounds.height > 0) {
     const ratio = bounds.width / bounds.height;
     const w = Math.abs(p.x - anchor.x);
     const h = Math.abs(p.y - anchor.y);
@@ -241,7 +247,8 @@ export function resizeShape<T extends Shape>(
     };
   }
   const next = rectFromPoints(anchor, end);
-  if (shape.kind === 'rect' || shape.kind === 'ellipse') return { ...shape, rect: next };
+  if (shape.kind === 'rect' || shape.kind === 'ellipse' || shape.kind === 'image')
+    return { ...shape, rect: next };
   if (shape.kind !== 'pen') return shape;
   // Freehand: map every point from the old bounds into the new box.
   const sx = bounds.width > 0 ? next.width / bounds.width : 1;

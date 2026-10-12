@@ -181,4 +181,29 @@ describe('geometry', () => {
       ],
     });
   });
+
+  it('treats a placed image as a solid box that keeps its proportions', () => {
+    const image: Shape = {
+      id: 'img',
+      type: 'shape',
+      kind: 'image',
+      name: 'a.png',
+      src: 'data:image/png;base64,',
+      rect: { x: 0, y: 0, width: 200, height: 100 },
+      style,
+      createdAt: at,
+    };
+    expect(hitTestShape(image, { x: 100, y: 50 }, 0)).toBe(true);
+    expect(hitTestShape(image, { x: 260, y: 50 }, 6)).toBe(false);
+    expect(handlesFor(image)).toEqual(['nw', 'ne', 'sw', 'se']);
+    expect(translateShape(image, 5, 7)).toMatchObject({ rect: { x: 5, y: 7 } });
+    // Proportions kept by default…
+    expect(resizeShape(image, 'se', { x: 300, y: 120 })).toMatchObject({
+      rect: { x: 0, y: 0, width: 300, height: 150 },
+    });
+    // …and Shift frees them.
+    expect(resizeShape(image, 'se', { x: 300, y: 120 }, true)).toMatchObject({
+      rect: { x: 0, y: 0, width: 300, height: 120 },
+    });
+  });
 });

@@ -3364,6 +3364,194 @@ details.options .checks {
   transition: scale 0.2s var(--ease-bounce);
 }
 
+/* ---------- images: comment attachments, placed pictures, drop target, viewer ---------- */
+.field {
+  flex-wrap: wrap;
+}
+.attach-strip {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0 2px;
+}
+.attach-item {
+  position: relative;
+  width: 52px;
+  height: 52px;
+}
+.attach-item img,
+.image-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+  /* Concentric with the bubble's field. */
+  outline: 1px solid var(--line);
+  outline-offset: -1px;
+}
+.attach-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 2px solid var(--card);
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--card);
+}
+.attach-remove::after {
+  /* 44px hit area on a 20px dot. */
+  content: "";
+  position: absolute;
+  inset: -12px;
+}
+.attach-remove svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 3;
+}
+.attach-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-muted);
+  transition:
+    background-color var(--duration) var(--ease),
+    color var(--duration) var(--ease),
+    scale 0.2s var(--ease);
+}
+.attach-btn svg {
+  width: 17px;
+  height: 17px;
+}
+.attach-btn:active:not(:disabled) {
+  scale: 0.88;
+  background: var(--chip);
+}
+.attach-btn:disabled {
+  opacity: 0.35;
+}
+@media (hover: hover) and (pointer: fine) {
+  .attach-btn:hover:not(:disabled) {
+    background: var(--chip);
+    color: var(--ink);
+  }
+}
+.message-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.image-thumb {
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: var(--chip);
+  cursor: zoom-in;
+  transition: scale 0.2s var(--ease);
+}
+.image-thumb:only-child {
+  width: auto;
+  max-width: 100%;
+  height: 120px;
+}
+.image-thumb:only-child img {
+  width: auto;
+  max-width: 100%;
+}
+.image-thumb:active {
+  scale: 0.96;
+}
+.image-thumb:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.popover[data-dropping] {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 4px var(--accent-soft),
+    var(--shadow-shell);
+}
+.drop-zone {
+  position: fixed;
+  inset: 8px;
+  border: 2px dashed var(--inspect);
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--inspect), transparent 92%);
+  pointer-events: none;
+  transition: opacity 0.16s var(--ease);
+  @starting-style {
+    opacity: 0;
+  }
+}
+.lightbox {
+  position: fixed;
+  inset: 0;
+  /* Above pins, which raise themselves inside the page layer. */
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  background: hsl(0 0% 0% / 0.72);
+  pointer-events: auto;
+  cursor: zoom-out;
+  overscroll-behavior: contain;
+}
+.lightbox img {
+  max-width: 100%;
+  max-height: calc(100dvh - 32px);
+  width: auto;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 24px 60px -20px hsl(0 0% 0% / 0.6);
+}
+.lightbox-close {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: hsl(0 0% 100% / 0.16);
+  color: #fff;
+}
+.lightbox-close svg {
+  width: 18px;
+  height: 18px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lightbox {
+    transition: opacity 0.2s var(--ease);
+    @starting-style {
+      opacity: 0;
+    }
+  }
+  .lightbox img {
+    transition: scale var(--duration-bounce) var(--ease-bounce);
+    @starting-style {
+      scale: 0.9;
+    }
+  }
+}
+
 /* ---------- entrances (CSS springs) ---------- */
 @media (prefers-reduced-motion: no-preference) {
   .popover {
@@ -3608,6 +3796,15 @@ details.options .checks {
   }
   .ai-eraser[data-play] .p {
     animation: ai-rub 0.5s var(--ai-in-out);
+  }
+  /* image — the sun pops while the hills hop */
+  .ai-image[data-play] .sun {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: ai-pop 0.45s var(--ai-in-out);
+  }
+  .ai-image[data-play] .hill {
+    animation: ai-hop 0.4s var(--ai-in-out) 60ms;
   }
   /* undo / redo: head kicks (translate 2.1/-1.4, rotate 12) while the arc pulls to 0.8 (0.6s) */
   .ai-undo[data-play] .h {

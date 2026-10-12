@@ -8,6 +8,7 @@ import {
 import { isComment, isShape, PALETTE, type Shape, type ShapeStyle } from '../../shared/model';
 import { useEditor, useEnv } from '../context';
 import { capturePointer, HOST_TAG } from '../dom';
+import { placeImagesFromPicker } from '../images';
 import {
   GLASS_FILTER_ID,
   GlassFilters,
@@ -245,35 +246,42 @@ function StyleBar({ placement }: { placement: 'up' | 'down' }) {
           }
         : null;
 
+  // A picture has no colour or stroke to set.
+  const styled = selected?.kind !== 'image';
+
   return (
     <div ref={ref}>
       <MorphTooltipGroup placement={placement} className="subbar" ariaLabel="Style" menu={menu}>
-        <button
-          type="button"
-          className="tb-btn"
-          data-tip="Colour"
-          data-menu="color"
-          aria-label="Colour"
-          aria-expanded={popover === 'color'}
-          onClick={() => setPopover(popover === 'color' ? null : 'color')}
-        >
-          <span className="swatch" style={{ background: shown.color }} />
-        </button>
-        <button
-          type="button"
-          className="tb-btn"
-          data-tip="Stroke"
-          data-menu="stroke"
-          aria-label="Stroke"
-          aria-expanded={popover === 'stroke'}
-          onClick={() => setPopover(popover === 'stroke' ? null : 'stroke')}
-        >
-          <span
-            className="stroke-preview"
-            data-dashed={shown.dashed ? '' : undefined}
-            style={{ height: Math.min(7, shown.width) }}
-          />
-        </button>
+        {styled ? (
+          <>
+            <button
+              type="button"
+              className="tb-btn"
+              data-tip="Colour"
+              data-menu="color"
+              aria-label="Colour"
+              aria-expanded={popover === 'color'}
+              onClick={() => setPopover(popover === 'color' ? null : 'color')}
+            >
+              <span className="swatch" style={{ background: shown.color }} />
+            </button>
+            <button
+              type="button"
+              className="tb-btn"
+              data-tip="Stroke"
+              data-menu="stroke"
+              aria-label="Stroke"
+              aria-expanded={popover === 'stroke'}
+              onClick={() => setPopover(popover === 'stroke' ? null : 'stroke')}
+            >
+              <span
+                className="stroke-preview"
+                data-dashed={shown.dashed ? '' : undefined}
+                style={{ height: Math.min(7, shown.width) }}
+              />
+            </button>
+          </>
+        ) : null}
         {pencilMode ? (
           <ToolButton
             icon="eraser"
@@ -285,14 +293,17 @@ function StyleBar({ placement }: { placement: 'up' | 'down' }) {
         ) : null}
         {selected ? (
           <>
-            <Divider />
+            {styled ? <Divider /> : null}
             <ToolButton
               icon="trash"
               label="Delete"
               kbd="⌫"
               onClick={() => {
                 store.removeAnnotations([selected.id]);
-                toast('Drawing deleted', { label: 'Undo', run: store.undo });
+                toast(styled ? 'Drawing deleted' : 'Image deleted', {
+                  label: 'Undo',
+                  run: store.undo,
+                });
               }}
             />
           </>
@@ -678,6 +689,12 @@ export function Toolbar() {
               kbd="T"
               active={tool === 'draw' && drawTool === 'text'}
               onClick={() => chooseDraw('text')}
+            />
+            <ToolButton
+              icon="image"
+              label="Image"
+              kbd="⇧⌘K"
+              onClick={() => void placeImagesFromPicker(store, env.toast)}
             />
             <Divider />
             <ToolButton

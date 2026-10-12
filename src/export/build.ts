@@ -12,6 +12,7 @@ import {
   type AnnotationDoc,
   APP_NAME,
   APP_VERSION,
+  type CommentMessage,
   type CommentThread,
   type ElementAnchor,
   type GridSettings,
@@ -76,6 +77,12 @@ export function summarize(annotations: Annotation[]): HandoffPayload['summary'] 
     decisions: comments.filter((c) => c.intent === 'decision').length,
     questions: comments.filter((c) => c.intent === 'question').length,
     shapes: annotations.filter(isShape).length,
+    images:
+      annotations.filter((a) => isShape(a) && a.kind === 'image').length +
+      comments.reduce(
+        (n, c) => n + c.messages.reduce((m, msg) => m + (msg.attachments?.length ?? 0), 0),
+        0,
+      ),
   };
 }
 
@@ -135,11 +142,23 @@ function anchorDetails(thread: CommentThread): string {
   return `<details><summary>Element details</summary><dl class="kv">${rows}</dl></details>`;
 }
 
+/** Pictures attached to a message. (No links: browsers won't open data: URLs in a tab.) */
+function attachmentsMarkup(message: CommentMessage): string {
+  const images = message.attachments ?? [];
+  if (images.length === 0) return '';
+  return `<div class="msg-images">${images
+    .map(
+      (img) =>
+        `<img src="${escapeHtml(img.src)}" alt="${escapeHtml(img.name)}" title="${escapeHtml(img.name)}" width="${img.width}" height="${img.height}" loading="lazy">`,
+    )
+    .join('')}</div>`;
+}
+
 function changeItem(thread: CommentThread): string {
   const messages = thread.messages
     .map(
       (m, i) =>
-        `<div class="msg"><time datetime="${escapeHtml(m.createdAt)}">${i === 0 ? 'Designer' : 'Reply'} · ${escapeHtml(m.createdAt.replace('T', ' ').slice(0, 16))}</time><p>${escapeHtml(m.body)}</p></div>`,
+        `<div class="msg"><time datetime="${escapeHtml(m.createdAt)}">${i === 0 ? 'Designer' : 'Reply'} · ${escapeHtml(m.createdAt.replace('T', ' ').slice(0, 16))}</time>${m.body ? `<p>${escapeHtml(m.body)}</p>` : ''}${attachmentsMarkup(m)}</div>`,
     )
     .join('');
   const status =
@@ -171,8 +190,11 @@ function describeShape(shape: Shape, comments: CommentThread[]): string {
       ? `text “${escapeHtml(shape.text)}”`
       : shape.kind === 'pen'
         ? 'freehand mark'
-        : shape.kind;
-  return `<li>${label} (${escapeHtml(shape.style.color)}) around ${Math.round(b.width)}×${Math.round(b.height)} at (${Math.round(b.x)}, ${Math.round(b.y)})${near.length ? ` — near comment ${near.join(', ')}` : ''}</li>`;
+        : shape.kind === 'image'
+          ? `placed image “${escapeHtml(shape.name)}”`
+          : shape.kind;
+  const colour = shape.kind === 'image' ? '' : ` (${escapeHtml(shape.style.color)})`;
+  return `<li>${label}${colour} around ${Math.round(b.width)}×${Math.round(b.height)} at (${Math.round(b.x)}, ${Math.round(b.y)})${near.length ? ` — near comment ${near.join(', ')}` : ''}</li>`;
 }
 
 export async function buildHandoff(input: BuildInput): Promise<BuildOutput> {

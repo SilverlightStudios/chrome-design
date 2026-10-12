@@ -117,7 +117,13 @@ async function toggleToolbar(page: Page): Promise<void> {
 test('manifest requests only minimal permissions (production build)', () => {
   const manifest = JSON.parse(readFileSync(resolve(root, 'dist/manifest.json'), 'utf8'));
   expect(manifest.manifest_version).toBe(3);
-  expect(manifest.permissions.toSorted()).toEqual(['activeTab', 'scripting', 'storage']);
+  // unlimitedStorage (no install warning): placed and attached images would outgrow storage.local's 10 MB.
+  expect(manifest.permissions.toSorted()).toEqual([
+    'activeTab',
+    'scripting',
+    'storage',
+    'unlimitedStorage',
+  ]);
   expect(manifest.host_permissions).toBeUndefined();
   expect(manifest.content_scripts).toBeUndefined();
   expect(manifest.optional_host_permissions).toEqual(['<all_urls>']);
@@ -365,6 +371,72 @@ test('strict CSP pages: tools work and the glass falls back to CSS', async () =>
   await page.mouse.move(300, 260, { steps: 5 });
   await page.mouse.up();
   await expect(ui.locator('.shape-layer > *')).toHaveCount(1);
+});
+
+test('images dropped on a strict-CSP page are placed, shown and kept', async () => {
+  // The toggle finds its tab by URL: put away the CSP tab the previous test left open.
+  for (const p of context.pages()) if (p.url().endsWith('/csp')) await p.close();
+  const page = await context.newPage();
+  await page.goto(`${baseUrl}/csp`);
+  await toggleToolbar(page);
+  const ui = page.locator('chrome-design-root');
+  await expect(ui.locator('.toolbar')).toBeVisible();
+  const refused: string[] = [];
+  page.on('console', (m) => {
+    if (/Content Security Policy/i.test(m.text())) refused.push(m.text());
+  });
+  // Drop a 400×200 red PNG from the "desktop" onto the page.
+  await page.evaluate(async () => {
+    const c = document.createElement('canvas');
+    c.width = 400;
+    c.height = 200;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#ff0000';
+    g.fillRect(0, 0, 400, 200);
+    const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), 'image/png'));
+    const dt = new DataTransfer();
+    dt.items.add(new File([blob], 'red.png', { type: 'image/png' }));
+    const target = document
+      .querySelector('chrome-design-root')!
+      .shadowRoot!.querySelector('.capture')!;
+    const init = {
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+      clientX: 500,
+      clientY: 400,
+      dataTransfer: dt,
+    };
+    target.dispatchEvent(new DragEvent('dragover', init));
+    target.dispatchEvent(new DragEvent('drop', init));
+  });
+  const placed = ui.locator('image.placed-image');
+  await expect(placed).toHaveCount(1);
+  await expect(placed).toHaveAttribute('width', '400');
+  await expect(ui.locator('.size-pill')).toHaveText('400 × 200');
+  // The picture actually paints despite the page's img-src 'self'.
+  const shot = await page.screenshot({ clip: { x: 490, y: 390, width: 4, height: 4 } });
+  // (Decoded in a blank tab: this page's own CSP refuses data: images.)
+  const scratch = await context.newPage();
+  const rgb = await scratch.evaluate(async (b64) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${b64}`;
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = img.width;
+    c.height = img.height;
+    const g = c.getContext('2d')!;
+    g.drawImage(img, 0, 0);
+    return Array.from(g.getImageData(1, 1, 1, 1).data.slice(0, 3));
+  }, shot.toString('base64'));
+  await scratch.close();
+  expect(rgb[0]).toBeGreaterThan(200);
+  expect(rgb[1]).toBeLessThan(60);
+  expect(refused).toEqual([]);
+  // Undo takes it away in one step.
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(placed).toHaveCount(0);
+  await page.close();
 });
 
 test('phones: panels are bottom sheets that keep their content while they move', async () => {

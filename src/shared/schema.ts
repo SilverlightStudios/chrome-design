@@ -56,6 +56,11 @@ export const handoffSchema = {
         decisions: { type: 'integer', minimum: 0 },
         questions: { type: 'integer', minimum: 0 },
         shapes: { type: 'integer', minimum: 0 },
+        images: {
+          type: 'integer',
+          minimum: 0,
+          description: 'Placed images plus images attached to comment messages.',
+        },
       },
     },
     annotations: { type: 'array', items: { $ref: '#/$defs/annotation' } },
@@ -192,6 +197,18 @@ export const handoffSchema = {
         ref: str,
       },
     },
+    image: {
+      type: 'object',
+      description: 'An image the designer attached, embedded as a data:image/… URL.',
+      required: ['id', 'name', 'src', 'width', 'height'],
+      properties: {
+        id: str,
+        name: str,
+        src: str,
+        width: { type: 'number', minimum: 1 },
+        height: { type: 'number', minimum: 1 },
+      },
+    },
     style: {
       type: 'object',
       required: ['color', 'width', 'dashed'],
@@ -257,7 +274,12 @@ export const handoffSchema = {
           items: {
             type: 'object',
             required: ['id', 'body', 'createdAt'],
-            properties: { id: str, body: str, createdAt: isoDate },
+            properties: {
+              id: str,
+              body: str,
+              createdAt: isoDate,
+              attachments: { type: 'array', items: { $ref: '#/$defs/image' } },
+            },
           },
         },
         createdAt: isoDate,
@@ -270,7 +292,7 @@ export const handoffSchema = {
       properties: {
         id: str,
         type: { const: 'shape' },
-        kind: { enum: ['pen', 'line', 'arrow', 'rect', 'ellipse', 'text'] },
+        kind: { enum: ['pen', 'line', 'arrow', 'rect', 'ellipse', 'text', 'image'] },
         style: { $ref: '#/$defs/style' },
         createdAt: isoDate,
         points: { type: 'array', items: { $ref: '#/$defs/point' } },
@@ -280,6 +302,8 @@ export const handoffSchema = {
         point: { $ref: '#/$defs/point' },
         text: str,
         fontSize: num,
+        src: { type: 'string', description: 'Embedded picture (data:image/… URL), kind "image".' },
+        name: str,
       },
       allOf: [
         { if: { properties: { kind: { const: 'pen' } } }, then: { required: ['points'] } },
@@ -294,6 +318,10 @@ export const handoffSchema = {
         {
           if: { properties: { kind: { const: 'text' } } },
           then: { required: ['point', 'text', 'fontSize'] },
+        },
+        {
+          if: { properties: { kind: { const: 'image' } } },
+          then: { required: ['rect', 'src', 'name'] },
         },
       ],
     },

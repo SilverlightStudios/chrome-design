@@ -14,6 +14,7 @@ const SECTIONS: { title: string; rows: [string, string][] }[] = [
       ['P', 'Pencil'],
       ['R O A L', 'Rectangle · Ellipse · Arrow · Line'],
       ['T', 'Text'],
+      [`⇧${mod}K`, 'Place an image (or drop / paste one)'],
       ['E', 'Eraser'],
       ['⇧E', 'Send to AI'],
     ],

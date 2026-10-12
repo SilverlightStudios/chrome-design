@@ -4,6 +4,7 @@ import { revealThread } from '../actions';
 import { useEditor, useEnv } from '../context';
 import { friendlyAnchorLabel } from '../describe';
 import { timeAgo } from '../overlay/CommentPopover';
+import { messagePreview } from './format';
 import { PanelHead } from './PanelHead';
 
 type Filter = 'all' | 'open' | 'resolved';
@@ -69,7 +70,7 @@ export function FeedbackPanel() {
               >
                 <span className="pin-num">{t.number}</span>
                 <span className="thread-body">
-                  <span className="thread-text">{t.messages[0]?.body}</span>
+                  <span className="thread-text">{messagePreview(t.messages[0])}</span>
                   <span className="thread-meta">
                     {targetLabel(t)} · {timeAgo(t.updatedAt)}
                     {t.messages.length > 1

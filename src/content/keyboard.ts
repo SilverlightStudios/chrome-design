@@ -2,6 +2,7 @@ import { buildAnchor } from '../capture/anchor';
 import { translateShape } from '../shared/geometry';
 import { isShape } from '../shared/model';
 import { isTypingEvent, toPage } from './dom';
+import { placeImagesFromPicker } from './images';
 import { draftForRegion } from './overlay/InteractionLayer';
 import { type DrawToolId, type EditorState, type EditorStore, isShapeTool } from './store';
 
@@ -63,10 +64,16 @@ export function handleShortcut(
     store.redo();
     return true;
   }
+  // Figma's "Place image".
+  if (mod && event.shiftKey && lower === 'k') {
+    void placeImagesFromPicker(store);
+    return true;
+  }
   if (mod || event.altKey) return false;
 
   if (key === 'Escape') {
-    if (s.preview || s.region || s.liveShape)
+    if (s.viewImage) store.set({ viewImage: null });
+    else if (s.preview || s.region || s.liveShape)
       store.set({ preview: null, region: null, liveShape: null });
     else if (s.draft || s.openThreadId) store.set({ draft: null, openThreadId: null });
     else if (s.panel !== 'none') store.set({ panel: 'none' });
@@ -83,7 +90,13 @@ export function handleShortcut(
     const target = s.doc.annotations.find((a) => a.id === s.selectedId);
     store.removeAnnotations([s.selectedId]);
     if (target)
-      notify?.(target.type === 'comment' ? `Comment ${target.number} deleted` : 'Drawing deleted');
+      notify?.(
+        target.type === 'comment'
+          ? `Comment ${target.number} deleted`
+          : target.kind === 'image'
+            ? 'Image deleted'
+            : 'Drawing deleted',
+      );
     return true;
   }
 

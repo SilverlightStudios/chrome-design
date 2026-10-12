@@ -171,7 +171,8 @@ describe('capture → export pipeline', () => {
     expect(payload.summary).toMatchObject({
       comments: 2,
       decisions: 1,
-      shapes: 2,
+      shapes: 3,
+      images: 2,
       openComments: 2,
     });
     expect(payload.annotations[0].target.anchor.ref).toBe('cd-1');
@@ -202,7 +203,18 @@ describe('capture → export pipeline', () => {
     const frame = parsed.querySelector('iframe[data-cd-frame]');
     expect(frame?.getAttribute('sandbox')).toBe('allow-same-origin');
     expect(parsed.querySelectorAll('.cd-pin').length).toBe(2);
-    expect(parsed.querySelectorAll('.cd-shape').length).toBe(2);
+    expect(parsed.querySelectorAll('.cd-shape').length).toBe(3);
+    // Placed pictures and comment attachments travel embedded, and the agent is told about them
+    expect(parsed.querySelector('image.cd-shape')?.getAttribute('href')).toMatch(
+      /^data:image\/png/,
+    );
+    expect(parsed.querySelector('#change-2 .msg-images img')?.getAttribute('alt')).toBe(
+      'brand.png',
+    );
+    expect(parsed.querySelector('.drawings')?.textContent).toContain(
+      'placed image “hero-mockup.png”',
+    );
+    expect(prompt).toContain('Placed images');
     expect(out.filename).toMatch(/^chrome-design-example\.com-\d{8}-\d{4}\.html$/);
   });
 });

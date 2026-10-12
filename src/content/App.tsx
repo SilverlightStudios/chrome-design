@@ -3,6 +3,7 @@ import { type EditorEnv, EnvProvider, type ToastAction, useEditor } from './cont
 import { installIconMotion } from './iconMotion';
 import { handleShortcut } from './keyboard';
 import { AnnotationLayer } from './overlay/AnnotationLayer';
+import { ImageDrop, ImageViewer } from './overlay/ImageDrop';
 import { InspectOverlay } from './overlay/InspectOverlay';
 import { InteractionLayer } from './overlay/InteractionLayer';
 import { GridOverlay, RulersAndGuides } from './overlay/Rulers';
@@ -61,6 +62,8 @@ function Root({ toast, onToastDone }: { toast: ToastItem | null; onToastDone: ()
       <DetailsCard />
       <StatusChip />
       <Toolbar />
+      <ImageDrop />
+      <ImageViewer />
       <Toast item={toast} onDone={onToastDone} />
     </div>
   );

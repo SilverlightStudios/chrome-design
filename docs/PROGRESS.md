@@ -15,6 +15,14 @@ extension (including a phone-width bottom-sheet test). Verified on the demo page
   plain-language element names (`src/content/describe.ts`) + floating selection bar + Details;
   comment bubble with send button; More sheet of tiles; contextual style bar; phone bottom sheets on
   the Remote Desktop drawer physics; exit animations everywhere (bubble, bars, sheets, whole UI).
+- R9: images. `ImageShape` (kind `image`, data URL in `src`) placed by drop / paste / the Image
+  button / ⇧⌘K (`content/images.ts`: downscale to 1600px, WebP, JPEG fallback in Safari when
+  opaque; `placementRect` caps at 50% viewport width, 80% on phones); window-level capture
+  listeners in `overlay/ImageDrop.tsx` only while a tool is on, skipping `[data-drop-attach]`
+  (the comment bubble). Corners keep proportions by default for images (⇧ frees). Comment
+  messages carry `attachments` (picker, drop, paste; ≤6), shown as thumbnails, `viewImage`
+  lightbox. Export: `<image>` in the overlay, `.msg-images`, prompt + schema + `summary.images`.
+  `unlimitedStorage` added. Phone comment bubbles hang below the pin when neither side fits.
 - R8: one guide renderer for every measurement (`Guides` in overlay/InspectOverlay.tsx: pills
   above horizontal lines, beside vertical ones, 88% opaque; margin orange, padding green); size
   pill steps aside for the bottom guide; menus grow out of the morphing tooltip (`menu` prop on

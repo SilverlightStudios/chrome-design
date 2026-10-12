@@ -1,8 +1,16 @@
-import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react';
+import {
+  type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { createId, nowIso } from '../../shared/ids';
 import {
   type CommentIntent,
+  type CommentMessage,
   type CommentThread,
+  type ImageAttachment,
   INTENT_LABEL,
   isComment,
   type Point,
@@ -10,6 +18,7 @@ import {
 import { livePinPoint } from '../actions';
 import { useEnv } from '../context';
 import { friendlyAnchorLabel } from '../describe';
+import { dragHasFiles, imageFiles, loadImageFiles, pickImageFiles, toAttachment } from '../images';
 import { type DraftComment, nextCommentNumber } from '../store';
 import { Icon } from '../ui/icons';
 
@@ -27,6 +36,7 @@ const PLACEHOLDER: Record<CommentIntent, string> = {
   note: 'Add a note',
 };
 const POPOVER_WIDTH = 300;
+const MAX_ATTACHMENTS = 6;
 
 function popoverWidth(): number {
   return Math.min(POPOVER_WIDTH, (document.documentElement.clientWidth || window.innerWidth) - 16);
@@ -35,9 +45,14 @@ function popoverWidth(): number {
 function placement(p: Point): { left: number; top: number; originX: number; originY: number } {
   const width = popoverWidth();
   const right = window.scrollX + (document.documentElement.clientWidth || window.innerWidth);
-  const left =
-    p.x + 38 + width > right - 8 ? Math.max(window.scrollX + 8, p.x - width - 12) : p.x + 38;
-  const top = Math.max(window.scrollY + 8, p.y - 34);
+  const fitsRight = p.x + 38 + width <= right - 8;
+  const fitsLeft = p.x - width - 12 >= window.scrollX + 8;
+  const left = fitsRight ? p.x + 38 : Math.max(window.scrollX + 8, p.x - width - 12);
+  // On a phone neither side has room: hang below the pin rather than over it.
+  const top =
+    fitsRight || fitsLeft
+      ? Math.max(window.scrollY + 8, p.y - 34)
+      : Math.max(window.scrollY + 8, p.y + 12);
   // Grows out of (and shrinks back into) the pin it belongs to.
   return { left, top, originX: p.x - left, originY: p.y - top - 15 };
 }
@@ -112,6 +127,8 @@ export function CommentPopover({
   const { store, toast } = useEnv();
   const [text, setText] = useState('');
   const [intent, setIntent] = useState<CommentIntent>(thread?.intent ?? 'change');
+  const [attachments, setAttachments] = useState<ImageAttachment[]>([]);
+  const [dropping, setDropping] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -134,10 +151,45 @@ export function CommentPopover({
 
   const close = () => store.set({ draft: null, openThreadId: null });
 
+  const attach = (files: File[]) => {
+    if (files.length === 0) return;
+    void loadImageFiles(files).then((images) => {
+      if (images.length === 0) {
+        toast('That image couldn’t be opened');
+        return;
+      }
+      setAttachments((list) => [...list, ...images.map(toAttachment)].slice(0, MAX_ATTACHMENTS));
+      inputRef.current?.focus({ preventScroll: true });
+    });
+  };
+  const onDragOver = (e: ReactDragEvent) => {
+    if (!dragHasFiles(e.dataTransfer)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+    if (!dropping) setDropping(true);
+  };
+  const onDragLeave = (e: ReactDragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false);
+  };
+  const onDrop = (e: ReactDragEvent) => {
+    if (!dragHasFiles(e.dataTransfer)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setDropping(false);
+    attach(imageFiles(e.dataTransfer));
+  };
+
   const submit = () => {
     const body = text.trim();
-    if (!body) return;
+    if (!body && attachments.length === 0) return;
     const at = nowIso();
+    const message: CommentMessage = {
+      id: createId('m'),
+      body,
+      createdAt: at,
+      ...(attachments.length ? { attachments } : {}),
+    };
     if (draft) {
       const s = store.getState();
       const created: CommentThread = {
@@ -147,7 +199,7 @@ export function CommentPopover({
         intent,
         status: 'open',
         target: draft.target,
-        messages: [{ id: createId('m'), body, createdAt: at }],
+        messages: [message],
         createdAt: at,
         updatedAt: at,
       };
@@ -164,13 +216,14 @@ export function CommentPopover({
         isComment(a)
           ? {
               ...a,
-              messages: [...a.messages, { id: createId('m'), body, createdAt: at }],
+              messages: [...a.messages, message],
               updatedAt: at,
             }
           : a,
       );
     }
     setText('');
+    setAttachments([]);
   };
 
   const onKeyDown = (e: ReactKeyboardEvent) => {
@@ -196,6 +249,8 @@ export function CommentPopover({
       role="dialog"
       aria-label={thread ? `Comment ${thread.number}` : 'New comment'}
       data-exiting={exiting ? '' : undefined}
+      data-drop-attach=""
+      data-dropping={dropping ? '' : undefined}
       inert={exiting}
       style={{
         left: pos.left,
@@ -206,6 +261,10 @@ export function CommentPopover({
       }}
       onKeyDown={onKeyDown}
       onPointerDown={(e) => e.stopPropagation()}
+      onDragEnter={onDragOver}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
     >
       <div className="popover-head">
         {thread ? (
@@ -278,25 +337,73 @@ export function CommentPopover({
                   </button>
                 )}
               </div>
-              <p>{m.body}</p>
+              {m.body ? <p>{m.body}</p> : null}
+              {m.attachments?.length ? (
+                <div className="message-images">
+                  {m.attachments.map((img) => (
+                    <button
+                      key={img.id}
+                      type="button"
+                      className="image-thumb"
+                      aria-label={`Open ${img.name}`}
+                      onClick={() => store.set({ viewImage: img })}
+                    >
+                      <img src={img.src} alt="" width={img.width} height={img.height} />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
       ) : null}
 
-      <div className="field">
+      <div className="field" data-has-images={attachments.length ? '' : undefined}>
+        {attachments.length ? (
+          <div className="attach-strip">
+            {attachments.map((img) => (
+              <span key={img.id} className="attach-item">
+                <img src={img.src} alt={img.name} width={img.width} height={img.height} />
+                <button
+                  type="button"
+                  className="attach-remove"
+                  aria-label={`Remove ${img.name}`}
+                  onClick={() => setAttachments((list) => list.filter((x) => x.id !== img.id))}
+                >
+                  <Icon.close />
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
         <textarea
           ref={inputRef}
           rows={1}
           value={text}
           placeholder={thread ? 'Reply' : PLACEHOLDER[intent]}
           onChange={(e) => setText(e.target.value)}
+          onPaste={(e) => {
+            const files = imageFiles(e.clipboardData);
+            if (files.length === 0) return;
+            e.preventDefault();
+            attach(files);
+          }}
         />
+        <button
+          type="button"
+          className="attach-btn"
+          aria-label="Attach image"
+          title="Attach image"
+          disabled={attachments.length >= MAX_ATTACHMENTS}
+          onClick={() => void pickImageFiles().then(attach)}
+        >
+          <Icon.image />
+        </button>
         <button
           type="button"
           className="send"
           aria-label={draft ? 'Post comment' : 'Send reply'}
-          disabled={!text.trim()}
+          disabled={!text.trim() && attachments.length === 0}
           onClick={submit}
         >
           <Icon.send />

@@ -21,6 +21,7 @@ import { livePinPoint } from '../actions';
 import { useEditor, useEnv, useLayoutVersion } from '../context';
 import { capturePointer, toPage } from '../dom';
 import { usePresence } from '../motion/presence';
+import { messagePreview } from '../ui/format';
 import { CommentPopover } from './CommentPopover';
 import { TextEditor } from './TextEditor';
 
@@ -106,6 +107,18 @@ export const ShapeView = memo(function ShapeView({ shape }: { shape: Shape }) {
           ))}
         </text>
       );
+    case 'image':
+      return (
+        <image
+          className="placed-image"
+          href={shape.src}
+          x={shape.rect.x}
+          y={shape.rect.y}
+          width={shape.rect.width}
+          height={shape.rect.height}
+          preserveAspectRatio="none"
+        />
+      );
   }
 });
 
@@ -123,7 +136,7 @@ function ShapeSelection({ shape }: { shape: Shape }) {
   const gesture = useRef<SelectionGesture | null>(null);
   const b = shapeBounds(shape);
   // Figma hugs the shape: handles sit on its corners (text gets a little air).
-  const pad = shape.kind === 'text' ? 4 : shape.style.width / 2;
+  const pad = shape.kind === 'text' ? 4 : shape.kind === 'image' ? 0 : shape.style.width / 2;
   const frame = {
     x: b.x - pad,
     y: b.y - pad,
@@ -294,7 +307,7 @@ function Pin({
         ['--pin' as string]: pinColor(thread),
         pointerEvents: interactive ? 'auto' : 'none',
       }}
-      aria-label={`Comment ${thread.number}: ${thread.messages[0]?.body ?? ''}`}
+      aria-label={`Comment ${thread.number}: ${messagePreview(thread.messages[0])}`}
       onPointerDown={onDown}
       onPointerMove={onMove}
       onPointerUp={onUp}
@@ -306,7 +319,7 @@ function Pin({
     >
       <span>{thread.number}</span>
       <span className="pin-preview" aria-hidden="true">
-        {thread.messages[0]?.body}
+        {messagePreview(thread.messages[0])}
       </span>
     </button>
   );
