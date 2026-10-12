@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { measureBetween } from '../../shared/measure';
 import type { Rect } from '../../shared/model';
 import { useEditor, useViewport } from '../context';
 import { friendlyName } from '../describe';
+import { spacingFor } from './spacing';
 
 const px = (v: string) => Number.parseFloat(v) || 0;
 
@@ -105,6 +106,59 @@ function MeasureView({ a, b }: { a: Element; b: Element }) {
   );
 }
 
+/**
+ * Spacing guides for the selection: a line from each side to whatever is next to it (a
+ * neighbour, the inside edge of the box it sits in, or the page edge — dashed), with the gap in
+ * px. Measured in page space once per selection and layout; drawn in viewport space.
+ */
+function SpacingGuides({ el, pill }: { el: Element; pill: { x: number; width: number } | null }) {
+  const vp = useViewport();
+  const { width: vw, height: vh } = vp;
+  // Re-measured per selection and whenever the window (and so the layout) changes size.
+  const lines = useMemo(() => spacingFor(el, vw, vh), [el, vw, vh]);
+  const clampX = (x: number) => Math.min(vp.width - 22, Math.max(22, x));
+  const clampY = (y: number) => Math.min(vp.height - 14, Math.max(14, y));
+  return (
+    <>
+      <svg className="measure spacing" aria-hidden="true">
+        {lines.map((l) => {
+          const x1 = l.x1 - vp.scrollX;
+          const x2 = l.x2 - vp.scrollX;
+          const y1 = l.y1 - vp.scrollY;
+          const y2 = l.y2 - vp.scrollY;
+          return (
+            <g key={l.side} data-to={l.to}>
+              <line x1={x1} y1={y1} x2={x2} y2={y2} />
+              {l.axis === 'x' ? (
+                <line className="cap" x1={x2} y1={y2 - 4} x2={x2} y2={y2 + 4} />
+              ) : (
+                <line className="cap" x1={x2 - 4} y1={y2} x2={x2 + 4} y2={y2} />
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      {lines.map((l) => {
+        const mx = (l.x1 + l.x2) / 2 - vp.scrollX;
+        const my = (l.y1 + l.y2) / 2 - vp.scrollY;
+        // A gap too short for the label inside it gets the label beside the line — past the
+        // size pill for the gap underneath, which the pill sits in.
+        const short = l.value < 28;
+        const besidePill = short && l.side === 'bottom' && pill;
+        const left = clampX(
+          besidePill ? pill.x + pill.width / 2 + 22 : l.axis === 'y' && short ? mx + 18 : mx,
+        );
+        const top = clampY(my);
+        return (
+          <div key={l.side} className="measure-label spacing-label" style={{ left, top }}>
+            {l.value}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 function sizeLabel(r: Rect): string {
   return `${Math.round(r.width)} × ${Math.round(r.height)}`;
 }
@@ -163,6 +217,12 @@ export function InspectOverlay() {
               : friendlyName(hovering!)}
           </div>
         </>
+      )}
+      {picked && pr && !(alt && hovering) && (
+        <SpacingGuides
+          el={picked}
+          pill={{ x: pr.x + pr.width / 2, width: sizeLabel(pr).length * 6.6 + 14 }}
+        />
       )}
       {pr && (
         <>

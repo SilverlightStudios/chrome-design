@@ -61,6 +61,81 @@ export function measureBetween(a: Rect, b: Rect): MeasureLine[] {
   return lines;
 }
 
+export interface EdgeDistance extends MeasureLine {
+  side: 'top' | 'right' | 'bottom' | 'left';
+  /** What the line runs to: a neighbouring element, the box it sits in, or the page edge. */
+  to: 'element' | 'container' | 'page';
+}
+
+/**
+ * The selected box's distance to whatever is next to it on each side (Figma's spacing guides):
+ * the nearest element edge straight out from that side — a neighbour in line with the box, or
+ * the inside edge of a box that contains it — and the page edge when there is nothing. Edges
+ * flush with the box (under half a pixel) are skipped, so a line always shows a real gap.
+ * All rects in the same space (page coordinates); `page` is the document size.
+ */
+export function edgeDistances(
+  target: Rect,
+  others: Rect[],
+  page: { width: number; height: number },
+): EdgeDistance[] {
+  const t = { l: target.x, t: target.y, r: target.x + target.width, b: target.y + target.height };
+  const cx = target.x + target.width / 2;
+  const cy = target.y + target.height / 2;
+  const best = {
+    right: { at: page.width, to: 'page' as EdgeDistance['to'], mid: cy },
+    left: { at: 0, to: 'page' as EdgeDistance['to'], mid: cy },
+    bottom: { at: page.height, to: 'page' as EdgeDistance['to'], mid: cx },
+    top: { at: 0, to: 'page' as EdgeDistance['to'], mid: cx },
+  };
+  const GAP = 0.5;
+  for (const o of others) {
+    const r = { l: o.x, t: o.y, r: o.x + o.width, b: o.y + o.height };
+    const rowsOverlap = r.t < t.b - GAP && r.b > t.t + GAP;
+    const colsOverlap = r.l < t.r - GAP && r.r > t.l + GAP;
+    const contains = r.l <= t.l + GAP && r.r >= t.r - GAP && r.t <= t.t + GAP && r.b >= t.b - GAP;
+    const midRow = (Math.max(r.t, t.t) + Math.min(r.b, t.b)) / 2;
+    const midCol = (Math.max(r.l, t.l) + Math.min(r.r, t.r)) / 2;
+    if (contains) {
+      // The inside edges of a box around it.
+      if (r.r - t.r > GAP && r.r < best.right.at)
+        best.right = { at: r.r, to: 'container', mid: cy };
+      if (t.l - r.l > GAP && r.l > best.left.at) best.left = { at: r.l, to: 'container', mid: cy };
+      if (r.b - t.b > GAP && r.b < best.bottom.at)
+        best.bottom = { at: r.b, to: 'container', mid: cx };
+      if (t.t - r.t > GAP && r.t > best.top.at) best.top = { at: r.t, to: 'container', mid: cx };
+      continue;
+    }
+    if (rowsOverlap) {
+      if (r.l - t.r > GAP && r.l < best.right.at)
+        best.right = { at: r.l, to: 'element', mid: midRow };
+      if (t.l - r.r > GAP && r.r > best.left.at)
+        best.left = { at: r.r, to: 'element', mid: midRow };
+    }
+    if (colsOverlap) {
+      if (r.t - t.b > GAP && r.t < best.bottom.at)
+        best.bottom = { at: r.t, to: 'element', mid: midCol };
+      if (t.t - r.b > GAP && r.b > best.top.at) best.top = { at: r.b, to: 'element', mid: midCol };
+    }
+  }
+  const out: EdgeDistance[] = [];
+  const push = (side: EdgeDistance['side'], from: number, hit: (typeof best)['top']) => {
+    const value = Math.round(Math.abs(hit.at - from));
+    if (value === 0) return;
+    const horizontal = side === 'left' || side === 'right';
+    out.push(
+      horizontal
+        ? { side, to: hit.to, axis: 'x', x1: from, x2: hit.at, y1: hit.mid, y2: hit.mid, value }
+        : { side, to: hit.to, axis: 'y', y1: from, y2: hit.at, x1: hit.mid, x2: hit.mid, value },
+    );
+  };
+  push('top', t.t, best.top);
+  push('right', t.r, best.right);
+  push('bottom', t.b, best.bottom);
+  push('left', t.l, best.left);
+  return out;
+}
+
 /** Column rectangles for the layout grid overlay, in viewport x coordinates. */
 export function gridColumns(
   viewportWidth: number,

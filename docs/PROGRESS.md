@@ -15,6 +15,10 @@ extension (including a phone-width bottom-sheet test). Verified on the demo page
   plain-language element names (`src/content/describe.ts`) + floating selection bar + Details;
   comment bubble with send button; More sheet of tiles; contextual style bar; phone bottom sheets on
   the Remote Desktop drawer physics; exit animations everywhere (bubble, bars, sheets, whole UI).
+- R7: spacing guides on every selection (`edgeDistances` in shared/measure.ts, cached per element
+  in overlay/spacing.ts; the selection bar keeps clear of the top/bottom guide); an open phone
+  sheet whose content changes size eases its height at full width (`PullMotion.resize`,
+  `--fh-live`) instead of replaying the opening morph.
 - R6: phone sheets are Spark's own app drawer (StackableDrawer `motion="scrub"`, useDrawerPull):
   one number (top edge height) drives shape, content fade and scrim; open 0.42s/0.86 spring
   from the edge with width on an exponential curve from 38%; drag anywhere that isn't a control

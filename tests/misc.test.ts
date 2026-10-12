@@ -5,7 +5,7 @@ import { describePath, uniqueSelector } from '../src/capture/anchor';
 import { isDangerousUrl } from '../src/capture/sanitize';
 import { chooseLayout } from '../src/content/ui/GridPanel';
 import { exportFilename } from '../src/export/build';
-import { gridColumns, measureBetween } from '../src/shared/measure';
+import { edgeDistances, gridColumns, measureBetween } from '../src/shared/measure';
 import { DEFAULT_GRID, type GridSpacing } from '../src/shared/model';
 
 describe('restricted pages', () => {
@@ -129,5 +129,48 @@ describe('selectors', () => {
     expect(exportFilename('https://www.example.com/x', new Date(2026, 0, 2, 3, 4))).toBe(
       'chrome-design-example.com-20260102-0304.html',
     );
+  });
+});
+
+const bySide = (lines: ReturnType<typeof edgeDistances>) =>
+  Object.fromEntries(lines.map((l) => [l.side, [l.value, l.to]]));
+
+describe('edge distances (spacing guides)', () => {
+  const page = { width: 1000, height: 2000 };
+  const box = { x: 400, y: 300, width: 200, height: 100 };
+
+  it('runs to the page edges when nothing is around', () => {
+    expect(bySide(edgeDistances(box, [], page))).toEqual({
+      top: [300, 'page'],
+      right: [400, 'page'],
+      bottom: [1600, 'page'],
+      left: [400, 'page'],
+    });
+  });
+
+  it('stops at the nearest neighbour in line with each side, and at a container inside edge', () => {
+    const others = [
+      { x: 650, y: 320, width: 50, height: 50 }, // right, 50 away
+      { x: 900, y: 300, width: 50, height: 100 }, // further right
+      { x: 420, y: 450, width: 100, height: 40 }, // below, 50 away
+      { x: 100, y: 0, width: 50, height: 50 }, // up-left, not in line: ignored
+      { x: 380, y: 200, width: 400, height: 400 }, // contains the box
+    ];
+    const lines = edgeDistances(box, others, page);
+    expect(bySide(lines)).toEqual({
+      top: [100, 'container'],
+      right: [50, 'element'],
+      bottom: [50, 'element'],
+      left: [20, 'container'],
+    });
+    const right = lines.find((l) => l.side === 'right')!;
+    expect([right.x1, right.x2, right.y1]).toEqual([600, 650, 345]); // mid of the shared rows
+  });
+
+  it('skips flush edges so every line shows a real gap', () => {
+    const flushParent = { x: 400, y: 300, width: 300, height: 100 };
+    const lines = edgeDistances(box, [flushParent], page);
+    expect(bySide(lines).right).toEqual([100, 'container']);
+    expect(bySide(lines).top).toEqual([300, 'page']);
   });
 });

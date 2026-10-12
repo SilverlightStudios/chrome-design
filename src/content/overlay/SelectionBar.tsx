@@ -8,15 +8,22 @@ import { BottomSheet, useCompact, useSheetPresence } from '../motion/MorphSheet'
 import { usePresence } from '../motion/presence';
 import { Icon } from '../ui/icons';
 import { draftForRegion } from './InteractionLayer';
+import { guideClearance, spacingFor } from './spacing';
 
 const BAR_H = 40;
 
-function place(r: Rect, width: number): { left: number; top: number; below: boolean } {
+function place(
+  r: Rect,
+  width: number,
+  clear: { top: number; bottom: number } = { top: 0, bottom: 0 },
+): { left: number; top: number; below: boolean } {
   // `width` is the bar's measured width (0 before the first layout).
   const vw = document.documentElement.clientWidth || window.innerWidth;
   const vh = window.innerHeight;
-  const below = r.y < BAR_H + 22 || r.y - BAR_H - 10 < 0;
-  let top = below ? r.y + r.height + 34 : r.y - BAR_H - 10;
+  // Clear of the spacing guide on that side, so its value stays readable.
+  const above = r.y - BAR_H - 10 - clear.top;
+  const below = above < 8;
+  let top = below ? r.y + r.height + 34 + clear.bottom : above;
   top = Math.max(8, Math.min(vh - BAR_H - 96, top));
   const left = Math.max(8, Math.min(vw - width - 8, r.x + r.width / 2 - width / 2));
   return { left, top, below };
@@ -62,7 +69,11 @@ export function SelectionBar() {
         return { x: b.left, y: b.top, width: b.width, height: b.height };
       })();
   const label = el ? friendlyLabel(el) : 'Area';
-  const pos = place(r, width || 260);
+  const guides = el ? spacingFor(el, vp.width, vp.height) : [];
+  const pos = place(r, width || 260, {
+    top: guideClearance(guides, 'top'),
+    bottom: guideClearance(guides, 'bottom'),
+  });
 
   const comment = () => {
     if (region) {

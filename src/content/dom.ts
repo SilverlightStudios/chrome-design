@@ -1,4 +1,4 @@
-import type { Point } from '../shared/model';
+import type { Point, Rect } from '../shared/model';
 
 export const HOST_TAG = 'chrome-design-root';
 
@@ -60,6 +60,31 @@ export function elementsInRect(
       found.push(centre);
   }
   return found;
+}
+
+/**
+ * Page-space boxes of the visible elements a selection can be measured against: everything
+ * except the selection itself and what's inside it, the page root, and this UI. Capped so a
+ * huge page stays quick (first `limit` in document order).
+ */
+export function measurableRects(target: Element, limit = 4000): Rect[] {
+  const sx = window.scrollX;
+  const sy = window.scrollY;
+  const out: Rect[] = [];
+  const root = document.body ?? document.documentElement;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, {
+    acceptNode(node) {
+      const el = node as Element;
+      if (el === target || el.localName === HOST_TAG) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  for (let n = walker.nextNode(); n && out.length < limit; n = walker.nextNode()) {
+    const r = (n as Element).getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) continue;
+    out.push({ x: r.left + sx, y: r.top + sy, width: r.width, height: r.height });
+  }
+  return out;
 }
 
 export function toPage(clientX: number, clientY: number): Point {

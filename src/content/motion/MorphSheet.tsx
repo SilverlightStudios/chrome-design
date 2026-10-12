@@ -306,6 +306,8 @@ const WIDTH_CURVE = 3;
 /** Opening is a touch underdamped; closing aims a card's depth past the edge, critically damped. */
 const OPEN_SPRING = { response: 0.42, damping: 0.86 };
 const CLOSE_SPRING = { response: 1.26, damping: 1 };
+/** An open sheet whose content changes size just eases its height — never the opening morph. */
+const RESIZE_SPRING = { response: 0.36, damping: 1 };
 const PULL_FRAME_S = 0.05;
 const REST_DISTANCE = 0.5;
 const REST_SPEED = 8;
@@ -323,6 +325,9 @@ export class PullMotion {
   /** Top edge above the bottom (px); below 0 it carries on down out of sight. */
   d = 0;
   private size: Size = { w: 0, h: 0 };
+  /** The height the morph is drawn against; trails `size.h` while an open sheet resizes. */
+  private shownH = 0;
+  private resizing = false;
   private spring: Spring | null = null;
   private closingTo: (() => void) | null = null;
   private raf = 0;
@@ -336,7 +341,8 @@ export class PullMotion {
 
   write(): void {
     const el = this.surface;
-    const { w: width, h: height } = this.size;
+    const width = this.size.w;
+    const height = this.shownH || this.size.h;
     if (!el || !height) return;
     const d = this.d;
     const progress = clamp01(d / height);
@@ -357,9 +363,57 @@ export class PullMotion {
     this.spring = null;
   }
 
+  private endResize(): void {
+    this.resizing = false;
+    this.shownH = this.size.h;
+    this.surface?.style.removeProperty('--fh-live');
+  }
+
+  /**
+   * Open and resting, the content changed size (a filter, a panel switch): the sheet eases its
+   * height at full width, the content laid out inside the moving height (--fh-live) so nothing
+   * is ever blank or re-revealed.
+   */
+  private resize(to: number): void {
+    this.stopSpring();
+    const from = this.shownH || to;
+    if (prefersReducedMotion() || Math.abs(from - to) < REST_DISTANCE) {
+      this.endResize();
+      this.d = to;
+      this.write();
+      return;
+    }
+    const spring = createSpring(from, stiffnessFor(RESIZE_SPRING.response), RESIZE_SPRING.damping);
+    spring.target = to;
+    this.spring = spring;
+    this.resizing = true;
+    this.last = performance.now();
+    const step = (now: number) => {
+      const dt = Math.min(PULL_FRAME_S, (now - this.last) / 1000);
+      this.last = now;
+      advance(spring, dt);
+      const resting =
+        Math.abs(spring.value - spring.target) < REST_DISTANCE &&
+        Math.abs(spring.velocity) < REST_SPEED;
+      if (resting) {
+        this.stopSpring();
+        this.endResize();
+        this.d = to;
+      } else {
+        this.shownH = spring.value;
+        this.d = spring.value;
+        this.surface?.style.setProperty('--fh-live', `${spring.value.toFixed(2)}px`);
+        this.raf = requestAnimationFrame(step);
+      }
+      this.write();
+    };
+    this.raf = requestAnimationFrame(step);
+  }
+
   /** Hand the number to a spring toward open (or toward gone), keeping `velocity` (px/s, up +). */
   private settle(open: boolean, velocity: number): void {
     this.stopSpring();
+    this.endResize();
     const height = this.size.h;
     const { response, damping } = open ? OPEN_SPRING : CLOSE_SPRING;
     const spring = createSpring(this.d, stiffnessFor(response), damping);
@@ -403,27 +457,44 @@ export class PullMotion {
     this.size = next;
     if (!this.started) {
       this.started = true;
+      this.shownH = next.h;
       this.d = 0;
       this.write();
       this.settle(true, 0);
       return;
     }
     if (this.closingTo || this.dragging) {
+      if (!this.resizing) this.shownH = next.h;
       this.write();
       return;
     }
-    // Another panel or its content changed: the top edge springs to the new height. Also picks
-    // the rise back up if something stopped it short (React's dev double-mount cancels frames).
+    const resized = previous.h !== next.h;
+    if (this.resizing) {
+      if (resized) this.resize(next.h);
+      return;
+    }
     if (this.spring) {
-      if (previous.h !== next.h) this.settle(true, this.spring.velocity);
+      // Still rising: aim the rise at the new height instead.
+      this.shownH = next.h;
+      if (resized) this.settle(true, this.spring.velocity);
       else this.write();
-    } else if (Math.abs(this.d - next.h) > REST_DISTANCE) this.settle(true, 0);
+      return;
+    }
+    if (resized && Math.abs(this.d - previous.h) <= REST_DISTANCE) {
+      this.resize(next.h);
+      return;
+    }
+    this.shownH = next.h;
+    // Picks the rise back up if something stopped it short (React's dev double-mount cancels
+    // its frames).
+    if (Math.abs(this.d - next.h) > REST_DISTANCE) this.settle(true, 0);
     else this.write();
   }
 
   /** A finger is `dy` px from where it started (down +): the top edge follows it. */
   drag(dy: number): void {
     this.stopSpring();
+    if (this.resizing) this.endResize();
     this.d = this.size.h - dy;
     this.write();
   }

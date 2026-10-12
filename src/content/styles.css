@@ -2471,6 +2471,20 @@ kbd {
   stroke: var(--measure);
   stroke-width: 1;
 }
+/* Spacing guides around a selection: solid to a neighbour or container, dashed to the page edge. */
+.measure.spacing line {
+  stroke-width: 1;
+}
+.measure.spacing g[data-to="page"] line:not(.cap) {
+  stroke-dasharray: 4 3;
+}
+.spacing-label {
+  position: fixed;
+  z-index: 1;
+  translate: -50% -50%;
+  margin: 0;
+  pointer-events: none;
+}
 .measure-target {
   fill: none;
   stroke: var(--measure);
@@ -3169,7 +3183,8 @@ details.options .checks {
   left: 50%;
   translate: -50% 0;
   width: var(--fw, 100%);
-  height: calc(var(--fh, 0px) + var(--rb, 0px));
+  /* --fh-live: an open sheet easing to a new height lays its content out inside that height. */
+  height: calc(var(--fh-live, var(--fh, 0px)) + var(--rb, 0px));
   display: flex;
   flex-direction: column;
   padding-bottom: env(safe-area-inset-bottom);
