@@ -18,7 +18,11 @@ export function pickElement(x: number, y: number): Element | null {
   return null;
 }
 
-/** Elements fully inside a page-space rect (outermost only, capped). */
+/**
+ * Elements that are (mostly) inside a page-space rect: outermost matches only, capped.
+ * An element counts when at least 60% of its box lies inside the region. If nothing
+ * qualifies, the innermost element under the region's centre is used.
+ */
 export function elementsInRect(
   rect: { x: number; y: number; width: number; height: number },
   limit = 6,
@@ -34,27 +38,26 @@ export function elementsInRect(
         const el = node as Element;
         if (el.localName === HOST_TAG) return NodeFilter.FILTER_REJECT;
         const r = el.getBoundingClientRect();
-        if (r.width === 0 && r.height === 0) return NodeFilter.FILTER_SKIP;
+        if (r.width === 0 || r.height === 0) return NodeFilter.FILTER_SKIP;
         const x = r.left + sx;
         const y = r.top + sy;
-        const inside =
-          x >= rect.x &&
-          y >= rect.y &&
-          x + r.width <= rect.x + rect.width &&
-          y + r.height <= rect.y + rect.height;
-        if (inside) return NodeFilter.FILTER_ACCEPT;
-        const intersects =
-          x < rect.x + rect.width &&
-          x + r.width > rect.x &&
-          y < rect.y + rect.height &&
-          y + r.height > rect.y;
-        return intersects ? NodeFilter.FILTER_SKIP : NodeFilter.FILTER_REJECT;
+        const ix = Math.max(0, Math.min(x + r.width, rect.x + rect.width) - Math.max(x, rect.x));
+        const iy = Math.max(0, Math.min(y + r.height, rect.y + rect.height) - Math.max(y, rect.y));
+        if (ix === 0 || iy === 0) return NodeFilter.FILTER_REJECT;
+        return (ix * iy) / (r.width * r.height) >= 0.6
+          ? NodeFilter.FILTER_ACCEPT
+          : NodeFilter.FILTER_SKIP;
       },
     },
   );
   for (let n = walker.nextNode(); n && found.length < limit; n = walker.nextNode()) {
     const el = n as Element;
     if (!found.some((f) => f.contains(el))) found.push(el);
+  }
+  if (found.length === 0) {
+    const centre = pickElement(rect.x + rect.width / 2 - sx, rect.y + rect.height / 2 - sy);
+    if (centre && centre !== document.documentElement && centre !== document.body)
+      found.push(centre);
   }
   return found;
 }
@@ -98,5 +101,22 @@ export async function copyText(text: string): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+/** Pointer capture that tolerates synthetic / already-released pointers. */
+export function capturePointer(el: Element, pointerId: number): void {
+  try {
+    el.setPointerCapture(pointerId);
+  } catch {
+    // synthetic events or pointer already gone
+  }
+}
+
+export function releasePointer(el: Element, pointerId: number): void {
+  try {
+    if (el.hasPointerCapture(pointerId)) el.releasePointerCapture(pointerId);
+  } catch {
+    // ignore
   }
 }

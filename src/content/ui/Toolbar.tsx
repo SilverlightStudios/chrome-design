@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { isComment, PALETTE } from '../../shared/model';
 import { useEditor, useEnv } from '../context';
+import { capturePointer } from '../dom';
 import { loadUiPrefs, saveUiPrefs } from '../persistence';
 import type { DrawToolId, PanelId, ToolId } from '../store';
 import { ExportPanel } from './ExportPanel';
@@ -232,7 +233,7 @@ export function Toolbar() {
   };
 
   const onGripDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
+    capturePointer(e.currentTarget, e.pointerId);
     drag.current = { startX: e.clientX, startY: e.clientY, ox: offset.x, oy: offset.y };
   };
   const onGripMove = (e: ReactPointerEvent<HTMLButtonElement>) => {

@@ -1,6 +1,7 @@
 import { type PointerEvent as ReactPointerEvent, useRef } from 'react';
 import type { GridSettings } from '../../shared/model';
 import { useEditor, useEnv } from '../context';
+import { capturePointer } from '../dom';
 
 interface ScrubProps {
   label: string;
@@ -31,7 +32,7 @@ export function ScrubField({
   const onDown = (e: ReactPointerEvent<HTMLSpanElement>) => {
     if (disabled) return;
     e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
+    capturePointer(e.currentTarget, e.pointerId);
     drag.current = { x: e.clientX, v: value };
   };
   const onMove = (e: ReactPointerEvent<HTMLSpanElement>) => {

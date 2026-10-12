@@ -3,7 +3,7 @@ import { createId } from '../../shared/ids';
 import { gridColumns } from '../../shared/measure';
 import type { Guide } from '../../shared/model';
 import { useEditor, useEnv, useViewport, type Viewport } from '../context';
-import { pickElement } from '../dom';
+import { capturePointer, pickElement } from '../dom';
 
 export const RULER = 20;
 const SNAP = 5;
@@ -162,7 +162,7 @@ export function RulersAndGuides() {
   const begin = (e: ReactPointerEvent<HTMLElement>, d: GuideDrag) => {
     e.stopPropagation();
     e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
+    capturePointer(e.currentTarget, e.pointerId);
     dragRef.current = d;
     setDrag(d);
   };

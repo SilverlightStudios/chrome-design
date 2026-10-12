@@ -11,7 +11,7 @@ import {
 import { createId, nowIso } from '../../shared/ids';
 import { isShape, type Point, type Rect, type Shape } from '../../shared/model';
 import { useEditor, useEnv } from '../context';
-import { elementsInRect, pickElement, toPage } from '../dom';
+import { capturePointer, elementsInRect, pickElement, releasePointer, toPage } from '../dom';
 import type { EditorStore } from '../store';
 
 type Gesture =
@@ -66,7 +66,7 @@ export function InteractionLayer() {
     if (e.button !== 0) return;
     const s = store.getState();
     const p = toPage(e.clientX, e.clientY);
-    e.currentTarget.setPointerCapture(e.pointerId);
+    capturePointer(e.currentTarget, e.pointerId);
     if (s.openThreadId || s.draft) store.set({ openThreadId: null, draft: null });
 
     if (s.tool === 'select') {
@@ -96,7 +96,7 @@ export function InteractionLayer() {
     if (s.tool === 'draw') {
       store.set({ selectedId: null });
       if (s.drawTool === 'text') {
-        e.currentTarget.releasePointerCapture(e.pointerId);
+        releasePointer(e.currentTarget, e.pointerId);
         if (!s.textEdit) store.set({ textEdit: { point: { x: p.x, y: p.y - 4 } } });
         return;
       }

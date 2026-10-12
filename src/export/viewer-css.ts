@@ -30,7 +30,7 @@ h2{font-size:18px;margin:0 0 12px}
 .stat{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:13px;color:var(--muted)}
 .stat b{color:var(--ink)}
 section.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:20px}
-.prompt{background:var(--prompt-bg);color:var(--prompt-ink);border:0;position:relative}
+.card.prompt{background:var(--prompt-bg);color:var(--prompt-ink);border:0;position:relative}
 .prompt h2{color:#fff;display:flex;align-items:center;gap:10px}
 .prompt h2::before{content:"";width:10px;height:10px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.25)}
 .prompt pre{white-space:pre-wrap;word-break:break-word;margin:0;font-size:13.5px;line-height:1.6;max-height:none}
@@ -39,7 +39,7 @@ section.card{background:var(--panel);border:1px solid var(--line);border-radius:
 .btn:hover{border-color:var(--accent)}
 .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .prompt .btn{background:#1e293b;border-color:#334155;color:#e2e8f0}
-.warnings{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn-ink)}
+.card.warnings{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn-ink)}
 .warnings ul{margin:8px 0 0;padding-left:20px;font-size:13px}
 .warnings li{word-break:break-all}
 .layout{display:grid;grid-template-columns:minmax(300px,420px) minmax(0,1fr);gap:20px;align-items:start}

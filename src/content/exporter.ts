@@ -67,7 +67,9 @@ export async function runExport(
     const doc = s.doc;
     const anchors = doc.annotations.filter(isComment).flatMap(anchorsOf);
     const { capture, refs } = await capturePage({
-      skip: (node) => node === host,
+      skip: (node) =>
+        node === host ||
+        (node instanceof Element && node.hasAttribute('data-chrome-design-ignore')),
       anchors,
       fetchers: [pageFetcher, backgroundFetcher],
       includeSource: options.includeSource,

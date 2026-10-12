@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fieldnote — notes that stay calm</title>
+    <link rel="icon" href="./assets/mark.svg" />
+    <link rel="stylesheet" href="./site.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <a class="brand" href="#"><img src="./assets/mark.svg" alt="" width="28" height="28" /> Fieldnote</a>
+      <nav aria-label="Main">
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <button class="btn small" type="button" onclick="alert('Sign in')">Sign in</button>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">New · Offline sync</p>
+          <h1 id="hero-title">Notes that stay calm when your day isn’t.</h1>
+          <p class="lede">Fieldnote keeps ideas, meeting notes and checklists in one quiet place. Fast search, no clutter, works offline.</p>
+          <form class="signup" onsubmit="return false">
+            <label class="sr-only" for="email">Email</label>
+            <input id="email" type="email" placeholder="you@studio.com" />
+            <button class="btn" type="submit">Start free</button>
+          </form>
+          <p class="fine">Free for personal use · No credit card</p>
+        </div>
+        <img class="hero-art" src="./assets/hero.svg" alt="Fieldnote app preview" width="560" height="380" />
+      </section>
+
+      <section id="features" class="features">
+        <h2>Everything in its place</h2>
+        <div class="cards">
+          <article class="card">
+            <span class="icon">⌘K</span>
+            <h3>Instant search</h3>
+            <p>Find any note in milliseconds, even across thousands of pages.</p>
+          </article>
+          <article class="card">
+            <span class="icon">✓</span>
+            <h3>Checklists that flow</h3>
+            <p>Turn any line into a task. Due dates and reminders stay out of the way.</p>
+          </article>
+          <article class="card">
+            <span class="icon">⇄</span>
+            <h3>Offline first</h3>
+            <p>Write on a plane. Fieldnote syncs quietly the moment you’re back.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="stats">
+        <div>
+          <h2>Weekly notes written</h2>
+          <p class="muted">Rendered on a canvas by script — flattened to an image in the export.</p>
+        </div>
+        <canvas id="chart" width="520" height="180" aria-label="Bar chart"></canvas>
+      </section>
+
+      <section id="pricing" class="pricing">
+        <h2>Simple pricing</h2>
+        <div class="plans">
+          <div class="plan">
+            <h3>Personal</h3>
+            <p class="price">$0</p>
+            <ul><li>Unlimited notes</li><li>2 devices</li></ul>
+            <a class="btn ghost" href="javascript:void(0)">Get started</a>
+          </div>
+          <div class="plan featured">
+            <h3>Pro</h3>
+            <p class="price">$6<span>/mo</span></p>
+            <ul><li>Everything in Personal</li><li>Unlimited devices</li><li>Version history</li></ul>
+            <a class="btn" href="#signup">Go Pro</a>
+          </div>
+        </div>
+      </section>
+
+      <section id="faq" class="faq">
+        <h2>Questions</h2>
+        <details open><summary>Can I import from other apps?</summary><p>Yes — Markdown, plain text and most export formats.</p></details>
+        <details><summary>Is my data private?</summary><p>Notes are encrypted on your device before syncing.</p></details>
+        <iframe title="Embedded video" srcdoc="<p style='font:14px system-ui;padding:12px'>Embedded player</p>" width="480" height="120"></iframe>
+      </section>
+    </main>
+
+    <footer class="footer">© 2026 Fieldnote (demo site for Chrome Design)</footer>
+
+    <script>
+      const c = document.getElementById('chart');
+      const ctx = c.getContext('2d');
+      const data = [12, 19, 15, 26, 22, 31, 28];
+      data.forEach((v, i) => {
+        ctx.fillStyle = i === 5 ? '#0f766e' : '#99f6e4';
+        ctx.beginPath();
+        ctx.roundRect(20 + i * 70, 170 - v * 5, 44, v * 5, 8);
+        ctx.fill();
+      });
+    </script>
+    <script type="module" src="./demo.ts"></script>
+  </body>
+</html>

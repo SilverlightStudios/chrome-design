@@ -239,7 +239,13 @@ export function CommentPopover({
           </div>
         </>
       ) : (
-        <IntentPicker value={intent} onChange={setIntent} />
+        <IntentPicker
+          value={intent}
+          onChange={(v) => {
+            setIntent(v);
+            inputRef.current?.focus({ preventScroll: true });
+          }}
+        />
       )}
 
       <div className="composer">

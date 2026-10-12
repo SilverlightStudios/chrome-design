@@ -4,6 +4,7 @@ import { arrowHead, pointsToPath, shapeBounds, translateShape } from '../../shar
 import { type CommentThread, isComment, isShape, type Shape } from '../../shared/model';
 import { livePinPoint } from '../actions';
 import { useEditor, useEnv, useLayoutVersion } from '../context';
+import { capturePointer } from '../dom';
 import { CommentPopover } from './CommentPopover';
 import { TextEditor } from './TextEditor';
 
@@ -122,7 +123,7 @@ function Pin({
 
   const onDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
     e.stopPropagation();
-    e.currentTarget.setPointerCapture(e.pointerId);
+    capturePointer(e.currentTarget, e.pointerId);
     drag.current = { x: e.clientX, y: e.clientY, moved: false };
   };
   const onMove = (e: ReactPointerEvent<HTMLButtonElement>) => {

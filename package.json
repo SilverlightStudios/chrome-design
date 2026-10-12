@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "node scripts/build.mjs --watch",
     "build": "node scripts/build.mjs",
-    "demo": "node scripts/build.mjs --demo && vite --config vite.demo.config.ts",
+    "demo": "vite --config vite.demo.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "oxlint && biome check .",
     "lint:fix": "biome check --write . && oxlint --fix",
@@ -18,7 +18,8 @@
     "test:watch": "vitest",
     "test:e2e": "node scripts/build.mjs && playwright test",
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
-    "zip": "node scripts/build.mjs && node scripts/zip.mjs"
+    "zip": "node scripts/build.mjs && node scripts/zip.mjs",
+    "demo:build": "vite build --config vite.demo.config.ts"
   },
   "packageManager": "pnpm@8.15.0",
   "dependencies": {

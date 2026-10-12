@@ -33,9 +33,21 @@ function area(): chrome.storage.StorageArea | null {
   return typeof chrome !== 'undefined' && chrome.storage?.local ? chrome.storage.local : null;
 }
 
+/** Demo page fallback (no extension runtime): per-origin localStorage. */
+function demoStorage(): Storage | null {
+  try {
+    return typeof localStorage === 'undefined' ? null : localStorage;
+  } catch {
+    return null;
+  }
+}
+
 async function read<T>(key: string): Promise<T | undefined> {
   const store = area();
-  if (!store) return undefined;
+  if (!store) {
+    const raw = demoStorage()?.getItem(`chrome-design:${key}`);
+    return raw ? (JSON.parse(raw) as T) : undefined;
+  }
   try {
     const result = await store.get(key);
     return result[key] as T | undefined;
@@ -46,7 +58,14 @@ async function read<T>(key: string): Promise<T | undefined> {
 
 async function write(key: string, value: unknown): Promise<void> {
   const store = area();
-  if (!store) return;
+  if (!store) {
+    try {
+      demoStorage()?.setItem(`chrome-design:${key}`, JSON.stringify(value));
+    } catch {
+      // storage full or blocked; the demo simply won't persist
+    }
+    return;
+  }
   try {
     await store.set({ [key]: value });
   } catch (error) {
