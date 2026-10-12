@@ -327,10 +327,10 @@ FILE MAP
     <div class="page-url">${escapeHtml(meta.url)}</div>
   </div>
   <div class="stats" aria-label="Summary">
-    <span class="stat"><b>${s.comments}</b> comments</span>
+    <span class="stat"><b>${s.comments}</b> comment${s.comments === 1 ? '' : 's'}</span>
     <span class="stat"><b>${s.openComments}</b> open</span>
-    <span class="stat"><b>${s.decisions}</b> decisions</span>
-    <span class="stat"><b>${s.shapes}</b> drawings</span>
+    <span class="stat"><b>${s.decisions}</b> decision${s.decisions === 1 ? '' : 's'}</span>
+    <span class="stat"><b>${s.shapes}</b> drawing${s.shapes === 1 ? '' : 's'}</span>
     <span class="stat">${meta.viewport.width}×${meta.viewport.height}</span>
   </div>
 </header>

@@ -13,14 +13,23 @@ import { type DraftComment, nextCommentNumber } from '../store';
 import { Icon } from '../ui/icons';
 
 const INTENTS: CommentIntent[] = ['change', 'decision', 'question', 'note'];
+const SHORT_LABEL: Record<CommentIntent, string> = {
+  change: 'Change',
+  decision: 'Decision',
+  question: 'Question',
+  note: 'Note',
+};
 const POPOVER_WIDTH = 320;
 
+function popoverWidth(): number {
+  return Math.min(POPOVER_WIDTH, (document.documentElement.clientWidth || window.innerWidth) - 16);
+}
+
 function placement(p: Point): { left: number; top: number } {
+  const width = popoverWidth();
   const right = window.scrollX + (document.documentElement.clientWidth || window.innerWidth);
   const left =
-    p.x + 34 + POPOVER_WIDTH > right - 8
-      ? Math.max(window.scrollX + 8, p.x - POPOVER_WIDTH - 12)
-      : p.x + 34;
+    p.x + 34 + width > right - 8 ? Math.max(window.scrollX + 8, p.x - width - 12) : p.x + 34;
   const top = Math.max(window.scrollY + 8, p.y - 36);
   return { left, top };
 }
@@ -54,11 +63,12 @@ function IntentPicker({
           type="button"
           role="radio"
           aria-checked={value === intent}
+          title={INTENT_LABEL[intent]}
           data-intent={intent}
           data-active={value === intent ? '' : undefined}
           onClick={() => onChange(intent)}
         >
-          {INTENT_LABEL[intent]}
+          {SHORT_LABEL[intent]}
         </button>
       ))}
     </div>
@@ -146,7 +156,7 @@ export function CommentPopover({
       className="popover ui"
       role="dialog"
       aria-label={thread ? `Comment ${thread.number}` : 'New comment'}
-      style={{ left: pos.left, top: pos.top, width: POPOVER_WIDTH }}
+      style={{ left: pos.left, top: pos.top, width: popoverWidth() }}
       onKeyDown={onKeyDown}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -265,7 +275,7 @@ export function CommentPopover({
           onChange={(e) => setText(e.target.value)}
         />
         <div className="composer-actions">
-          <span className="muted small">⌘↵ to {draft ? 'post' : 'reply'}</span>
+          <span className="muted small kbd-hint">⌘↵ to {draft ? 'post' : 'reply'}</span>
           <button type="button" className="btn primary" disabled={!text.trim()} onClick={submit}>
             {draft ? 'Post' : 'Reply'}
           </button>

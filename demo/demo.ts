@@ -6,7 +6,11 @@ void window.__chromeDesign?.open();
 
 const reopen = document.createElement('button');
 reopen.textContent = 'Open Chrome Design';
+reopen.setAttribute('data-chrome-design-ignore', '');
 reopen.style.cssText =
   'position:fixed;right:16px;bottom:16px;z-index:5;padding:10px 14px;border-radius:10px;border:0;background:#18191c;color:#fff;font:600 13px system-ui;cursor:pointer';
 reopen.addEventListener('click', () => void window.__chromeDesign?.open());
 document.body.appendChild(reopen);
+setInterval(() => {
+  reopen.hidden = !!window.__chromeDesign?.isOpen();
+}, 400);

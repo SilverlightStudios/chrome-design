@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { type CommentThread, INTENT_LABEL, isComment } from '../../shared/model';
 import { revealThread } from '../actions';
 import { useEditor, useEnv } from '../context';
+import { plural } from './format';
 
 type Filter = 'all' | 'open' | 'resolved';
 
@@ -26,7 +27,7 @@ export function FeedbackPanel() {
       <div className="panel-head">
         <h2>Feedback</h2>
         <span className="muted">
-          {threads.length} comments · {shapes} drawings
+          {plural(threads.length, 'comment')} · {plural(shapes, 'drawing')}
         </span>
       </div>
       <div className="segmented small" role="radiogroup" aria-label="Filter">

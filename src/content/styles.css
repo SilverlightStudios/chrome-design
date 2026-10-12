@@ -210,8 +210,10 @@ button {
   box-shadow: var(--shadow);
   padding: 10px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   font: 13px / 1.45 var(--font);
+  max-width: calc(100vw - 16px);
 }
 .popover-head {
   display: flex;
@@ -265,7 +267,7 @@ button {
 
 .intent-picker {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 2px;
   padding: 2px;
   background: var(--chrome-2);
@@ -353,6 +355,9 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+.composer-actions .btn {
+  margin-left: auto;
 }
 
 /* ---------- buttons ---------- */
@@ -678,6 +683,7 @@ button {
   border-radius: 14px;
   box-shadow: var(--shadow);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   align-content: start;
 }
@@ -1274,5 +1280,49 @@ kbd {
   .pin:active {
     scale: 0.92;
     transition-duration: var(--dur-fast);
+  }
+}
+
+/* Phones: keep the whole toolbar on screen. */
+@media (max-width: 480px) {
+  .subbar {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 2px;
+  }
+  .toolbar,
+  .subbar {
+    gap: 0;
+    padding: 4px;
+  }
+  .tb-btn {
+    width: 31px;
+    height: 36px;
+  }
+  .tb-divider {
+    margin: 0 2px;
+  }
+  .tb-grip {
+    width: 14px;
+  }
+  .inspector {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: 40vh;
+  }
+}
+
+@media (pointer: coarse) {
+  .kbd-hint {
+    display: none;
+  }
+  /* iOS zooms into inputs smaller than 16px on focus. */
+  .composer textarea,
+  .stack textarea,
+  .text-editor,
+  .scrub input,
+  .hex {
+    font-size: 16px;
   }
 }

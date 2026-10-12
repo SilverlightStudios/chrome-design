@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { isComment } from '../../shared/model';
 import { type ExportStatus, useEditor, useEnv } from '../context';
+import { plural } from './format';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -31,7 +32,8 @@ export function ExportPanel() {
       <div className="panel-head">
         <h2>Export for AI agent</h2>
         <span className="muted">
-          {comments.length} comments · {decisions} decisions · {shapes} drawings
+          {plural(comments.length, 'comment')} · {plural(decisions, 'decision')} ·{' '}
+          {plural(shapes, 'drawing')}
         </span>
       </div>
       <label className="stack">
@@ -81,8 +83,8 @@ export function ExportPanel() {
           {status.warnings.length > 0 ? (
             <details>
               <summary className="warn">
-                ⚠ {status.warnings.length} warning{status.warnings.length === 1 ? '' : 's'} (some
-                assets could not be embedded)
+                ⚠ {status.warnings.length} warning{status.warnings.length === 1 ? '' : 's'} —
+                details
               </summary>
               <ul className="warn-list">
                 {status.warnings.slice(0, 30).map((w) => (
