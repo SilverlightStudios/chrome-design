@@ -29,14 +29,10 @@ function Popup() {
       </section>
       <div className="row">
         <div>
-          <b>Embed assets from other sites</b>
-          <p className="muted">Lets exports inline CDN images, fonts and styles.</p>
+          <b>Allow other websites</b>
+          <p className="muted">Lets the file include images, fonts and styles from other sites.</p>
         </div>
-        <Switch
-          label="Embed assets from other sites"
-          on={allSites}
-          onChange={(v) => void setAllSites(v)}
-        />
+        <Switch label="Allow other websites" on={allSites} onChange={(v) => void setAllSites(v)} />
       </div>
       {error ? <p className="error">{error}</p> : null}
       <button type="button" className="link" onClick={() => void chrome.runtime.openOptionsPage()}>

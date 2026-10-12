@@ -1,30 +1,40 @@
 import {
   type ReactNode,
   type PointerEvent as ReactPointerEvent,
-  useCallback,
   useEffect,
   useRef,
   useState,
 } from 'react';
-import { isComment, PALETTE } from '../../shared/model';
+import { isComment, isShape, PALETTE, type Shape, type ShapeStyle } from '../../shared/model';
 import { useEditor, useEnv } from '../context';
 import { capturePointer, HOST_TAG } from '../dom';
 import {
   GLASS_FILTER_ID,
   GlassFilters,
+  supportsSvgBackdrop,
   useBackdropTone,
   useCspGlassFallback,
   useGlassMap,
 } from '../motion/glass';
-import { MorphSheet, type SheetPhase } from '../motion/MorphSheet';
+import { BottomSheet, FloatingSheet, useCompact, useSheetPresence } from '../motion/MorphSheet';
 import { MorphTooltipGroup } from '../motion/MorphTooltip';
+import { usePresence } from '../motion/presence';
+import { textFontSize } from '../overlay/TextEditor';
 import { loadUiPrefs, saveUiPrefs, type UiPrefs } from '../persistence';
-import type { DrawToolId, EditorState, PanelId, ToolId } from '../store';
+import {
+  type DrawToolId,
+  type EditorState,
+  isShapeTool,
+  type PanelId,
+  SHAPE_TOOLS,
+  type ShapeToolId,
+} from '../store';
 import { ExportPanel } from './ExportPanel';
 import { FeedbackPanel } from './FeedbackPanel';
 import { GridPanel } from './GridPanel';
 import { HelpPanel } from './HelpPanel';
 import { Icon, type IconName } from './icons';
+import { MorePanel } from './MorePanel';
 import { WelcomePanel } from './WelcomePanel';
 
 interface ButtonProps {
@@ -35,7 +45,12 @@ interface ButtonProps {
   disabled?: boolean;
   badge?: number;
   className?: string;
+  longPress?: 'menu';
+  expanded?: boolean;
   onClick: () => void;
+  onPointerDown?: (e: ReactPointerEvent<HTMLButtonElement>) => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
+  children?: ReactNode;
 }
 
 export function ToolButton({
@@ -46,7 +61,12 @@ export function ToolButton({
   disabled,
   badge,
   className,
+  longPress,
+  expanded,
   onClick,
+  onPointerDown,
+  onContextMenu,
+  children,
 }: ButtonProps) {
   const Glyph = Icon[icon];
   return (
@@ -55,14 +75,19 @@ export function ToolButton({
       className={`tb-btn ${className ?? ''}`}
       data-tip={label}
       data-kbd={kbd}
+      data-longpress={longPress}
       aria-label={kbd ? `${label} (${kbd})` : label}
       aria-pressed={active ?? undefined}
+      aria-expanded={expanded}
       data-active={active ? '' : undefined}
       disabled={disabled}
       onClick={onClick}
+      onPointerDown={onPointerDown}
+      onContextMenu={onContextMenu}
     >
       <Glyph />
       {badge ? <span className="tb-badge">{badge > 99 ? '99+' : badge}</span> : null}
+      {children}
     </button>
   );
 }
@@ -71,199 +96,215 @@ function Divider() {
   return <span className="tb-sep" aria-hidden="true" />;
 }
 
-const DRAW_TOOLS: { id: DrawToolId; icon: IconName; label: string; kbd: string }[] = [
-  { id: 'pen', icon: 'pen', label: 'Pen', kbd: 'P' },
-  { id: 'line', icon: 'line', label: 'Line', kbd: 'L' },
-  { id: 'arrow', icon: 'arrow', label: 'Arrow', kbd: 'A' },
+const SHAPES: { id: ShapeToolId; icon: IconName; label: string; kbd: string }[] = [
   { id: 'rect', icon: 'rect', label: 'Rectangle', kbd: 'R' },
   { id: 'ellipse', icon: 'ellipse', label: 'Ellipse', kbd: 'O' },
-  { id: 'text', icon: 'text', label: 'Text', kbd: 'T' },
-  { id: 'eraser', icon: 'eraser', label: 'Eraser', kbd: 'E' },
+  { id: 'arrow', icon: 'arrow', label: 'Arrow', kbd: 'A' },
+  { id: 'line', icon: 'line', label: 'Line', kbd: 'L' },
 ];
+const SHAPE_META = Object.fromEntries(SHAPES.map((s) => [s.id, s])) as Record<
+  ShapeToolId,
+  (typeof SHAPES)[number]
+>;
 
 const WIDTHS = [2, 3, 5, 8];
 
-function DrawBar({ placement }: { placement: 'up' | 'down' }) {
+/** Closes a flyout when the pointer goes down anywhere outside it (shadow-DOM aware). */
+function useDismiss(open: boolean, inside: React.RefObject<HTMLElement | null>, close: () => void) {
+  const closeRef = useRef(close);
+  useEffect(() => {
+    closeRef.current = close;
+  });
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      const el = inside.current;
+      if (el && e.composedPath().includes(el)) return;
+      closeRef.current();
+    };
+    window.addEventListener('pointerdown', onDown, true);
+    return () => window.removeEventListener('pointerdown', onDown, true);
+  }, [open, inside]);
+}
+
+/**
+ * The contextual style bar (Figma's properties, in a capsule): colour, stroke, eraser,
+ * undo/redo while drawing; colour, stroke and delete for a selected drawing.
+ */
+function StyleBar({ placement }: { placement: 'up' | 'down' }) {
   const { store, toast } = useEnv();
+  const tool = useEditor((s) => s.tool);
   const drawTool = useEditor((s) => s.drawTool);
   const style = useEditor((s) => s.style);
   const canUndo = useEditor((s) => s.past.length > 0);
   const canRedo = useEditor((s) => s.future.length > 0);
-  const shapeCount = useEditor((s) => s.doc.annotations.filter((a) => a.type === 'shape').length);
+  const selectedId = useEditor((s) => s.selectedId);
+  const annotations = useEditor((s) => s.doc.annotations);
+  const selected =
+    tool === 'select'
+      ? (annotations.find((a) => a.id === selectedId && isShape(a)) as Shape | undefined)
+      : undefined;
+  const shown = selected?.style ?? style;
   const [popover, setPopover] = useState<'color' | 'stroke' | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(popover !== null, ref, () => setPopover(null));
 
-  const setStyle = (next: typeof style) => {
+  const applyStyle = (next: ShapeStyle) => {
     store.set({ style: next });
     void saveUiPrefs({ style: next });
+    if (selected) {
+      store.updateAnnotation(selected.id, (a) =>
+        isShape(a)
+          ? a.kind === 'text'
+            ? { ...a, style: next, fontSize: textFontSize(next.width) }
+            : { ...a, style: next }
+          : a,
+      );
+    }
   };
+  const pencilMode = tool === 'draw' && (drawTool === 'pen' || drawTool === 'eraser');
 
   return (
-    <MorphTooltipGroup placement={placement} className="subbar" ariaLabel="Drawing tools">
-      {DRAW_TOOLS.map((t) => (
-        <ToolButton
-          key={t.id}
-          icon={t.icon}
-          label={t.label}
-          kbd={t.kbd}
-          active={drawTool === t.id}
-          onClick={() => {
-            store.set({ drawTool: t.id, selectedId: null });
-            void saveUiPrefs({ drawTool: t.id });
-          }}
-        />
-      ))}
-      <Divider />
-      <div className="tb-pop-anchor">
-        <button
-          type="button"
-          className="tb-btn"
-          data-tip="Colour"
-          aria-label="Stroke colour"
-          aria-expanded={popover === 'color'}
-          onClick={() => setPopover(popover === 'color' ? null : 'color')}
-        >
-          <span className="swatch" style={{ background: style.color }} />
-        </button>
-        {popover === 'color' && (
-          <div
-            className="mini-pop glass-css"
-            data-placement={placement}
-            role="dialog"
-            aria-label="Stroke colour"
+    <div ref={ref}>
+      <MorphTooltipGroup placement={placement} className="subbar" ariaLabel="Style">
+        <div className="tb-pop-anchor">
+          <button
+            type="button"
+            className="tb-btn"
+            data-tip="Colour"
+            aria-label="Colour"
+            aria-expanded={popover === 'color'}
+            onClick={() => setPopover(popover === 'color' ? null : 'color')}
           >
-            <div className="swatches">
-              {PALETTE.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  className="swatch-btn"
-                  aria-label={c}
-                  data-active={style.color.toLowerCase() === c.toLowerCase() ? '' : undefined}
-                  style={{ background: c }}
-                  onClick={() => {
-                    setStyle({ ...style, color: c });
-                    setPopover(null);
-                  }}
-                />
-              ))}
-              <label className="swatch-btn custom" aria-label="Custom colour">
-                <input
-                  type="color"
-                  value={style.color.length === 7 ? style.color : '#3b82f6'}
-                  onChange={(e) => setStyle({ ...style, color: e.target.value.toUpperCase() })}
-                />
-              </label>
-            </div>
-          </div>
-        )}
-      </div>
-      <div className="tb-pop-anchor">
-        <button
-          type="button"
-          className="tb-btn"
-          data-tip="Stroke"
-          aria-label="Stroke width"
-          aria-expanded={popover === 'stroke'}
-          onClick={() => setPopover(popover === 'stroke' ? null : 'stroke')}
-        >
-          <span
-            className="stroke-preview"
-            data-dashed={style.dashed ? '' : undefined}
-            style={{ height: Math.min(7, style.width) }}
-          />
-        </button>
-        {popover === 'stroke' && (
-          <div
-            className="mini-pop glass-css"
-            data-placement={placement}
-            role="dialog"
-            aria-label="Stroke width"
-          >
-            <div className="width-row">
-              {WIDTHS.map((w) => (
-                <button
-                  key={w}
-                  type="button"
-                  className="width-btn"
-                  aria-label={`${w}px`}
-                  data-active={style.width === w ? '' : undefined}
-                  onClick={() => setStyle({ ...style, width: w })}
-                >
-                  <span style={{ height: w }} />
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="toggle-row"
-              aria-pressed={style.dashed}
-              onClick={() => setStyle({ ...style, dashed: !style.dashed })}
+            <span className="swatch" style={{ background: shown.color }} />
+          </button>
+          {popover === 'color' && (
+            <div
+              className="mini-pop glass-css"
+              data-placement={placement}
+              role="dialog"
+              aria-label="Colour"
             >
-              <Icon.dash /> Dashed{' '}
-              <span className="switch" data-on={style.dashed ? '' : undefined} />
-            </button>
-          </div>
-        )}
-      </div>
-      <Divider />
-      <ToolButton icon="undo" label="Undo" kbd="⌘Z" disabled={!canUndo} onClick={store.undo} />
-      <ToolButton icon="redo" label="Redo" kbd="⇧⌘Z" disabled={!canRedo} onClick={store.redo} />
-      <ToolButton
-        icon="trash"
-        label="Clear drawings"
-        disabled={shapeCount === 0}
-        onClick={() => {
-          store.clearShapes();
-          toast(`Cleared ${shapeCount} drawing${shapeCount === 1 ? '' : 's'}`, {
-            label: 'Undo',
-            run: store.undo,
-          });
-        }}
-      />
-    </MorphTooltipGroup>
+              <div className="swatches">
+                {PALETTE.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className="swatch-btn"
+                    aria-label={c}
+                    data-active={shown.color.toLowerCase() === c.toLowerCase() ? '' : undefined}
+                    style={{ background: c }}
+                    onClick={() => {
+                      applyStyle({ ...shown, color: c });
+                      setPopover(null);
+                    }}
+                  />
+                ))}
+                <label className="swatch-btn custom" aria-label="Custom colour">
+                  <input
+                    type="color"
+                    value={shown.color.length === 7 ? shown.color : '#3b82f6'}
+                    onChange={(e) => applyStyle({ ...shown, color: e.target.value.toUpperCase() })}
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="tb-pop-anchor">
+          <button
+            type="button"
+            className="tb-btn"
+            data-tip="Stroke"
+            aria-label="Stroke"
+            aria-expanded={popover === 'stroke'}
+            onClick={() => setPopover(popover === 'stroke' ? null : 'stroke')}
+          >
+            <span
+              className="stroke-preview"
+              data-dashed={shown.dashed ? '' : undefined}
+              style={{ height: Math.min(7, shown.width) }}
+            />
+          </button>
+          {popover === 'stroke' && (
+            <div
+              className="mini-pop glass-css"
+              data-placement={placement}
+              role="dialog"
+              aria-label="Stroke"
+            >
+              <div className="width-row">
+                {WIDTHS.map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    className="width-btn"
+                    aria-label={`${w}px`}
+                    data-active={shown.width === w ? '' : undefined}
+                    onClick={() => applyStyle({ ...shown, width: w })}
+                  >
+                    <span style={{ height: w }} />
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="toggle-row"
+                aria-pressed={shown.dashed}
+                onClick={() => applyStyle({ ...shown, dashed: !shown.dashed })}
+              >
+                <Icon.dash /> Dashed{' '}
+                <span className="switch" data-on={shown.dashed ? '' : undefined} />
+              </button>
+            </div>
+          )}
+        </div>
+        {pencilMode ? (
+          <ToolButton
+            icon="eraser"
+            label="Eraser"
+            kbd="E"
+            active={drawTool === 'eraser'}
+            onClick={() => store.set({ drawTool: drawTool === 'eraser' ? 'pen' : 'eraser' })}
+          />
+        ) : null}
+        {selected ? (
+          <>
+            <Divider />
+            <ToolButton
+              icon="trash"
+              label="Delete"
+              kbd="⌫"
+              onClick={() => {
+                store.removeAnnotations([selected.id]);
+                toast('Drawing deleted', { label: 'Undo', run: store.undo });
+              }}
+            />
+          </>
+        ) : null}
+        <Divider />
+        <ToolButton icon="undo" label="Undo" kbd="⌘Z" disabled={!canUndo} onClick={store.undo} />
+        <ToolButton icon="redo" label="Redo" kbd="⇧⌘Z" disabled={!canRedo} onClick={store.redo} />
+      </MorphTooltipGroup>
+    </div>
   );
 }
 
 const PANELS: Record<Exclude<PanelId, 'none'>, { label: string; render: () => ReactNode }> = {
-  grid: { label: 'Layout grid settings', render: () => <GridPanel /> },
-  list: { label: 'Feedback', render: () => <FeedbackPanel /> },
-  export: { label: 'Export for AI', render: () => <ExportPanel /> },
-  help: { label: 'Shortcuts', render: () => <HelpPanel /> },
+  more: { label: 'More', render: () => <MorePanel /> },
+  grid: { label: 'Columns', render: () => <GridPanel /> },
+  list: { label: 'Comments', render: () => <FeedbackPanel /> },
+  export: { label: 'Send to AI', render: () => <ExportPanel /> },
+  help: { label: 'Keyboard shortcuts', render: () => <HelpPanel /> },
   welcome: { label: 'Welcome', render: () => <WelcomePanel /> },
 };
-
-/** Keeps a closing element mounted until its exit animation reports done. */
-function usePresence<T>(value: T | null): {
-  shown: T | null;
-  phase: SheetPhase;
-  onClosed: () => void;
-} {
-  const [shown, setShown] = useState<T | null>(value);
-  const [phase, setPhase] = useState<SheetPhase>('open');
-  const [prev, setPrev] = useState<T | null>(value);
-  // Derived during render (React's "adjust state on prop change" pattern), no effect needed.
-  if (value !== prev) {
-    setPrev(value);
-    if (value !== null) {
-      setShown(value);
-      setPhase('open');
-    } else if (shown !== null) {
-      setPhase('closing');
-    }
-  }
-  const onClosed = useCallback(() => {
-    setShown(null);
-    setPhase('open');
-  }, []);
-  return { shown, phase, onClosed };
-}
 
 const skipOwnUi = (el: Element) => el.localName === HOST_TAG;
 
 function clampPosition(p: UiPrefs['toolbar'], barWidth: number): UiPrefs['toolbar'] {
   const vw = document.documentElement.clientWidth || window.innerWidth;
   const vh = window.innerHeight;
-  const w = barWidth || 420;
+  const w = barWidth || 400;
   const maxX = Math.max(0, vw / 2 - w / 2 - 8);
   return {
     edge: p.edge,
@@ -276,12 +317,19 @@ export function Toolbar() {
   const env = useEnv();
   const { store } = env;
   const tool = useEditor((s) => s.tool);
+  const drawTool = useEditor((s) => s.drawTool);
+  const lastShape = useEditor((s) => s.lastShape);
   const panel = useEditor((s) => s.panel);
-  const rulers = useEditor((s) => s.rulers);
-  const gridVisible = useEditor((s) => s.grid.visible);
+  const selectedShape = useEditor(
+    (s) =>
+      s.tool === 'select' &&
+      s.selectedId !== null &&
+      s.doc.annotations.some((a) => a.id === s.selectedId && isShape(a)),
+  );
   const openCount = useEditor(
     (s) => s.doc.annotations.filter((a) => isComment(a) && a.status === 'open').length,
   );
+  const compact = useCompact();
   const [pos, setPos] = useState<UiPrefs['toolbar']>({ edge: 'bottom', x: 0, y: 0 });
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
   const dragStart = useRef<{
@@ -293,11 +341,17 @@ export function Toolbar() {
   } | null>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
+  const shapesRef = useRef<HTMLDivElement>(null);
   const map = useGlassMap(barRef);
   const cspBlocked = useCspGlassFallback();
   const tone = useBackdropTone(barRef, skipOwnUi);
   const [, force] = useState(0);
   const [barWidth, setBarWidth] = useState(0);
+  const [shapesOpen, setShapesOpen] = useState(false);
+  const longPress = useRef<{ timer: number; fired: boolean }>({ timer: 0, fired: false });
+  useDismiss(shapesOpen, shapesRef, () => setShapesOpen(false));
+  const flyout = usePresence(shapesOpen ? 'shapes' : null, true, 140);
+
   useEffect(() => {
     const bar = barRef.current;
     if (!bar) return;
@@ -311,7 +365,8 @@ export function Toolbar() {
       setPos(p.toolbar);
       const patch: Partial<EditorState> = {};
       if (p.style) patch.style = p.style;
-      if (p.drawTool) patch.drawTool = p.drawTool as DrawToolId;
+      if (p.lastShape && (SHAPE_TOOLS as string[]).includes(p.lastShape))
+        patch.lastShape = p.lastShape as ShapeToolId;
       if (!p.onboarded && store.getState().panel === 'none') patch.panel = 'welcome';
       store.set(patch);
     });
@@ -328,31 +383,65 @@ export function Toolbar() {
     prevPanel.current = panel;
   }, [panel]);
 
-  const setTool = (next: ToolId) => {
+  const choose = (next: 'select' | 'comment') => {
     const s = store.getState();
-    const nextTool = s.tool === next ? (next === 'select' ? 'browse' : 'select') : next;
     store.set({
-      tool: nextTool,
+      tool: next,
       selectedId: null,
       draft: null,
-      pickedEl: nextTool === 'select' ? s.pickedEl : null,
+      pickedEl: next === 'select' ? s.pickedEl : null,
       hoverEl: null,
     });
   };
-  const togglePanel = (next: PanelId) => store.set({ panel: panel === next ? 'none' : next });
-  const onGrid = () => {
+  const chooseDraw = (next: DrawToolId) => {
     const s = store.getState();
-    if (!s.grid.visible) store.set({ grid: { ...s.grid, visible: true }, panel: 'grid' });
-    else if (s.panel === 'grid') store.set({ grid: { ...s.grid, visible: false }, panel: 'none' });
-    else store.set({ panel: 'grid' });
+    // Tapping the active drawing tool again puts it down (back to Select).
+    const same =
+      s.tool === 'draw' && (s.drawTool === next || (next === 'pen' && s.drawTool === 'eraser'));
+    if (same) {
+      store.set({ tool: 'select' });
+      return;
+    }
+    const patch: Partial<EditorState> = {
+      tool: 'draw',
+      drawTool: next,
+      selectedId: null,
+      pickedEl: null,
+      pickedRegion: null,
+      hoverEl: null,
+    };
+    if (isShapeTool(next)) {
+      patch.lastShape = next;
+      void saveUiPrefs({ lastShape: next });
+    }
+    store.set(patch);
+  };
+  const togglePanel = (next: PanelId) => store.set({ panel: panel === next ? 'none' : next });
+
+  const shapeActive = tool === 'draw' && isShapeTool(drawTool);
+  const onShapesClick = () => {
+    if (longPress.current.fired) {
+      longPress.current.fired = false;
+      return;
+    }
+    if (shapeActive) setShapesOpen((o) => !o);
+    else chooseDraw(lastShape);
+  };
+  const onShapesDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    window.clearTimeout(longPress.current.timer);
+    longPress.current.fired = false;
+    if (e.pointerType !== 'touch') return;
+    longPress.current.timer = window.setTimeout(() => {
+      longPress.current.fired = true;
+      setShapesOpen(true);
+    }, 420);
   };
 
   // Drag the whole dock by the bar's background (anything that is not a control).
   const onBarPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 || (e.target as Element).closest('button, input, label, .mini-pop')) return;
-    const dock = dockRef.current;
     const bar = barRef.current;
-    if (!dock || !bar) return;
+    if (!bar) return;
     const r = bar.getBoundingClientRect();
     capturePointer(bar, e.pointerId);
     dragStart.current = {
@@ -373,6 +462,7 @@ export function Toolbar() {
     setDrag({ x: d.left + dx, y: d.top + dy });
   };
   const onBarPointerUp = () => {
+    window.clearTimeout(longPress.current.timer);
     const d = dragStart.current;
     dragStart.current = null;
     if (!d?.moved || !drag) {
@@ -382,9 +472,8 @@ export function Toolbar() {
     const vw = document.documentElement.clientWidth || window.innerWidth;
     const vh = window.innerHeight;
     const edge: 'top' | 'bottom' = drag.y < vh / 2 ? 'top' : 'bottom';
-    const inset = Math.max(16, 0);
     const next = clampPosition(
-      { edge, x: drag.x - vw / 2, y: edge === 'bottom' ? vh - drag.y - inset : drag.y - inset },
+      { edge, x: drag.x - vw / 2, y: edge === 'bottom' ? vh - drag.y - 16 : drag.y - 16 },
       barWidth,
     );
     setPos(next);
@@ -403,144 +492,207 @@ export function Toolbar() {
     ? drag.y < window.innerHeight / 2
       ? 'top'
       : 'bottom'
-    : placed.edge;
+    : compact
+      ? 'bottom'
+      : placed.edge;
   const placement = edge === 'bottom' ? 'up' : 'down';
   const dockStyle = drag
     ? edge === 'bottom'
       ? { left: drag.x, bottom: window.innerHeight - drag.y }
       : { left: drag.x, top: drag.y }
-    : placed.edge === 'bottom'
-      ? {
-          left: `calc(50% + ${placed.x}px)`,
-          bottom: `calc(max(16px, env(safe-area-inset-bottom)) + ${placed.y}px)`,
-        }
-      : {
-          left: `calc(50% + ${placed.x}px)`,
-          top: `calc(max(16px, env(safe-area-inset-top)) + ${placed.y}px)`,
-        };
+    : compact
+      ? { left: '50%', bottom: 'max(12px, env(safe-area-inset-bottom))' }
+      : placed.edge === 'bottom'
+        ? {
+            left: `calc(50% + ${placed.x}px)`,
+            bottom: `calc(max(16px, env(safe-area-inset-bottom)) + ${placed.y}px)`,
+          }
+        : {
+            left: `calc(50% + ${placed.x}px)`,
+            top: `calc(max(16px, env(safe-area-inset-top)) + ${placed.y}px)`,
+          };
 
-  const sheet = usePresence<Exclude<PanelId, 'none'>>(panel === 'none' ? null : panel);
-  const draw = usePresence<'draw'>(tool === 'draw' ? 'draw' : null);
-  const glassMode = cspBlocked || !map ? 'css' : 'svg';
+  const sheet = useSheetPresence<Exclude<PanelId, 'none'>>(panel === 'none' ? null : panel);
+  const styleBar = useSheetPresence<'style'>(tool === 'draw' || selectedShape ? 'style' : null);
+  const glassMode = cspBlocked || !map || !supportsSvgBackdrop() ? 'css' : 'svg';
+  const renderPanel = (key: string) => PANELS[key as Exclude<PanelId, 'none'>].render();
+  const sheetOpenOnPhone = compact && sheet.shown !== null && sheet.phase === 'open';
 
   return (
-    <div
-      ref={dockRef}
-      className="dock ui"
-      data-edge={edge}
-      data-dragging={drag ? '' : undefined}
-      style={dockStyle}
-    >
-      <GlassFilters map={glassMode === 'svg' ? map : null} />
-      {sheet.shown && (
-        <MorphSheet
+    <>
+      <div
+        ref={dockRef}
+        className="dock ui"
+        data-edge={edge}
+        data-dragging={drag ? '' : undefined}
+        data-covered={sheetOpenOnPhone ? '' : undefined}
+        style={dockStyle}
+      >
+        <GlassFilters map={glassMode === 'svg' ? map : null} />
+        {!compact && sheet.shown && (
+          <FloatingSheet
+            phase={sheet.phase}
+            contentKey={sheet.shown}
+            render={renderPanel}
+            anchor={edge}
+            className="panel-shell glass-css"
+            label={PANELS[sheet.shown].label}
+            onClosed={sheet.onClosed}
+          />
+        )}
+        {styleBar.shown && (
+          <FloatingSheet
+            phase={styleBar.phase}
+            contentKey="style"
+            render={() => <StyleBar placement={placement} />}
+            anchor={edge}
+            className="subbar-shell glass-css"
+            label="Style"
+            onClosed={styleBar.onClosed}
+          />
+        )}
+        <div
+          ref={barRef}
+          className="toolbar"
+          data-glass={glassMode}
+          data-tone={tone}
+          style={
+            glassMode === 'svg'
+              ? { ['--glass-filter' as string]: `url(#${GLASS_FILTER_ID})` }
+              : undefined
+          }
+          onPointerMove={onBarPointerMove}
+          onPointerUp={onBarPointerUp}
+          onPointerCancel={onBarPointerUp}
+          onDoubleClick={resetPosition}
+        >
+          <MorphTooltipGroup
+            placement={placement}
+            className="toolbar-row"
+            ariaLabel="Chrome Design"
+            onPointerDown={onBarPointerDown}
+          >
+            <ToolButton
+              icon="close"
+              label="Close"
+              kbd="⌥⇧D"
+              className="close"
+              onClick={env.close}
+            />
+            <Divider />
+            <ToolButton
+              icon="select"
+              label="Select"
+              kbd="V"
+              active={tool === 'select'}
+              onClick={() => choose('select')}
+            />
+            <ToolButton
+              icon="comment"
+              label="Comment"
+              kbd="C"
+              active={tool === 'comment'}
+              onClick={() => choose('comment')}
+            />
+            <ToolButton
+              icon="draw"
+              label="Pencil"
+              kbd="P"
+              active={tool === 'draw' && (drawTool === 'pen' || drawTool === 'eraser')}
+              onClick={() => chooseDraw('pen')}
+            />
+            <div className="tb-pop-anchor" ref={shapesRef}>
+              <ToolButton
+                icon={SHAPE_META[lastShape].icon}
+                label="Shapes"
+                kbd={SHAPE_META[lastShape].kbd}
+                className="has-menu"
+                longPress="menu"
+                expanded={shapesOpen}
+                active={shapeActive}
+                onClick={onShapesClick}
+                onPointerDown={onShapesDown}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setShapesOpen(true);
+                }}
+              >
+                <span className="menu-mark" aria-hidden="true" />
+              </ToolButton>
+              {flyout.key && (
+                <div
+                  className="mini-pop menu glass-css"
+                  data-placement={placement}
+                  data-exiting={flyout.exiting ? '' : undefined}
+                  inert={flyout.exiting}
+                  role="menu"
+                  aria-label="Shapes"
+                >
+                  {SHAPES.map((s) => {
+                    const Glyph = Icon[s.icon];
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={shapeActive && drawTool === s.id}
+                        className="menu-item"
+                        data-active={drawTool === s.id && shapeActive ? '' : undefined}
+                        onClick={() => {
+                          chooseDraw(s.id);
+                          setShapesOpen(false);
+                        }}
+                      >
+                        <Glyph />
+                        <span>{s.label}</span>
+                        <kbd>{s.kbd}</kbd>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <ToolButton
+              icon="text"
+              label="Text"
+              kbd="T"
+              active={tool === 'draw' && drawTool === 'text'}
+              onClick={() => chooseDraw('text')}
+            />
+            <Divider />
+            <ToolButton
+              icon="more"
+              label="More"
+              active={panel === 'more' || panel === 'list' || panel === 'grid' || panel === 'help'}
+              badge={openCount}
+              onClick={() =>
+                togglePanel(
+                  panel === 'list' || panel === 'grid' || panel === 'help' ? panel : 'more',
+                )
+              }
+            />
+            <ToolButton
+              icon="export"
+              label="Send to AI"
+              kbd="⇧E"
+              className="droplet"
+              active={panel === 'export'}
+              onClick={() => togglePanel('export')}
+            />
+          </MorphTooltipGroup>
+        </div>
+      </div>
+      {compact && sheet.shown && (
+        <BottomSheet
           phase={sheet.phase}
           contentKey={sheet.shown}
-          anchor={edge}
-          className="panel-shell glass-css"
+          render={renderPanel}
+          className="glass-sheet"
           label={PANELS[sheet.shown].label}
           onClosed={sheet.onClosed}
-        >
-          {PANELS[sheet.shown].render()}
-        </MorphSheet>
+          onDismiss={() => store.set({ panel: 'none' })}
+        />
       )}
-      {draw.shown && (
-        <MorphSheet
-          phase={draw.phase}
-          contentKey="draw"
-          anchor={edge}
-          className="subbar-shell glass-css"
-          label="Drawing tools"
-          onClosed={draw.onClosed}
-        >
-          <DrawBar placement={placement} />
-        </MorphSheet>
-      )}
-      <div
-        ref={barRef}
-        className="toolbar"
-        data-glass={glassMode}
-        data-tone={tone}
-        style={
-          glassMode === 'svg'
-            ? { ['--glass-filter' as string]: `url(#${GLASS_FILTER_ID})` }
-            : undefined
-        }
-        onPointerMove={onBarPointerMove}
-        onPointerUp={onBarPointerUp}
-        onPointerCancel={onBarPointerUp}
-        onDoubleClick={resetPosition}
-      >
-        <MorphTooltipGroup
-          placement={placement}
-          className="toolbar-row"
-          ariaLabel="Chrome Design toolbar"
-          onPointerDown={onBarPointerDown}
-        >
-          <ToolButton icon="close" label="Close" kbd="⌥⇧D" className="close" onClick={env.close} />
-          <Divider />
-          <ToolButton
-            icon="select"
-            label="Inspect"
-            kbd="V"
-            active={tool === 'select'}
-            onClick={() => setTool('select')}
-          />
-          <ToolButton
-            icon="comment"
-            label="Comment"
-            kbd="C"
-            active={tool === 'comment'}
-            onClick={() => setTool('comment')}
-          />
-          <ToolButton
-            icon="draw"
-            label="Draw"
-            kbd="D"
-            active={tool === 'draw'}
-            onClick={() => setTool('draw')}
-          />
-          <Divider />
-          <ToolButton
-            icon="rulers"
-            label="Rulers & guides"
-            kbd="M"
-            active={rulers}
-            onClick={() => store.set({ rulers: !rulers })}
-          />
-          <ToolButton
-            icon="grid"
-            label="Layout grid"
-            kbd="G"
-            active={gridVisible}
-            onClick={onGrid}
-          />
-          <Divider />
-          <ToolButton
-            icon="list"
-            label="Feedback"
-            kbd="F"
-            active={panel === 'list'}
-            badge={openCount}
-            onClick={() => togglePanel('list')}
-          />
-          <ToolButton
-            icon="help"
-            label="Shortcuts"
-            kbd="?"
-            active={panel === 'help' || panel === 'welcome'}
-            onClick={() => togglePanel('help')}
-          />
-          <ToolButton
-            icon="export"
-            label="Export for AI"
-            kbd="⇧E"
-            className="droplet"
-            active={panel === 'export'}
-            onClick={() => togglePanel('export')}
-          />
-        </MorphTooltipGroup>
-      </div>
-    </div>
+    </>
   );
 }

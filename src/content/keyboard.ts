@@ -2,22 +2,38 @@ import { buildAnchor } from '../capture/anchor';
 import { translateShape } from '../shared/geometry';
 import { isShape } from '../shared/model';
 import { isTypingEvent, toPage } from './dom';
-import type { DrawToolId, EditorStore, ToolId } from './store';
+import { draftForRegion } from './overlay/InteractionLayer';
+import { type DrawToolId, type EditorState, type EditorStore, isShapeTool } from './store';
 
-const TOOL_KEYS: Record<string, ToolId> = { v: 'select', c: 'comment', d: 'draw' };
+/** Figma's single-key tools. */
 const DRAW_KEYS: Record<string, DrawToolId> = {
   p: 'pen',
-  l: 'line',
-  a: 'arrow',
+  d: 'pen',
+  e: 'eraser',
   r: 'rect',
   o: 'ellipse',
+  l: 'line',
+  a: 'arrow',
   t: 'text',
-  e: 'eraser',
 };
+
+function pickDraw(store: EditorStore, tool: DrawToolId): void {
+  const patch: Partial<EditorState> = {
+    tool: 'draw',
+    drawTool: tool,
+    selectedId: null,
+    pickedEl: null,
+    pickedRegion: null,
+    hoverEl: null,
+  };
+  if (isShapeTool(tool)) patch.lastShape = tool;
+  if (store.getState().panel === 'welcome') patch.panel = 'none';
+  store.set(patch);
+}
 
 /**
  * Global shortcuts. Returns true when the event was handled (caller stops propagation so
- * the page's own shortcuts do not fire while the toolbar is in use).
+ * the page's own shortcuts do not fire while a tool is in use).
  */
 export function handleShortcut(
   event: KeyboardEvent,
@@ -50,11 +66,13 @@ export function handleShortcut(
   if (mod || event.altKey) return false;
 
   if (key === 'Escape') {
-    if (s.preview || s.region || s.moving) store.set({ preview: null, region: null, moving: null });
+    if (s.preview || s.region || s.liveShape)
+      store.set({ preview: null, region: null, liveShape: null });
     else if (s.draft || s.openThreadId) store.set({ draft: null, openThreadId: null });
     else if (s.panel !== 'none') store.set({ panel: 'none' });
     else if (s.selectedId) store.set({ selectedId: null });
-    else if (s.pickedEl) store.set({ pickedEl: null });
+    else if (s.showDetails && s.pickedEl) store.set({ showDetails: false });
+    else if (s.pickedEl || s.pickedRegion) store.set({ pickedEl: null, pickedRegion: null });
     else if (s.tool === 'draw' || s.tool === 'comment') store.set({ tool: 'select' });
     else if (s.tool === 'select') store.set({ tool: 'browse', hoverEl: null });
     else return false;
@@ -65,7 +83,7 @@ export function handleShortcut(
     const target = s.doc.annotations.find((a) => a.id === s.selectedId);
     store.removeAnnotations([s.selectedId]);
     if (target)
-      notify?.(target.type === 'comment' ? `Deleted comment ${target.number}` : 'Deleted drawing');
+      notify?.(target.type === 'comment' ? `Comment ${target.number} deleted` : 'Drawing deleted');
     return true;
   }
 
@@ -95,20 +113,39 @@ export function handleShortcut(
     return false;
   }
 
-  if (key === 'Enter' && s.pickedEl && s.tool === 'select' && !s.draft) {
-    const r = s.pickedEl.getBoundingClientRect();
-    const point = toPage(r.left + Math.min(16, r.width / 2), r.top + Math.min(16, r.height / 2));
-    store.set({ draft: { target: { type: 'element', point, anchor: buildAnchor(s.pickedEl) } } });
-    return true;
+  if (key === 'Enter' && s.tool === 'select' && !s.draft) {
+    if (s.pickedRegion) {
+      store.set({ draft: draftForRegion(s.pickedRegion), pickedRegion: null });
+      return true;
+    }
+    if (s.pickedEl) {
+      const r = s.pickedEl.getBoundingClientRect();
+      const point = toPage(r.left + Math.min(16, r.width / 2), r.top + Math.min(16, r.height / 2));
+      store.set({ draft: { target: { type: 'element', point, anchor: buildAnchor(s.pickedEl) } } });
+      return true;
+    }
+    const selected = s.doc.annotations.find((a) => a.id === s.selectedId);
+    if (selected && isShape(selected) && selected.kind === 'text') {
+      store.set({ editingTextId: selected.id });
+      return true;
+    }
   }
 
-  if (s.tool === 'draw' && !event.shiftKey && DRAW_KEYS[lower]) {
-    store.set({ drawTool: DRAW_KEYS[lower]!, selectedId: null });
-    return true;
+  if (event.shiftKey) {
+    if (lower === 'e') {
+      store.set({ panel: s.panel === 'export' ? 'none' : 'export' });
+      return true;
+    }
+    if (key === '?') {
+      store.set({ panel: s.panel === 'help' ? 'none' : 'help' });
+      return true;
+    }
+    return false;
   }
-  if (!event.shiftKey && TOOL_KEYS[lower]) {
+
+  if (lower === 'v' || lower === 'c') {
     store.set({
-      tool: TOOL_KEYS[lower]!,
+      tool: lower === 'v' ? 'select' : 'comment',
       selectedId: null,
       draft: null,
       hoverEl: null,
@@ -116,20 +153,21 @@ export function handleShortcut(
     });
     return true;
   }
-  if (!event.shiftKey && lower === 'm') {
+  const draw = DRAW_KEYS[lower];
+  if (draw) {
+    pickDraw(store, draw);
+    return true;
+  }
+  if (lower === 'm') {
     store.set({ rulers: !s.rulers });
     return true;
   }
-  if (!event.shiftKey && lower === 'g') {
+  if (lower === 'g') {
     store.set({ grid: { ...s.grid, visible: !s.grid.visible } });
     return true;
   }
-  if (!event.shiftKey && lower === 'f') {
+  if (lower === 'f') {
     store.set({ panel: s.panel === 'list' ? 'none' : 'list' });
-    return true;
-  }
-  if (event.shiftKey && lower === 'e') {
-    store.set({ panel: s.panel === 'export' ? 'none' : 'export' });
     return true;
   }
   if (key === '?') {

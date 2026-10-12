@@ -17,7 +17,13 @@ import {
 /** `browse` leaves the page fully interactive (no capture layer). */
 export type ToolId = 'browse' | 'select' | 'comment' | 'draw';
 export type DrawToolId = 'pen' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'text' | 'eraser';
-export type PanelId = 'none' | 'grid' | 'list' | 'export' | 'help' | 'welcome';
+export type ShapeToolId = 'rect' | 'ellipse' | 'line' | 'arrow';
+export const SHAPE_TOOLS: ShapeToolId[] = ['rect', 'ellipse', 'line', 'arrow'];
+
+export function isShapeTool(tool: DrawToolId): tool is ShapeToolId {
+  return (SHAPE_TOOLS as string[]).includes(tool);
+}
+export type PanelId = 'none' | 'grid' | 'list' | 'export' | 'help' | 'welcome' | 'more';
 
 /** Comment being composed (not yet part of the document / history). */
 export interface DraftComment {
@@ -27,6 +33,8 @@ export interface DraftComment {
 export interface EditorState {
   tool: ToolId;
   drawTool: DrawToolId;
+  /** Last shape picked from the Shapes flyout (the button shows it). */
+  lastShape: ShapeToolId;
   style: ShapeStyle;
   doc: AnnotationDoc;
   past: AnnotationDoc[];
@@ -44,8 +52,14 @@ export interface EditorState {
   hoverShapeId: string | null;
   /** Shape being drawn. */
   preview: Shape | null;
-  /** Selected shape being dragged. */
-  moving: { id: string; dx: number; dy: number } | null;
+  /** Live copy of the selected drawing while it is moved or resized (committed on release). */
+  liveShape: Shape | null;
+  /** Area selected by dragging with the Select tool (page space). */
+  pickedRegion: Rect | null;
+  /** Text label being re-edited (its id). */
+  editingTextId: string | null;
+  /** The details card for the selected element is open. */
+  showDetails: boolean;
   /** Shapes hidden while the eraser drag is in progress. */
   erasing: string[];
   /** Region being dragged with the select tool (page space). */
@@ -70,6 +84,7 @@ export function createInitialState(
   return {
     tool: 'select',
     drawTool: 'pen',
+    lastShape: 'rect',
     style: { ...DEFAULT_STYLE },
     doc,
     past: [],
@@ -81,7 +96,10 @@ export function createInitialState(
     hoverEl: null,
     hoverShapeId: null,
     preview: null,
-    moving: null,
+    liveShape: null,
+    pickedRegion: null,
+    editingTextId: null,
+    showDetails: false,
     erasing: [],
     region: null,
     textEdit: null,
@@ -194,7 +212,9 @@ export class EditorStore {
       hoverEl: null,
       hoverShapeId: null,
       preview: null,
-      moving: null,
+      liveShape: null,
+      pickedRegion: null,
+      editingTextId: null,
       erasing: [],
       region: null,
       textEdit: null,

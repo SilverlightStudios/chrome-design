@@ -83,7 +83,17 @@ export function GridPanel() {
     store.set({ grid: { ...store.getState().grid, ...patch } });
   return (
     <div className="panel grid-panel">
-      <div className="segmented" role="radiogroup" aria-label="Grid type">
+      <div className="panel-head">
+        <h2>Columns</h2>
+        <span className="muted small">A layout grid over the page</span>
+      </div>
+      <div
+        className="seg"
+        role="radiogroup"
+        aria-label="Column type"
+        style={{ ['--n' as string]: 2, ['--i' as string]: grid.mode === 'stretch' ? 0 : 1 }}
+      >
+        <span className="seg-loz" aria-hidden="true" />
         {(['stretch', 'fixed'] as const).map((mode) => (
           <button
             key={mode}
@@ -93,7 +103,7 @@ export function GridPanel() {
             data-active={grid.mode === mode ? '' : undefined}
             onClick={() => update({ mode })}
           >
-            {mode === 'stretch' ? 'Stretch' : 'Fixed'}
+            {mode === 'stretch' ? 'Stretch' : 'Fixed width'}
           </button>
         ))}
       </div>

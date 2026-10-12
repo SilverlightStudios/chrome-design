@@ -188,3 +188,69 @@ export function translateShape<T extends Shape>(shape: T, dx: number, dy: number
       return { ...shape, point: move(shape.point) };
   }
 }
+
+export type Handle = 'nw' | 'ne' | 'sw' | 'se' | 'from' | 'to';
+
+/** Which handles a selected drawing offers (Figma-style). Text labels only move. */
+export function handlesFor(shape: Shape): Handle[] {
+  switch (shape.kind) {
+    case 'line':
+    case 'arrow':
+      return ['from', 'to'];
+    case 'text':
+      return [];
+    default:
+      return ['nw', 'ne', 'sw', 'se'];
+  }
+}
+
+function oppositeCorner(r: Rect, handle: Handle): Point {
+  return {
+    x: handle === 'nw' || handle === 'sw' ? r.x + r.width : r.x,
+    y: handle === 'nw' || handle === 'ne' ? r.y + r.height : r.y,
+  };
+}
+
+/**
+ * Drag `handle` of `shape` to `p`. Corners keep the opposite corner fixed (Shift keeps the
+ * aspect ratio); line/arrow endpoints move on their own (Shift snaps to 45°).
+ */
+export function resizeShape<T extends Shape>(
+  shape: T,
+  handle: Handle,
+  p: Point,
+  constrain = false,
+): T {
+  if (shape.kind === 'line' || shape.kind === 'arrow') {
+    if (handle === 'from') return { ...shape, from: constrain ? snapAngle(shape.to, p) : p };
+    if (handle === 'to') return { ...shape, to: constrain ? snapAngle(shape.from, p) : p };
+    return shape;
+  }
+  if (shape.kind === 'text' || handle === 'from' || handle === 'to') return shape;
+  const bounds = shapeBounds(shape);
+  const anchor = oppositeCorner(bounds, handle);
+  let end = p;
+  if (constrain && bounds.width > 0 && bounds.height > 0) {
+    const ratio = bounds.width / bounds.height;
+    const w = Math.abs(p.x - anchor.x);
+    const h = Math.abs(p.y - anchor.y);
+    const size = Math.max(w, h * ratio);
+    end = {
+      x: anchor.x + Math.sign(p.x - anchor.x || 1) * size,
+      y: anchor.y + Math.sign(p.y - anchor.y || 1) * (size / ratio),
+    };
+  }
+  const next = rectFromPoints(anchor, end);
+  if (shape.kind === 'rect' || shape.kind === 'ellipse') return { ...shape, rect: next };
+  if (shape.kind !== 'pen') return shape;
+  // Freehand: map every point from the old bounds into the new box.
+  const sx = bounds.width > 0 ? next.width / bounds.width : 1;
+  const sy = bounds.height > 0 ? next.height / bounds.height : 1;
+  return {
+    ...shape,
+    points: shape.points.map((pt) => ({
+      x: next.x + (pt.x - bounds.x) * sx,
+      y: next.y + (pt.y - bounds.y) * sy,
+    })),
+  };
+}

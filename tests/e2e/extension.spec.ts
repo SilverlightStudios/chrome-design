@@ -44,6 +44,7 @@ const FILES: Record<string, [string, string]> = {
   '/spa': ['text/html', SPA],
   '/csp': ['text/html', CSP_PAGE],
   '/': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
+  '/phone': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
   '/style.css': [
     'text/css',
     'body{font-family:system-ui;margin:0;color:#123}h1{font-size:48px;padding:24px}',
@@ -129,32 +130,59 @@ test('comment, draw and export a self-contained handoff from a live page', async
   await toggleToolbar(page);
   const ui = page.locator('chrome-design-root');
 
-  // Comment on the headline
-  await page.keyboard.press('c');
+  // First run: a short welcome; starting puts the Comment tool in hand.
+  await ui.getByText('Start commenting').click();
+  await expect(ui.locator('.root')).toHaveAttribute('data-tool', 'comment');
+
+  // Comment on the headline: hover names it in plain words, Enter sends.
   const title = await page.locator('#title').boundingBox();
+  await page.mouse.move(title!.x + 40, title!.y + 20);
+  await expect(ui.locator('.name-tag')).toHaveText('Comment on heading');
   await page.mouse.click(title!.x + 40, title!.y + 20);
   await ui.locator('.popover textarea').fill('Make this friendlier');
-  await page.keyboard.press('Control+Enter');
+  await page.keyboard.press('Enter');
   await expect(ui.locator('.pin')).toHaveCount(1);
 
-  // Decision on the CTA via the inspector
+  // Select the CTA: the selection bar names it; comment from there as a decision.
   await page.keyboard.press('v');
   const cta = await page.locator('#cta').boundingBox();
   await page.mouse.click(cta!.x + 10, cta!.y + 10);
-  await expect(ui.locator('.inspector .el-name')).toHaveText('button#cta');
-  await page.keyboard.press('Enter');
+  await expect(ui.locator('.selection-bar .sel-label')).toHaveText('Button “Buy now”');
+  await ui.locator('.selection-bar .chip-btn').click();
   await ui.locator('.seg button[data-intent="decision"]').click();
   await ui.locator('.popover textarea').fill('Keep the button copy.');
-  await ui.locator('.composer .btn.primary').click();
+  await ui.locator('.popover .send').click();
   await expect(ui.locator('.pin')).toHaveCount(2);
 
-  // Draw a rectangle and an arrow, undo + redo
-  await page.keyboard.press('d');
+  // Draw a rectangle: Select comes back with it selected, ready to move and resize.
   await page.keyboard.press('r');
   await page.mouse.move(20, 300);
   await page.mouse.down();
   await page.mouse.move(400, 420, { steps: 5 });
   await page.mouse.up();
+  await expect(ui.locator('.root')).toHaveAttribute('data-tool', 'select');
+  await expect(ui.locator('.sel-handle')).toHaveCount(4);
+  const rectBox = async () => (await ui.locator('.shape-layer rect').first().boundingBox())!;
+  const drawn = await rectBox();
+  // Drag the shape by its frame…
+  await page.mouse.move(drawn.x + 100, drawn.y + 2);
+  await page.mouse.down();
+  await page.mouse.move(drawn.x + 140, drawn.y + 32, { steps: 4 });
+  await page.mouse.up();
+  const moved = await rectBox();
+  expect(Math.round(moved.x - drawn.x)).toBe(40);
+  expect(Math.round(moved.y - drawn.y)).toBe(30);
+  // …and resize it from the bottom-right handle.
+  const handle = (await ui.locator('.sel-handle[data-handle="se"]').boundingBox())!;
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + 60, handle.y + 40, { steps: 4 });
+  await page.mouse.up();
+  const resized = await rectBox();
+  expect(Math.round(resized.width - moved.width)).toBeGreaterThan(40);
+  expect(Math.round(resized.x)).toBe(Math.round(moved.x));
+
+  // An arrow, then undo + redo
   await page.keyboard.press('a');
   await page.mouse.move(500, 500);
   await page.mouse.down();
@@ -197,7 +225,7 @@ test('comment, draw and export a self-contained handoff from a live page', async
   );
   expect(payload.sanitize.eventHandlers).toBeGreaterThanOrEqual(1);
   await expect(ui.locator('.morph-pill[data-phase="done"]')).toContainText('Saved');
-  await expect(ui.locator('.export-result')).toContainText('Allow in settings');
+  await expect(ui.locator('.export-result')).toContainText('Allow other websites');
 
   // Toolbar hides during the screenshot and comes back
   await expect(ui.locator('.toolbar')).toBeVisible();
@@ -242,7 +270,7 @@ test('integrates with hostile pages: transformed root, max z-index overlay, page
   await page.goto(`${baseUrl}/hostile`);
   await toggleToolbar(page);
   const ui = page.locator('chrome-design-root');
-  const intro = ui.getByText('Start reviewing');
+  const intro = ui.getByText('Start commenting');
   if (await intro.isVisible()) await intro.click();
 
   // Top layer: unaffected by the page's html transform, above a z-index 2147483647 widget.
@@ -251,8 +279,14 @@ test('integrates with hostile pages: transformed root, max z-index overlay, page
       document.querySelector('chrome-design-root')?.matches(':popover-open'),
     ),
   ).toBe(true);
+  // (after the toolbar's slide-in settles)
+  await expect
+    .poll(async () => {
+      const b = (await ui.locator('.toolbar').boundingBox())!;
+      return Math.round(b.y + b.height);
+    })
+    .toBe(800 - 16);
   const bar = (await ui.locator('.toolbar').boundingBox())!;
-  expect(Math.round(bar.y + bar.height)).toBe(800 - 16);
   const hit = await page.evaluate(
     ([x, y]) => document.elementFromPoint(x!, y!)?.localName,
     [bar.x + bar.width / 2, bar.y + bar.height / 2],
@@ -287,7 +321,7 @@ test('integrates with hostile pages: transformed root, max z-index overlay, page
   // A page modal dialog does not lock the toolbar (we re-enter the top layer above it).
   await page.evaluate(() => (document.getElementById('dlg') as HTMLDialogElement).showModal());
   await page.waitForTimeout(150);
-  await ui.locator('.toolbar .tb-btn[aria-label^="Draw"]').click();
+  await ui.locator('.toolbar .tb-btn[aria-label^="Pencil"]').click();
   await expect(ui.locator('.subbar')).toBeVisible();
   await page.evaluate(() => (document.getElementById('dlg') as HTMLDialogElement).close());
 
@@ -303,7 +337,7 @@ test('single-page apps: notes follow the URL', async () => {
   await page.goto(`${baseUrl}/spa`);
   await toggleToolbar(page);
   const ui = page.locator('chrome-design-root');
-  const welcome = ui.getByText('Start reviewing');
+  const welcome = ui.getByText('Start commenting');
   if (await welcome.isVisible()) await welcome.click();
   await page.keyboard.press('c');
   const title = (await page.locator('#title').boundingBox())!;
@@ -330,4 +364,45 @@ test('strict CSP pages: tools work and the glass falls back to CSS', async () =>
   await page.mouse.move(300, 260, { steps: 5 });
   await page.mouse.up();
   await expect(ui.locator('.shape-layer > *')).toHaveCount(1);
+});
+
+test('phones: panels are bottom sheets that keep their content while they move', async () => {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 390, height: 780 });
+  await page.goto(`${baseUrl}/phone`);
+  await toggleToolbar(page);
+  const ui = page.locator('chrome-design-root');
+  await ui.locator('.toolbar .tb-btn[aria-label^="More"]').click();
+  await expect(ui.locator('.bsheet-root[data-phase="open"] .more-panel')).toBeVisible();
+  // The toolbar steps aside while a sheet is up.
+  await expect(ui.locator('.dock')).toHaveAttribute('data-covered', '');
+
+  // Switching panels crossfades: the outgoing panel stays drawn during the swap.
+  const swap = await ui.locator('.tile', { hasText: 'Comments' }).evaluate(async (tile) => {
+    const shadow = tile.getRootNode() as ShadowRoot;
+    (tile as HTMLElement).click();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return [...shadow.querySelectorAll('.bsheet-frame')].map((f) =>
+      f.classList.contains('leaving') ? 'leaving' : 'entering',
+    );
+  });
+  expect(swap).toEqual(['leaving', 'entering']);
+  await expect(ui.locator('.bsheet .list-panel')).toBeVisible();
+
+  // Tapping outside slides the sheet away with its content fully drawn until it is gone.
+  const closing = await ui.locator('.bsheet-scrim').evaluate(async (scrim) => {
+    (scrim as HTMLElement).click();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const sheetRoot = scrim.closest('.bsheet-root') as HTMLElement;
+    const frame = sheetRoot.querySelector('.bsheet-frame:not(.leaving)') as HTMLElement;
+    return {
+      phase: sheetRoot.dataset.phase,
+      opacity: getComputedStyle(frame).opacity,
+      text: frame.textContent,
+    };
+  });
+  expect(closing).toMatchObject({ phase: 'closing', opacity: '1' });
+  expect(closing.text).toContain('Comments');
+  await expect(ui.locator('.bsheet-root')).toHaveCount(0);
+  await expect(ui.locator('.dock')).not.toHaveAttribute('data-covered', '');
 });

@@ -16,17 +16,17 @@ import type { EditorStore } from '../store';
 
 type Gesture =
   | { kind: 'pick'; start: Point; client: Point; moved: boolean }
-  | { kind: 'move'; id: string; start: Point }
+  | { kind: 'move'; shape: Shape; start: Point; moved: boolean }
   | { kind: 'draw'; start: Point }
   | { kind: 'erase' };
 
 const DRAG_THRESHOLD = 4;
 
-function hitShape(store: EditorStore, p: Point): Shape | null {
+export function hitShape(store: EditorStore, p: Point, tolerance = 6): Shape | null {
   const shapes = store.getState().doc.annotations.filter(isShape);
   for (let i = shapes.length - 1; i >= 0; i--) {
     const shape = shapes[i]!;
-    if (hitTestShape(shape, p, 6)) return shape;
+    if (hitTestShape(shape, p, tolerance)) return shape;
   }
   return null;
 }
@@ -63,20 +63,30 @@ export function InteractionLayer() {
     });
   };
 
+  const erase = (p: Point) => {
+    const s = store.getState();
+    const hits = s.doc.annotations.filter(
+      (a): a is Shape => isShape(a) && !s.erasing.includes(a.id) && hitTestShape(a, p, 10),
+    );
+    if (hits.length) store.set({ erasing: [...s.erasing, ...hits.map((h) => h.id)] });
+  };
+
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     const s = store.getState();
     const p = toPage(e.clientX, e.clientY);
     capturePointer(e.currentTarget, e.pointerId);
     if (s.openThreadId || s.draft) store.set({ openThreadId: null, draft: null });
-    // Starting to work on the page puts the intro/help sheet away (it would cover popovers).
-    if (s.panel === 'welcome' || s.panel === 'help') store.set({ panel: 'none' });
+    // Starting to work on the page puts the intro/help/more sheet away (it would cover popovers).
+    if (s.panel === 'welcome' || s.panel === 'help' || s.panel === 'more')
+      store.set({ panel: 'none' });
 
     if (s.tool === 'select') {
-      const hit = hitShape(store, p);
+      const hit = hitShape(store, p, e.pointerType === 'touch' ? 14 : 6);
       if (hit) {
-        store.set({ selectedId: hit.id, pickedEl: null });
-        gesture.current = { kind: 'move', id: hit.id, start: p };
+        // Figma: press on a drawing selects it and dragging moves it right away.
+        store.set({ selectedId: hit.id, pickedEl: null, pickedRegion: null });
+        gesture.current = { kind: 'move', shape: hit, start: p, moved: false };
         return;
       }
       gesture.current = {
@@ -100,7 +110,8 @@ export function InteractionLayer() {
       store.set({ selectedId: null });
       if (s.drawTool === 'text') {
         releasePointer(e.currentTarget, e.pointerId);
-        if (!s.textEdit) store.set({ textEdit: { point: { x: p.x, y: p.y - 4 } } });
+        if (!s.textEdit && !s.editingTextId)
+          store.set({ textEdit: { point: { x: p.x, y: p.y - 4 } } });
         return;
       }
       if (s.drawTool === 'eraser') {
@@ -135,20 +146,12 @@ export function InteractionLayer() {
     }
   };
 
-  const erase = (p: Point) => {
-    const s = store.getState();
-    const hits = s.doc.annotations.filter(
-      (a): a is Shape => isShape(a) && !s.erasing.includes(a.id) && hitTestShape(a, p, 8),
-    );
-    if (hits.length) store.set({ erasing: [...s.erasing, ...hits.map((h) => h.id)] });
-  };
-
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const g = gesture.current;
     const s = store.getState();
     if (!g) {
       if (s.tool === 'select' || s.tool === 'comment') updateHover(e.clientX, e.clientY);
-      if (s.tool === 'select') {
+      if (s.tool === 'select' && e.pointerType !== 'touch') {
         const hit = hitShape(store, toPage(e.clientX, e.clientY));
         const id = hit?.id ?? null;
         if (id !== s.hoverShapeId) store.set({ hoverShapeId: id });
@@ -164,9 +167,14 @@ export function InteractionLayer() {
         store.set({ region: rectFromPoints(g.start, p), hoverEl: null });
         return;
       }
-      case 'move':
-        store.set({ moving: { id: g.id, dx: p.x - g.start.x, dy: p.y - g.start.y } });
+      case 'move': {
+        const dx = p.x - g.start.x;
+        const dy = p.y - g.start.y;
+        if (!g.moved && Math.hypot(dx, dy) < 2) return;
+        g.moved = true;
+        store.set({ liveShape: translateShape(g.shape, dx, dy), hoverShapeId: null });
         return;
+      }
       case 'erase': {
         const events = e.nativeEvent.getCoalescedEvents?.() ?? [];
         for (const ev of events.length ? events : [e.nativeEvent])
@@ -199,32 +207,40 @@ export function InteractionLayer() {
     if (!g) return;
     const s = store.getState();
     if (cancelled) {
-      store.set({ preview: null, moving: null, erasing: [], region: null });
+      store.set({ preview: null, liveShape: null, erasing: [], region: null });
       return;
     }
     const p = toPage(e.clientX, e.clientY);
     switch (g.kind) {
       case 'pick': {
-        if (g.moved && s.region && s.region.width > 6 && s.region.height > 6) {
-          const draft = draftForRegion(s.region);
-          store.set({ region: null, draft, openThreadId: null, pickedEl: null, selectedId: null });
+        const region = s.region;
+        store.set({ region: null });
+        if (g.moved && region && region.width > 6 && region.height > 6) {
+          if (s.tool === 'comment') {
+            store.set({
+              draft: draftForRegion(region),
+              openThreadId: null,
+              pickedEl: null,
+              selectedId: null,
+            });
+          } else {
+            // Select tool: keep the area selected; the selection bar offers "Comment".
+            store.set({ pickedRegion: region, pickedEl: null, selectedId: null });
+          }
           return;
         }
-        store.set({ region: null });
         if (s.tool === 'comment') {
           store.set({ draft: draftForPoint(p, e.clientX, e.clientY), selectedId: null });
         } else {
           const el = pickElement(e.clientX, e.clientY);
-          store.set({ pickedEl: isPageRoot(el) ? null : el, selectedId: null });
+          store.set({ pickedEl: isPageRoot(el) ? null : el, selectedId: null, pickedRegion: null });
         }
         return;
       }
       case 'move': {
-        const m = s.moving;
-        store.set({ moving: null });
-        if (m && (m.dx !== 0 || m.dy !== 0)) {
-          store.updateAnnotation(m.id, (a) => (isShape(a) ? translateShape(a, m.dx, m.dy) : a));
-        }
+        const live = s.liveShape;
+        store.set({ liveShape: null });
+        if (g.moved && live) store.updateAnnotation(live.id, () => live);
         return;
       }
       case 'erase': {
@@ -246,7 +262,12 @@ export function InteractionLayer() {
         } else if (preview.kind === 'rect' || preview.kind === 'ellipse') {
           if (preview.rect.width >= 4 && preview.rect.height >= 4) shape = preview;
         }
-        if (shape) store.addAnnotation(shape);
+        if (!shape) return;
+        store.addAnnotation(shape);
+        // Figma: after a shape, hand back the Select tool with the new shape ready to adjust.
+        // The pencil stays out so you can keep sketching.
+        if (shape.kind !== 'pen')
+          store.set({ tool: 'select', selectedId: shape.id, hoverEl: null });
         return;
       }
     }
@@ -264,9 +285,9 @@ export function InteractionLayer() {
       onPointerUp={(e) => finish(e, false)}
       onPointerCancel={(e) => finish(e, true)}
       onPointerLeave={() => {
-        if (!gesture.current && (store.getState().hoverEl || store.getState().hoverShapeId)) {
+        const s = store.getState();
+        if (!gesture.current && (s.hoverEl || s.hoverShapeId))
           store.set({ hoverEl: null, hoverShapeId: null });
-        }
       }}
       onContextMenu={(e) => {
         if (gesture.current) e.preventDefault();

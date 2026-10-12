@@ -24,11 +24,17 @@ if (!window.__chromeDesign) {
   let mounted: Mounted | null = null;
   let opening: Promise<void> | null = null;
 
+  let closing = false;
   const close = () => {
-    if (!mounted) return;
-    mounted.unmount();
-    mounted = null;
-    reportState(false);
+    if (!mounted || closing) return;
+    closing = true;
+    const m = mounted;
+    void m.animateOut().then(() => {
+      m.unmount();
+      if (mounted === m) mounted = null;
+      closing = false;
+      reportState(false);
+    });
   };
   const open = async () => {
     if (mounted) return;
@@ -44,8 +50,8 @@ if (!window.__chromeDesign) {
   const api: ChromeDesignGlobal = {
     open,
     close,
-    toggle: async () => (mounted ? close() : open()),
-    isOpen: () => !!mounted,
+    toggle: async () => (mounted && !closing ? close() : open()),
+    isOpen: () => !!mounted && !closing,
     exportNow: async () => {
       await open();
       return mounted?.exportNow();

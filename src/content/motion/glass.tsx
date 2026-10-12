@@ -131,6 +131,19 @@ export function useGlassMap(ref: RefObject<HTMLElement | null>) {
   return map;
 }
 
+/**
+ * Refraction through `backdrop-filter: url(#svg)` is Chromium-only; Safari (and every iOS
+ * browser, which are all WebKit) parses it but drops the whole backdrop, so they get the CSS glass.
+ */
+export function supportsSvgBackdrop(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const uaData = (navigator as Navigator & { userAgentData?: { brands?: { brand: string }[] } })
+    .userAgentData;
+  if (uaData?.brands?.some((b) => /Chromium|Google Chrome|Microsoft Edge/i.test(b.brand)))
+    return true;
+  return /Chrome\/\d/.test(navigator.userAgent) && !/CriOS|EdgiOS|FxiOS/.test(navigator.userAgent);
+}
+
 /** True once the page's CSP has blocked our data: displacement map (→ CSS glass fallback). */
 export function useCspGlassFallback(): boolean {
   const [blocked, setBlocked] = useState(false);

@@ -1,5 +1,3 @@
-import { useEnv } from '../context';
-
 const isMac =
   typeof navigator !== 'undefined' &&
   /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -9,14 +7,13 @@ const SECTIONS: { title: string; rows: [string, string][] }[] = [
   {
     title: 'Tools',
     rows: [
-      ['V', 'Inspect: hover to measure, click to select, drag for a region'],
-      ['C', 'Comment: click to pin a comment to an element'],
-      ['D', 'Draw (P pen · L line · A arrow · R rect · O ellipse · T text · E eraser)'],
-      ['M', 'Toggle rulers — drag from a ruler to add a guide'],
-      ['G', 'Toggle layout grid'],
-      ['F', 'Feedback list'],
-      ['⇧E', 'Export the AI handoff file'],
-      ['Esc', 'Step back: close · deselect · Inspect · pause (the page then keeps its own keys)'],
+      ['V', 'Select'],
+      ['C', 'Comment'],
+      ['P', 'Pencil'],
+      ['R O A L', 'Rectangle · Ellipse · Arrow · Line'],
+      ['T', 'Text'],
+      ['E', 'Eraser'],
+      ['⇧E', 'Send to AI'],
     ],
   },
   {
@@ -24,27 +21,30 @@ const SECTIONS: { title: string; rows: [string, string][] }[] = [
     rows: [
       [`${mod}Z`, 'Undo'],
       [`⇧${mod}Z`, 'Redo'],
-      ['⌫', 'Delete selected drawing or comment'],
-      ['Arrows', 'Nudge selected drawing (⇧ = 10px)'],
-      ['↑ / ↓', 'Inspect: select parent / first child'],
-      ['Enter', 'Inspect: comment on selected element'],
-      ['⇧ drag', 'Constrain lines to 45° and shapes to squares'],
-      ['↵', 'Post a comment (⇧↵ for a new line)'],
-      ['⌥⇧D', 'Open / close Chrome Design (or click the extension icon)'],
-      [
-        'Drag',
-        'Move the toolbar by its edge; drop it near the top to dock there · double-click resets',
-      ],
+      ['⌫', 'Delete the selected drawing or comment'],
+      ['Arrows', 'Nudge a drawing (⇧ for 10)'],
+      ['⇧ drag', 'Straight lines and perfect squares'],
+      ['⌥ hover', 'Show spacing between things'],
+      ['↵', 'Post a comment · ⇧↵ new line'],
+      ['Esc', 'Step back · pause so the page works normally'],
+    ],
+  },
+  {
+    title: 'View',
+    rows: [
+      ['F', 'Comments'],
+      ['M', 'Rulers'],
+      ['G', 'Columns'],
+      ['⌥⇧D', 'Open or close Chrome Design'],
     ],
   },
 ];
 
 export function HelpPanel() {
-  const { store } = useEnv();
   return (
     <div className="panel help-panel">
       <div className="panel-head">
-        <h2>Shortcuts</h2>
+        <h2>Keyboard shortcuts</h2>
       </div>
       {SECTIONS.map((section) => (
         <section key={section.title}>
@@ -61,13 +61,6 @@ export function HelpPanel() {
           </dl>
         </section>
       ))}
-      <button type="button" className="btn wide" onClick={() => store.set({ panel: 'welcome' })}>
-        Show the welcome tour
-      </button>
-      <p className="muted small">
-        Annotations are saved in this browser per page URL and never leave your machine until you
-        export.
-      </p>
     </div>
   );
 }

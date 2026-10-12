@@ -35,6 +35,10 @@ export interface UiPrefs {
   toolbar: { edge: 'bottom' | 'top'; x: number; y: number };
   style?: ShapeStyle;
   drawTool?: string;
+  lastShape?: string;
+  /** Tools whose first-use hint has been shown. */
+  hintsSeen?: string[];
+  showDetails?: boolean;
   onboarded?: boolean;
 }
 

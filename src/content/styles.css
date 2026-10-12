@@ -187,7 +187,8 @@ svg {
 /* The Remote's CSS glass (chips, keys, toast): frost + saturation + rim. A little more fill
    here, because a live website behind can be anything. */
 .glass-css {
-  background: light-dark(hsl(0 0% 100% / 0.62), hsl(0 0% 11% / 0.62));
+  /* Remote Desktop --glass fill: reads as frosted even where backdrop blur isn't composited. */
+  background: light-dark(hsl(0 0% 100% / 0.74), hsl(0 0% 11% / 0.74));
   -webkit-backdrop-filter: blur(14px) saturate(1.9) brightness(1.06);
   backdrop-filter: blur(14px) saturate(1.9) brightness(1.06);
   box-shadow:
@@ -280,6 +281,10 @@ svg {
 .target-outline[data-active] {
   opacity: 1;
   border-style: solid;
+}
+.target-outline.draft {
+  --pin: var(--deep-blue-bright);
+  border-width: 2px;
 }
 
 .pin {
@@ -392,8 +397,9 @@ svg {
 .popover-target {
   flex: 1;
   min-width: 0;
+  padding-left: 4px;
   color: var(--ink-muted);
-  font: 500 11.5px var(--mono);
+  font: 500 12px var(--font);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -517,19 +523,77 @@ svg {
 .link-btn:hover {
   color: var(--danger);
 }
-.composer {
-  display: grid;
-  gap: 8px;
+.field {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 4px 4px 4px 12px;
+  border-radius: 20px;
+  border: 1.5px solid var(--card-line);
+  background: var(--card);
+  transition:
+    border-color var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
 }
-.composer textarea,
+.field:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.field textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 28px;
+  max-height: 180px;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 14px / 1.35 var(--font);
+  resize: none;
+  outline: none;
+  field-sizing: content;
+}
+.field textarea::placeholder {
+  color: var(--ink-faint);
+}
+.send {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: inset 0 1px 0.5px hsl(0 0% 100% / 0.35);
+  transition:
+    scale 0.2s var(--ease),
+    opacity var(--duration) var(--ease),
+    background-color var(--duration) var(--ease);
+}
+.send svg {
+  width: 16px;
+  height: 16px;
+}
+.send:disabled {
+  background: var(--chip);
+  color: var(--ink-faint);
+  box-shadow: none;
+  cursor: default;
+}
+.send:not(:disabled):active {
+  scale: 0.88;
+}
 .stack textarea {
   width: 100%;
   resize: none;
-  min-height: 64px;
-  max-height: 240px;
+  min-height: 56px;
+  max-height: 200px;
   padding: 10px 12px;
   border-radius: 16px;
-  border: 2px solid var(--card-line);
+  border: 1.5px solid var(--card-line);
   background: var(--card);
   color: var(--ink);
   font: 14px / 1.4 var(--font);
@@ -539,18 +603,9 @@ svg {
     border-color var(--duration) var(--ease),
     box-shadow var(--duration) var(--ease);
 }
-.composer textarea:focus,
 .stack textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 4px var(--accent-soft);
-}
-.composer-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.composer-actions .btn {
-  margin-left: auto;
 }
 
 /* ---------- buttons ---------- */
@@ -741,12 +796,12 @@ svg {
 }
 /* CSS fallback (CSP blocks the displacement map): a little more frost and fill */
 .toolbar[data-glass="css"] {
-  background: hsl(0 0% 100% / 0.5);
+  background: hsl(0 0% 100% / 0.72);
   -webkit-backdrop-filter: blur(12px) saturate(1.9) brightness(1.06);
   backdrop-filter: blur(12px) saturate(1.9) brightness(1.06);
 }
 .toolbar[data-glass="css"][data-tone="dark"] {
-  background: hsl(0 0% 12% / 0.5);
+  background: hsl(0 0% 12% / 0.66);
 }
 .dock[data-dragging] .toolbar {
   cursor: grabbing;
@@ -1380,34 +1435,74 @@ svg {
   width: max-content;
   animation: sheet-reveal 0.384s linear both;
 }
+/* Swapping panels: the old content fades out on top while the new one fades in underneath. */
+.sheet-frame.leaving {
+  z-index: 1;
+  pointer-events: none;
+  animation: sheet-leave 0.18s var(--ease) both;
+}
+.sheet-frame[data-swapped] {
+  animation: sheet-swap-in 0.26s var(--ease) both;
+}
+@keyframes sheet-leave {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes sheet-swap-in {
+  0%,
+  20% {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 .sheet-slot[data-anchor="bottom"] .sheet-frame {
   bottom: 0;
 }
 .sheet-slot[data-anchor="top"] .sheet-frame {
   top: 0;
 }
-.sheet-slot[data-phase="closing"] .sheet-frame {
-  animation: sheet-conceal 0.18s linear both;
+/* Closing: the whole sheet, content included, sinks back into the toolbar — never blank. */
+.sheet-slot {
+  /* Spark's drawer close: 180ms. */
+  transition:
+    opacity 0.18s var(--ease),
+    translate 0.18s var(--ease),
+    scale 0.18s var(--ease);
+  transform-origin: 50% 100%;
+}
+.sheet-slot[data-anchor="top"] {
+  transform-origin: 50% 0;
 }
 .sheet-slot[data-phase="closing"] {
   pointer-events: none;
+  opacity: 0;
+  translate: 0 14px;
+  scale: 0.96;
 }
+.sheet-slot[data-anchor="top"][data-phase="closing"] {
+  translate: 0 -14px;
+}
+/* A sheet closed mid-reveal or mid-swap shows its content in full while it leaves. */
+.sheet-slot[data-phase="closing"] .sheet-frame,
+.bsheet-root[data-phase="closing"] .bsheet-frame {
+  animation: none;
+}
+.sheet-slot[data-phase="closing"] .sheet-frame.leaving,
+.bsheet-root[data-phase="closing"] .bsheet-frame.leaving {
+  visibility: hidden;
+}
+/* Content arrives early so it grows with the surface instead of appearing after it. */
 @keyframes sheet-reveal {
   0%,
-  36% {
+  14% {
     opacity: 0;
   }
+  58%,
   to {
     opacity: 1;
-  }
-}
-@keyframes sheet-conceal {
-  from {
-    opacity: 1;
-  }
-  28%,
-  to {
-    opacity: 0;
   }
 }
 /* The drawing bar is a capsule; its popovers and tooltips must escape the clip once open. */
@@ -2060,59 +2155,6 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
-.inspector {
-  position: fixed;
-  right: 12px;
-  width: 256px;
-  max-height: calc(100vh - 140px);
-  overflow: auto;
-  padding: 12px;
-  border-radius: 22px;
-  display: grid;
-  gap: 10px;
-  color: var(--ink);
-  animation: card-in var(--duration-settle) var(--ease-settle) both;
-}
-@keyframes card-in {
-  from {
-    opacity: 0;
-    translate: 16px 0;
-    scale: 0.98;
-  }
-}
-.inspector header,
-.inspector footer {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.inspector footer .btn {
-  margin-right: auto;
-}
-.el-name {
-  flex: 1;
-  min-width: 0;
-  font: 600 12px var(--mono);
-  color: var(--accent);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.inspector dl {
-  margin: 0;
-  display: grid;
-  grid-template-columns: 64px 1fr;
-  gap: 5px 8px;
-  font-size: 12px;
-}
-.inspector dt {
-  color: var(--ink-faint);
-}
-.inspector dd {
-  margin: 0;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
 .color-value {
   display: inline-flex;
   align-items: center;
@@ -2245,6 +2287,621 @@ kbd {
   opacity: 1;
 }
 
+/* ---------- selection (Figma-style) ---------- */
+.hover-outline,
+.picked-outline {
+  position: fixed;
+  pointer-events: none;
+  border-radius: 2px;
+}
+.hover-outline {
+  border: 1.5px solid var(--inspect);
+}
+.inspect-layer[data-tool="comment"] .hover-outline {
+  border-style: dashed;
+  border-color: color-mix(in oklab, var(--inspect), transparent 25%);
+}
+.picked-outline {
+  border: 2px solid var(--deep-blue-bright);
+  box-shadow: 0 0 0 1px hsl(0 0% 100% / 0.7);
+}
+.picked-outline.area {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--deep-blue-bright) 8%, transparent);
+}
+.name-tag {
+  position: fixed;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--deep-blue);
+  color: #fff;
+  font: 600 11px / 20px var(--font);
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 12px -4px hsl(0 0% 0% / 0.4);
+}
+.size-pill {
+  position: absolute;
+  translate: -50% 0;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--deep-blue-bright);
+  color: #fff;
+  font: 600 11px / 20px var(--font);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 12px -4px hsl(0 0% 0% / 0.35);
+}
+.size-pill.fixed {
+  position: fixed;
+}
+.sel-frame {
+  position: absolute;
+  border: 1.5px solid var(--deep-blue-bright);
+  border-radius: 4px;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: move;
+}
+.sel-frame[data-segment] {
+  border-color: transparent;
+}
+.sel-handle {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
+  border: 1.5px solid var(--deep-blue-bright);
+  border-radius: 3px;
+  background: #fff;
+  pointer-events: auto;
+  touch-action: none;
+  box-shadow: 0 1px 3px hsl(0 0% 0% / 0.25);
+  transition: scale 0.2s var(--ease);
+}
+.sel-handle[data-round] {
+  border-radius: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+}
+.sel-handle::after {
+  /* a finger-sized hit area around the small visual */
+  content: "";
+  position: absolute;
+  inset: -12px;
+}
+.sel-handle[data-handle="nw"],
+.sel-handle[data-handle="se"] {
+  cursor: nwse-resize;
+}
+.sel-handle[data-handle="ne"],
+.sel-handle[data-handle="sw"] {
+  cursor: nesw-resize;
+}
+.sel-handle[data-handle="from"],
+.sel-handle[data-handle="to"] {
+  cursor: crosshair;
+}
+.sel-handle:active {
+  scale: 1.25;
+}
+@media (pointer: coarse) {
+  .sel-handle {
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+  }
+}
+
+.selection-bar {
+  position: fixed;
+  width: max-content;
+  max-width: min(400px, calc(100vw - 16px));
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 4px 0 14px;
+  border-radius: 999px;
+  color: var(--ink);
+  pointer-events: auto;
+  transform-origin: 50% 100%;
+  transition:
+    left 0.3s var(--ease-settle),
+    top 0.3s var(--ease-settle),
+    opacity 0.16s var(--ease),
+    scale 0.16s var(--ease);
+}
+.selection-bar[data-below] {
+  transform-origin: 50% 0;
+}
+.selection-bar[data-exiting] {
+  opacity: 0;
+  scale: 0.92;
+  pointer-events: none;
+}
+.sel-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.chip-btn svg {
+  width: 15px;
+  height: 15px;
+}
+.selection-bar .chip-btn {
+  height: 30px;
+  padding: 0 12px 0 10px;
+}
+.icon-btn[data-on] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.popover .icon-btn[data-on] {
+  color: var(--success);
+  background: color-mix(in oklab, var(--success), transparent 86%);
+}
+
+.details-card {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 248px;
+  max-height: calc(100vh - 140px);
+  overflow: auto;
+  padding: 12px 12px 10px;
+  border-radius: 22px;
+  color: var(--ink);
+  pointer-events: auto;
+  transition:
+    opacity 0.16s var(--ease),
+    translate 0.3s var(--ease-settle);
+}
+.details-card[data-exiting] {
+  opacity: 0;
+  translate: 12px 0;
+  pointer-events: none;
+}
+.details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+.details header {
+  align-items: center;
+  gap: 6px;
+}
+.details header b {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.details dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 6px 8px;
+  font-size: 12.5px;
+}
+.details dt {
+  color: var(--ink-muted);
+}
+.details dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.details-sheet .details {
+  padding: 0 16px 8px;
+}
+.details-sheet .details header b {
+  font-size: 15px;
+}
+.details-sheet .details dl {
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px 12px;
+  font-size: 14px;
+}
+@media (hover: none) {
+  .hover-hint {
+    display: none;
+  }
+}
+
+/* ---------- menus + tiles ---------- */
+.tb-btn.has-menu .menu-mark {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-top: 4px solid currentColor;
+  opacity: 0.55;
+}
+.mini-pop.menu {
+  min-width: 168px;
+  padding: 6px;
+  gap: 2px;
+}
+.mini-pop[data-exiting] {
+  opacity: 0;
+  scale: 0.9;
+  pointer-events: none;
+  transition:
+    opacity 0.14s var(--ease),
+    scale 0.14s var(--ease);
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  transition:
+    background-color var(--duration) var(--ease),
+    scale 0.15s var(--ease);
+}
+.menu-item svg {
+  width: 17px;
+  height: 17px;
+  color: var(--ink-muted);
+}
+.menu-item span {
+  flex: 1;
+}
+.menu-item kbd {
+  background: none;
+  border: 0;
+  color: var(--ink-faint);
+}
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--chip);
+  outline: none;
+}
+.menu-item[data-active] {
+  color: var(--accent);
+}
+.menu-item[data-active] svg {
+  color: var(--accent);
+}
+.menu-item:active {
+  scale: 0.98;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.tile {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 12px 4px 10px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--chip);
+  color: var(--ink);
+  transition:
+    scale 0.2s var(--ease),
+    background-color var(--duration) var(--ease),
+    color var(--duration) var(--ease);
+  animation: tile-pop 0.4s var(--elastic) both;
+}
+.tile:nth-child(2) {
+  animation-delay: 20ms;
+}
+.tile:nth-child(3) {
+  animation-delay: 40ms;
+}
+.tile:nth-child(4) {
+  animation-delay: 60ms;
+}
+.tile:nth-child(5) {
+  animation-delay: 80ms;
+}
+.tile:nth-child(6) {
+  animation-delay: 100ms;
+}
+.tile:nth-child(7) {
+  animation-delay: 120ms;
+}
+.tile:nth-child(8) {
+  animation-delay: 140ms;
+}
+.tile:active {
+  scale: 0.92;
+}
+.tile-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.tile-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.tile-icon .tb-badge {
+  top: -6px;
+  right: -10px;
+}
+.tile-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  text-align: center;
+}
+.tile[data-on] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tile[data-on] .tile-label {
+  color: var(--accent);
+}
+.tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.more-panel {
+  width: min(340px, calc(100vw - 16px));
+}
+
+/* ---------- panel bits ---------- */
+.panel-head.stacked {
+  display: grid;
+  gap: 2px;
+}
+.panel-head.stacked p {
+  margin: 0;
+  font-size: 12.5px;
+}
+.summary-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--chip);
+  font-size: 13px;
+  font-weight: 500;
+}
+.summary-row svg {
+  width: 17px;
+  height: 17px;
+  color: var(--accent);
+  flex: none;
+}
+details.options summary,
+.export-result details summary {
+  cursor: pointer;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  padding: 2px;
+}
+details.options .checks {
+  margin-top: 6px;
+}
+.welcome-head {
+  display: grid;
+  gap: 2px;
+  padding: 2px;
+}
+.welcome-head h2 {
+  font-size: 17px;
+}
+.welcome-head p {
+  margin: 0;
+}
+
+/* ---------- mobile bottom sheet (Remote Desktop drawer) ---------- */
+.bsheet-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+.bsheet-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: hsl(0 0% 0% / 0.18);
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.26s var(--sheet-ease);
+  @starting-style {
+    opacity: 0;
+  }
+}
+.bsheet-root[data-phase="closing"] .bsheet-scrim {
+  opacity: 0;
+  pointer-events: none;
+}
+/* The Remote Desktop drawer: a bottom-attached surface sized by springs (--w/--h/--oy, written
+   by DrawerMotion) over a content plane that is always its final size (--fw/--fh). */
+.bsheet-dock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--kb, 0px);
+  margin-inline: auto;
+  width: min(100%, 560px);
+  height: 0;
+}
+.bsheet {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: var(--w, 0px);
+  height: calc(var(--h, 0px) + var(--rb, 0px));
+  translate: -50% calc(var(--oy, 0px) + var(--gy, 0px));
+  overflow: hidden;
+  contain: layout paint;
+  border-radius: 22px 22px 0 0;
+  /* A solid raised surface, like the Remote Desktop drawer: text stays crisp over any page. */
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  box-shadow: 0 -10px 40px -12px hsl(0 0% 0% / 0.3);
+  pointer-events: auto;
+  color: var(--ink);
+}
+.bsheet-plane {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  translate: -50% 0;
+  width: var(--fw, 100%);
+  height: calc(var(--fh, 0px) + var(--rb, 0px));
+  display: flex;
+  flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom);
+  /* Content arrives late, once the surface has mostly grown (desk.css `dreveal`). */
+  animation: bsheet-reveal 0.384s linear both;
+}
+@keyframes bsheet-reveal {
+  0%,
+  36% {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* Closing: the content rides down with the surface, never fading out first. */
+.bsheet-root[data-phase="closing"] .bsheet-plane {
+  animation: none;
+}
+.bsheet-grab {
+  display: grid;
+  place-items: center;
+  flex: none;
+  height: 22px;
+  touch-action: none;
+  cursor: grab;
+}
+.bsheet-grab span {
+  width: 36px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+.bsheet-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+.bsheet .panel-head {
+  touch-action: none;
+}
+.bsheet-frame.leaving {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  pointer-events: none;
+  animation: sheet-leave 0.18s var(--ease) both;
+}
+.bsheet-frame[data-swapped] {
+  animation: sheet-swap-in 0.26s var(--ease) both;
+}
+.bsheet .panel {
+  width: 100%;
+  max-height: none;
+  overflow: visible;
+  padding: 4px 16px 16px;
+}
+/* The toolbar steps aside while a sheet covers the bottom of the screen. */
+.dock {
+  transition:
+    left 0.45s var(--ease-settle),
+    top 0.45s var(--ease-settle),
+    bottom 0.45s var(--ease-settle),
+    opacity 0.3s var(--ease),
+    translate 0.45s var(--ease-settle);
+}
+.dock[data-covered],
+.root:has(> .bsheet-root[data-phase="open"]) .dock {
+  opacity: 0;
+  translate: -50% 24px;
+  pointer-events: none;
+}
+.dock[data-covered] > *,
+.root:has(> .bsheet-root[data-phase="open"]) .dock > * {
+  pointer-events: none;
+}
+
+/* ---------- open / close of the whole tool ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .dock {
+    @starting-style {
+      opacity: 0;
+      translate: -50% 24px;
+    }
+  }
+  .dock[data-edge="top"] {
+    @starting-style {
+      translate: -50% -24px;
+    }
+  }
+}
+:host([data-closing]) .dock {
+  opacity: 0;
+  translate: -50% 24px;
+  transition:
+    opacity 0.2s var(--ease),
+    translate 0.24s var(--ease);
+}
+:host([data-closing]) .page-layer,
+:host([data-closing]) .inspect-layer,
+:host([data-closing]) .status-chip,
+:host([data-closing]) .toast,
+:host([data-closing]) .selection-bar,
+:host([data-closing]) .details-card,
+:host([data-closing]) .rulers,
+:host([data-closing]) .grid-overlay,
+:host([data-closing]) .bsheet-root {
+  opacity: 0;
+  transition: opacity 0.2s var(--ease);
+}
+
+/* pins lift while dragged */
+.pin[data-lifted] {
+  scale: 1.12;
+  box-shadow:
+    0 2px 4px hsl(0 0% 0% / 0.2),
+    0 14px 26px -10px hsl(0 0% 0% / 0.55);
+  transition: scale 0.2s var(--ease-bounce);
+}
+
 /* ---------- entrances (CSS springs) ---------- */
 @media (prefers-reduced-motion: no-preference) {
   .popover {
@@ -2289,11 +2946,15 @@ kbd {
 }
 
 @media (pointer: coarse) {
-  .kbd-hint {
+  /* No keyboard to hint at on touch screens. */
+  .kbd-hint,
+  .menu-item kbd,
+  .tip-label kbd,
+  .tip-measure kbd {
     display: none;
   }
   /* iOS zooms into inputs smaller than 16px on focus. */
-  .composer textarea,
+  .field textarea,
   .stack textarea,
   .text-editor,
   .scrub input,
@@ -2335,5 +2996,51 @@ kbd {
   }
   .status-chip {
     font-size: 12px;
+  }
+}
+
+.seg.small {
+  font-size: 11.5px;
+}
+.seg.small button {
+  padding: 4px 2px;
+}
+/* Closing: the bubble shrinks back into its pin as it fades. */
+.popover[data-exiting] {
+  pointer-events: none;
+  opacity: 0;
+  scale: 0.92;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .popover[data-exiting] {
+    transition:
+      opacity 0.14s var(--ease),
+      scale 0.16s var(--ease);
+  }
+}
+.message-meta b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Text-heavy floating panels get a denser glass than the small chips. */
+.sheet-shell.panel-shell {
+  background: light-dark(hsl(0 0% 100% / 0.84), hsl(0 0% 11% / 0.84));
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+}
+
+/* Text-heavy surfaces stay legible on busy pages even where backdrop blur is off
+   (Low Power Mode, Reduce Transparency). */
+.selection-bar.glass-css,
+.details-card.glass-css,
+.toast.glass-css {
+  background: light-dark(hsl(0 0% 100% / 0.88), hsl(0 0% 11% / 0.88));
+}
+@media (prefers-reduced-transparency: reduce) {
+  .root :is(.glass-css, .sheet-shell, .toolbar[data-glass]) {
+    background: var(--raised);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }

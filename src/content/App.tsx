@@ -3,9 +3,9 @@ import { type EditorEnv, EnvProvider, type ToastAction, useEditor } from './cont
 import { handleShortcut } from './keyboard';
 import { AnnotationLayer } from './overlay/AnnotationLayer';
 import { InspectOverlay } from './overlay/InspectOverlay';
-import { InspectorCard } from './overlay/InspectorCard';
 import { InteractionLayer } from './overlay/InteractionLayer';
 import { GridOverlay, RulersAndGuides } from './overlay/Rulers';
+import { DetailsCard, SelectionBar } from './overlay/SelectionBar';
 import { StatusChip } from './ui/StatusChip';
 import { Toolbar } from './ui/Toolbar';
 
@@ -54,7 +54,8 @@ function Root({ toast, onToastDone }: { toast: ToastItem | null; onToastDone: ()
       <AnnotationLayer />
       <InspectOverlay />
       <RulersAndGuides />
-      <InspectorCard />
+      <SelectionBar />
+      <DetailsCard />
       <StatusChip />
       <Toolbar />
       <Toast item={toast} onDone={onToastDone} />

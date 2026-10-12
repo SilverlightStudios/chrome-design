@@ -98,6 +98,13 @@ export function MorphTooltipGroup({
   const [state, setState] = useState<TipState>(INITIAL);
   const stateRef = useRef(state);
   const timers = useRef({ open: 0, close: 0, settle: 0, frame: 0 });
+  // Touch: press and hold a control to see its name (the release then doesn't trigger it).
+  const hold = useRef<{ timer: number; fired: boolean; x: number; y: number }>({
+    timer: 0,
+    fired: false,
+    x: 0,
+    y: 0,
+  });
 
   const commit = useCallback((next: TipState) => {
     stateRef.current = next;
@@ -297,7 +304,46 @@ export function MorphTooltipGroup({
       onPointerLeave={onPointerLeave}
       onPointerDown={(e) => {
         hide();
+        window.clearTimeout(hold.current.timer);
+        hold.current.fired = false;
+        const el = tipTarget(e.target);
+        if (
+          e.pointerType === 'touch' &&
+          el &&
+          !el.dataset.longpress &&
+          !(el as HTMLButtonElement).disabled
+        ) {
+          hold.current.x = e.clientX;
+          hold.current.y = e.clientY;
+          hold.current.timer = window.setTimeout(() => {
+            hold.current.fired = true;
+            reveal(el, false);
+          }, 450);
+        }
         onPointerDown?.(e);
+      }}
+      onPointerMove={(e) => {
+        if (Math.hypot(e.clientX - hold.current.x, e.clientY - hold.current.y) > 10)
+          window.clearTimeout(hold.current.timer);
+      }}
+      onPointerUp={() => {
+        window.clearTimeout(hold.current.timer);
+        if (hold.current.fired) timers.current.close = window.setTimeout(hide, 900);
+      }}
+      onPointerCancel={() => {
+        window.clearTimeout(hold.current.timer);
+        if (hold.current.fired) hide();
+      }}
+      onClickCapture={(e) => {
+        if (!hold.current.fired) return;
+        hold.current.fired = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onContextMenu={(e) => {
+        // iOS/Android long-press menus would cover the label.
+        if (e.nativeEvent instanceof PointerEvent && e.nativeEvent.pointerType === 'touch')
+          e.preventDefault();
       }}
       onFocus={onFocus}
       onBlur={onBlur}

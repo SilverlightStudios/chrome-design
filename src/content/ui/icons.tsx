@@ -165,6 +165,46 @@ export const Icon = {
       <path d="M3.5 10h2.5M8.8 10h2.5M14 10h2.5" />
     </Svg>
   ),
+  send: () => (
+    <Svg>
+      <path d="M10 15.5V4.8M5.6 9 10 4.6 14.4 9" strokeWidth="2" />
+    </Svg>
+  ),
+  more: () => (
+    <Svg filled>
+      <circle cx="4.8" cy="10" r="1.5" />
+      <circle cx="10" cy="10" r="1.5" />
+      <circle cx="15.2" cy="10" r="1.5" />
+    </Svg>
+  ),
+  hand: () => (
+    <Svg>
+      <path d="M7.5 9.5V4.8a1.3 1.3 0 0 1 2.6 0v4.4M10.1 8.6V3.9a1.3 1.3 0 0 1 2.6 0v5M12.7 9V5.6a1.3 1.3 0 0 1 2.6 0v5.6c0 3-2.1 5.3-5 5.3-2 0-3.2-.8-4.4-2.4L3.6 10.9a1.3 1.3 0 0 1 2-1.6l1.9 2" />
+    </Svg>
+  ),
+  info: () => (
+    <Svg>
+      <circle cx="10" cy="10" r="6.7" />
+      <path d="M10 9.2v4.3" />
+      <circle cx="10" cy="6.7" r=".4" fill="currentColor" />
+    </Svg>
+  ),
+  gear: () => (
+    <Svg>
+      <circle cx="10" cy="10" r="2.4" />
+      <path d="M10 3.2v1.6M10 15.2v1.6M3.2 10h1.6M15.2 10h1.6M5.2 5.2l1.1 1.1M13.7 13.7l1.1 1.1M5.2 14.8l1.1-1.1M13.7 6.3l1.1-1.1" />
+    </Svg>
+  ),
+  chevron: () => (
+    <Svg>
+      <path d="M6.5 8.2 10 11.7l3.5-3.5" />
+    </Svg>
+  ),
+  pause: () => (
+    <Svg>
+      <path d="M7.5 5.5v9M12.5 5.5v9" strokeWidth="2" />
+    </Svg>
+  ),
 };
 
 export type IconName = keyof typeof Icon;

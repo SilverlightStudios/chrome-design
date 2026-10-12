@@ -13,6 +13,8 @@ export interface Mounted {
   store: EditorStore;
   host: HTMLElement;
   unmount: () => void;
+  /** Plays the closing animation (toolbar sinks, annotations fade). */
+  animateOut: () => Promise<void>;
   exportNow: (options?: Partial<ExportOptions>) => Promise<ExportStatus>;
 }
 
@@ -197,6 +199,12 @@ export async function mountEditor(onClose: () => void): Promise<Mounted> {
   return {
     store,
     host,
+    animateOut: () =>
+      new Promise<void>((resolve) => {
+        host.setAttribute('data-closing', '');
+        const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        window.setTimeout(resolve, reduced ? 0 : 240);
+      }),
     unmount: () => {
       window.clearInterval(navWatch);
       topLayerWatch.disconnect();

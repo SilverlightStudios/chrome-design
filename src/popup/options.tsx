@@ -6,9 +6,15 @@ import './popup.css';
 
 const STEPS = [
   ['Pin it', 'Click the puzzle icon in Chrome’s toolbar and pin Chrome Design.'],
-  ['Open it on any page', 'Click the icon or press ⌥⇧D. Click again (or ⌥⇧D) to close.'],
-  ['Review', 'Inspect (V), comment (C) and draw (D) right on the live page.'],
-  ['Hand off', 'Export (⇧E) downloads one HTML file with the page, your notes and an AI prompt.'],
+  ['Open it on any page', 'Click the icon or press ⌥⇧D. Click again to close.'],
+  [
+    'Comment and sketch',
+    'Click anything to comment on it. Sketch with the pencil, shapes and text, then move or resize what you drew.',
+  ],
+  [
+    'Send to AI',
+    'Saves one file with the page, your comments and instructions any AI assistant can follow.',
+  ],
 ];
 
 function Options() {
@@ -29,7 +35,7 @@ function Options() {
         <Mark />
         <div>
           <h1>Chrome Design</h1>
-          <p className="tagline">Inspect · comment · draw · hand off to AI — v{APP_VERSION}</p>
+          <p className="tagline">Comment · sketch · send to AI — v{APP_VERSION}</p>
         </div>
       </header>
 
@@ -52,15 +58,15 @@ function Options() {
         <h2>Settings</h2>
         <div className="row">
           <div>
-            <b>Embed assets from other sites</b>
+            <b>Allow other websites</b>
             <p className="muted">
-              Optional. Lets exports inline images, fonts and stylesheets served from CDNs that
-              don’t send CORS headers. Chrome asks once. Without it, those assets are listed as
-              warnings in the export.
+              Optional. Many pages load their images, fonts and styles from other websites. This
+              lets Chrome Design include those in the file too. Chrome asks once. Without it, the
+              file shows a placeholder for anything it couldn’t include.
             </p>
           </div>
           <Switch
-            label="Embed assets from other sites"
+            label="Allow other websites"
             on={allSites}
             onChange={(v) => void setAllSites(v)}
           />

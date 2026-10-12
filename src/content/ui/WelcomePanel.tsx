@@ -1,42 +1,30 @@
 import { useEnv } from '../context';
 import { Icon, type IconName } from './icons';
 
-const STEPS: { icon: IconName; title: string; body: string; kbd: string }[] = [
-  {
-    icon: 'select',
-    title: 'Inspect',
-    body: 'Hover to measure. Click an element to see its styles; drag to select an area.',
-    kbd: 'V',
-  },
+const touch = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+
+const STEPS: { icon: IconName; title: string; body: string }[] = [
   {
     icon: 'comment',
     title: 'Comment',
-    body: 'Click anything to leave a change request, decision or question.',
-    kbd: 'C',
+    body: `${touch() ? 'Tap' : 'Click'} anything on the page to leave feedback.`,
   },
-  {
-    icon: 'draw',
-    title: 'Draw',
-    body: 'Arrows, boxes, freehand and labels on top of the page.',
-    kbd: 'D',
-  },
+  { icon: 'draw', title: 'Draw', body: 'Point things out with the pencil, shapes and text.' },
   {
     icon: 'export',
-    title: 'Hand off',
-    body: 'One HTML file with the page, your notes and a prompt for an AI agent.',
-    kbd: '⇧E',
+    title: 'Send to AI',
+    body: 'Download one file with the page and your notes for an AI assistant.',
   },
 ];
 
-/** First-run coach card. Shown once, then reachable from Shortcuts. */
+/** First-run card: three steps, one button. Reopen it from More → Quick tour. */
 export function WelcomePanel() {
   const { store } = useEnv();
-  const done = () => store.set({ panel: 'none' });
   return (
     <div className="panel welcome-panel">
-      <div className="panel-head">
-        <h2>Review this page</h2>
-        <span className="muted small">Nothing leaves your browser</span>
+      <div className="welcome-head">
+        <h2>Give feedback on any page</h2>
+        <p className="muted">Everything stays in your browser.</p>
       </div>
       <ol className="steps">
         {STEPS.map((s) => {
@@ -47,21 +35,19 @@ export function WelcomePanel() {
                 <Glyph />
               </span>
               <span className="step-text">
-                <b>
-                  {s.title} <kbd>{s.kbd}</kbd>
-                </b>
+                <b>{s.title}</b>
                 <span>{s.body}</span>
               </span>
             </li>
           );
         })}
       </ol>
-      <p className="muted small">
-        <kbd>Esc</kbd> steps back and pauses the tools so the page works normally. Drag the toolbar
-        by its edge to move it.
-      </p>
-      <button type="button" className="btn primary wide" onClick={done}>
-        Start reviewing
+      <button
+        type="button"
+        className="btn primary wide"
+        onClick={() => store.set({ panel: 'none', tool: 'comment' })}
+      >
+        Start commenting
       </button>
     </div>
   );

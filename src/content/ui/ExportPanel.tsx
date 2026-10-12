@@ -48,6 +48,18 @@ function Switch({
   );
 }
 
+/** Plain progress words for each capture stage. */
+function friendlyStage(label: string): string {
+  if (/stylesheet/i.test(label)) return 'Reading the page…';
+  if (/asset/i.test(label))
+    return `Saving images${label.match(/\d+\/\d+/) ? ` ${label.match(/\d+\/\d+/)![0]}` : ''}…`;
+  if (/serializ/i.test(label)) return 'Copying the page…';
+  if (/screenshot/i.test(label)) return 'Taking a picture…';
+  if (/build/i.test(label)) return 'Putting it together…';
+  return label;
+}
+
+/** Send to AI: one note, one button. Everything else is optional and tucked away. */
 export function ExportPanel() {
   const env = useEnv();
   const { store } = env;
@@ -57,17 +69,18 @@ export function ExportPanel() {
   const [includeSource, setIncludeSource] = useState(true);
   const [status, setStatus] = useState<ExportStatus>({ phase: 'idle' });
   const comments = annotations.filter(isComment);
-  const decisions = comments.filter((c) => c.intent === 'decision').length;
-  const shapes = annotations.length - comments.length;
+  const drawings = annotations.length - comments.length;
   const busy = status.phase === 'working';
-  const assetWarnings =
+  const missing =
     status.phase === 'done'
       ? status.warnings.filter(
-          (w) => w.code === 'asset-not-embedded' || w.code === 'stylesheet-unreadable',
+          (w) =>
+            w.code === 'asset-not-embedded' ||
+            w.code === 'stylesheet-unreadable' ||
+            w.code === 'asset-too-large',
         )
       : [];
 
-  // An error relaxes back to idle so the pill is ready to retry.
   useEffect(() => {
     if (status.phase !== 'error') return;
     const t = window.setTimeout(() => setStatus({ phase: 'idle' }), 2600);
@@ -76,40 +89,41 @@ export function ExportPanel() {
 
   const run = () => {
     if (busy) return;
-    setStatus({ phase: 'working', label: 'Preparing…' });
+    setStatus({ phase: 'working', label: 'Getting ready…' });
     void env.runExport({ includeScreenshot, includeSource }, setStatus);
   };
 
+  const summary =
+    comments.length || drawings
+      ? [
+          comments.length ? plural(comments.length, 'comment') : '',
+          drawings ? plural(drawings, 'drawing') : '',
+        ]
+          .filter(Boolean)
+          .join(' and ')
+      : 'No comments yet — the AI will get just the page';
+
   return (
     <div className="panel export-panel">
-      <div className="panel-head">
-        <h2>Hand off to an AI agent</h2>
-        <span className="muted small">
-          {plural(comments.length, 'comment')} · {plural(decisions, 'decision')} ·{' '}
-          {plural(shapes, 'drawing')}
-        </span>
+      <div className="panel-head stacked">
+        <h2>Send to AI</h2>
+        <p className="muted">
+          One file with this page and your notes. Give it to any AI assistant.
+        </p>
+      </div>
+      <div className="summary-row">
+        <Icon.comment />
+        <span>{summary}</span>
       </div>
       <label className="stack">
-        <span className="label">Brief (optional)</span>
+        <span className="label">Anything else to tell the AI?</span>
         <textarea
           rows={2}
           value={brief}
-          placeholder="Overall direction, e.g. “Make the hero calmer; keep brand colours.”"
+          placeholder="Optional — e.g. “Make it feel calmer, keep our colours.”"
           onChange={(e) => store.setBrief(e.target.value)}
         />
       </label>
-      <div className="checks">
-        <Switch
-          label="Viewport screenshot"
-          on={includeScreenshot}
-          onChange={setIncludeScreenshot}
-        />
-        <Switch
-          label="Original DOM source (reference)"
-          on={includeSource}
-          onChange={setIncludeSource}
-        />
-      </div>
       <button
         type="button"
         className="morph-pill"
@@ -120,47 +134,49 @@ export function ExportPanel() {
         aria-live="polite"
       >
         <span className="layer idle">
-          <Icon.export /> {status.phase === 'done' ? 'Download again' : 'Download handoff HTML'}
+          <Icon.export /> Download file
         </span>
         <span className="layer working">
           <Spinner />
-          <span className="label-text">{status.phase === 'working' ? status.label : ''}</span>
+          <span className="label-text">
+            {status.phase === 'working' ? friendlyStage(status.label) : ''}
+          </span>
         </span>
         <span className="layer done">
           <Icon.check />
           <span className="label-text">
-            {status.phase === 'done' ? `Saved · ${formatBytes(status.bytes)}` : ''}
+            {status.phase === 'done' ? `Saved to Downloads · ${formatBytes(status.bytes)}` : ''}
           </span>
         </span>
-        <span className="layer error">Export failed — try again</span>
+        <span className="layer error">Something went wrong — try again</span>
       </button>
       {status.phase === 'done' && (
         <div className="export-result" role="status">
-          <span className="muted">{status.filename}</span>
+          {missing.length > 0 ? (
+            <>
+              <span className="warn">
+                {plural(missing.length, 'image or style')} couldn’t be included
+              </span>
+              <span className="muted small">They come from another website. </span>
+              <button type="button" className="inline-link" onClick={env.openSettings}>
+                Allow other websites
+              </button>
+            </>
+          ) : (
+            <span className="ok">Everything was included.</span>
+          )}
           {status.warnings.length > 0 ? (
             <details>
-              <summary className="warn">
-                {plural(status.warnings.length, 'warning')} — some parts may be missing offline
-              </summary>
+              <summary className="muted small">Details</summary>
               <ul className="warn-list">
                 {status.warnings.slice(0, 30).map((w) => (
                   <li key={`${w.code}-${w.url ?? w.message}`}>
-                    <b>{w.code}</b> {w.message} {w.url ? <code>{w.url}</code> : null}
+                    {w.message} {w.url ? <code>{w.url}</code> : null}
                   </li>
                 ))}
               </ul>
-              {assetWarnings.length > 0 ? (
-                <p className="muted small">
-                  Assets from other sites need permission.{' '}
-                  <button type="button" className="inline-link" onClick={env.openSettings}>
-                    Allow in settings
-                  </button>
-                </p>
-              ) : null}
             </details>
-          ) : (
-            <span className="ok">Everything embedded.</span>
-          )}
+          ) : null}
         </div>
       )}
       {status.phase === 'error' && (
@@ -168,11 +184,21 @@ export function ExportPanel() {
           {status.message}
         </p>
       )}
-      <p className="muted small">
-        One offline file: a static snapshot of this page (scripts removed), every comment, decision
-        and drawing, a JSON payload and a prompt telling the agent what to change. Nothing is
-        uploaded.
-      </p>
+      <details className="options">
+        <summary>Options</summary>
+        <div className="checks">
+          <Switch
+            label="Include a picture of what you see"
+            on={includeScreenshot}
+            onChange={setIncludeScreenshot}
+          />
+          <Switch
+            label="Include the page’s original code"
+            on={includeSource}
+            onChange={setIncludeSource}
+          />
+        </div>
+      </details>
     </div>
   );
 }
