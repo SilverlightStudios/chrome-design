@@ -14,7 +14,35 @@ import {
 const root = resolve(import.meta.dirname, '../..');
 const extensionPath = resolve(root, 'dist-e2e');
 
+const HOSTILE = `<!doctype html><html><head><title>Hostile</title><style>
+  html { transform: scale(0.96); transform-origin: 0 0; }
+  body { margin: 0; font: 16px system-ui; }
+  .widget { position: fixed; right: 0; bottom: 0; left: 0; height: 120px; z-index: 2147483647; background: rgba(255,0,0,.15); }
+  #scroller { height: 200px; overflow: auto; border: 1px solid #ccc; margin: 20px; }
+  #scroller div { height: 80px; border-bottom: 1px solid #eee; }
+</style></head><body>
+  <h1 id="title">Hostile page</h1>
+  <p id="count">0</p>
+  <div id="scroller"><div id="row1">row 1</div><div id="row2">row 2</div><div id="row3">row 3</div><div>4</div><div>5</div><div>6</div></div>
+  <dialog id="dlg"><p>Modal dialog</p><button id="dlg-close">Close</button></dialog>
+  <div class="widget">chat widget</div>
+  <script>
+    let n = 0;
+    document.addEventListener('keydown', (e) => { if (e.key === 'c') document.getElementById('count').textContent = String(++n); });
+  </script>
+</body></html>`;
+
+const SPA = `<!doctype html><html><head><title>SPA</title></head><body>
+  <h1 id="title">Home</h1>
+  <button id="go" onclick="history.pushState({}, '', '/spa/other'); document.getElementById('title').textContent = 'Other'">Other page</button>
+</body></html>`;
+
+const CSP_PAGE = `<!doctype html><html><head><title>CSP</title></head><body><h1 id="title">Strict CSP</h1></body></html>`;
+
 const FILES: Record<string, [string, string]> = {
+  '/hostile': ['text/html', HOSTILE],
+  '/spa': ['text/html', SPA],
+  '/csp': ['text/html', CSP_PAGE],
   '/': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
   '/style.css': [
     'text/css',
@@ -42,7 +70,9 @@ test.beforeAll(async () => {
       res.writeHead(404).end();
       return;
     }
-    res.writeHead(200, { 'content-type': file[0] }).end(file[1]);
+    const headers: Record<string, string> = { 'content-type': file[0] };
+    if (req.url === '/csp') headers['content-security-policy'] = "default-src 'self'; img-src 'self'; style-src 'self'";
+    res.writeHead(200, headers).end(file[1]);
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -64,11 +94,11 @@ test.afterAll(async () => {
 /** Same path the popup / keyboard command uses: inject on demand, then toggle. */
 async function toggleToolbar(page: Page): Promise<void> {
   await worker.evaluate(async (url) => {
-    const [tab] = await chrome.tabs.query({ url: `${url}/*` });
+    const [tab] = await chrome.tabs.query({ url });
     if (!tab?.id) throw new Error('fixture tab not found');
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
     await chrome.tabs.sendMessage(tab.id, { type: 'cd:toggle' });
-  }, baseUrl);
+  }, page.url());
   await expect(page.locator('chrome-design-root')).toHaveCount(1);
 }
 
@@ -188,5 +218,93 @@ test('popup explains restricted pages', async () => {
   const id = new URL(worker.url()).host;
   const popup = await context.newPage();
   await popup.goto(`chrome-extension://${id}/popup.html`);
-  await expect(popup.getByText('Not available here')).toBeVisible();
+  await expect(popup.getByText('Not available on this page')).toBeVisible();
+});
+
+test('integrates with hostile pages: transformed root, max z-index overlay, page shortcuts, inner scroll, modal dialog, cleanup', async () => {
+  const page = await context.newPage();
+  await page.goto(`${baseUrl}/hostile`);
+  await toggleToolbar(page);
+  const ui = page.locator('chrome-design-root');
+  await ui.getByText('Start reviewing').click();
+
+  // Top layer: unaffected by the page's html transform, above a z-index 2147483647 widget.
+  expect(await page.evaluate(() => document.querySelector('chrome-design-root')?.matches(':popover-open'))).toBe(true);
+  const bar = (await ui.locator('.toolbar').boundingBox())!;
+  expect(Math.round(bar.y + bar.height)).toBe(800 - 16);
+  const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x!, y!)?.localName, [bar.x + bar.width / 2, bar.y + bar.height / 2]);
+  expect(hit).toBe('chrome-design-root');
+
+  // While a tool is active the page never sees our single-key shortcuts…
+  await page.keyboard.press('c');
+  await expect(page.locator('#count')).toHaveText('0');
+  // …and once paused (Esc to browse) the page's own shortcuts work again.
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(ui.locator('.status-chip')).toContainText('Paused');
+  await page.keyboard.press('c');
+  await expect(page.locator('#count')).toHaveText('1');
+  await ui.locator('.status-chip .chip-btn').click();
+
+  // A pin on an element inside an inner scroller follows it when the scroller scrolls.
+  await page.keyboard.press('c');
+  const row = (await page.locator('#row2').boundingBox())!;
+  await page.mouse.click(row.x + 20, row.y + 10);
+  await ui.locator('.popover textarea').fill('Row spacing');
+  await page.keyboard.press('Enter');
+  const before = (await ui.locator('.pin').boundingBox())!;
+  await page.locator('#scroller').evaluate((el) => {
+    el.scrollTop = 60;
+  });
+  await page.waitForTimeout(100);
+  const after = (await ui.locator('.pin').boundingBox())!;
+  expect(Math.round(before.y - after.y)).toBeGreaterThan(50);
+
+  // A page modal dialog does not lock the toolbar (we re-enter the top layer above it).
+  await page.evaluate(() => (document.getElementById('dlg') as HTMLDialogElement).showModal());
+  await page.waitForTimeout(150);
+  await ui.locator('.toolbar .tb-btn[aria-label^="Draw"]').click();
+  await expect(ui.locator('.subbar')).toBeVisible();
+  await page.evaluate(() => (document.getElementById('dlg') as HTMLDialogElement).close());
+
+  // Closing removes everything; the page gets its keys back.
+  await ui.locator('.toolbar .tb-btn[aria-label^="Close"]').click();
+  await expect(page.locator('chrome-design-root')).toHaveCount(0);
+  await page.keyboard.press('c');
+  await expect(page.locator('#count')).toHaveText('2');
+});
+
+test('single-page apps: notes follow the URL', async () => {
+  const page = await context.newPage();
+  await page.goto(`${baseUrl}/spa`);
+  await toggleToolbar(page);
+  const ui = page.locator('chrome-design-root');
+  const welcome = ui.getByText('Start reviewing');
+  if (await welcome.isVisible()) await welcome.click();
+  await page.keyboard.press('c');
+  const title = (await page.locator('#title').boundingBox())!;
+  await page.mouse.click(title.x + 10, title.y + 10);
+  await ui.locator('.popover textarea').fill('Home headline');
+  await page.keyboard.press('Enter');
+  await expect(ui.locator('.pin')).toHaveCount(1);
+  await page.evaluate(() => (document.getElementById('go') as HTMLButtonElement).click());
+  await expect(ui.locator('.pin')).toHaveCount(0, { timeout: 3000 });
+  await expect(ui.locator('.toast')).toContainText('New page');
+  await page.goBack();
+  await expect(ui.locator('.pin')).toHaveCount(1, { timeout: 3000 });
+});
+
+test('strict CSP pages: tools work and the glass falls back to CSS', async () => {
+  const page = await context.newPage();
+  await page.goto(`${baseUrl}/csp`);
+  await toggleToolbar(page);
+  const ui = page.locator('chrome-design-root');
+  await expect(ui.locator('.toolbar')).toHaveAttribute('data-glass', 'css', { timeout: 3000 });
+  await page.keyboard.press('Escape'); // close the welcome sheet
+  await page.keyboard.press('d');
+  await page.mouse.move(100, 200);
+  await page.mouse.down();
+  await page.mouse.move(300, 260, { steps: 5 });
+  await page.mouse.up();
+  await expect(ui.locator('.shape-layer > *')).toHaveCount(1);
 });
