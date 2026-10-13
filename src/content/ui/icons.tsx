@@ -148,6 +148,42 @@ export const Icon = {
       <path d="M9 20h6" />
     </Svg>
   ),
+  // Lucide monitor-smartphone / smartphone / tablet / monitor: screen sizes. They nod.
+  sizes: () => (
+    <Svg name="device">
+      <g className="p">
+        <path d="M18 8V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8" />
+        <path d="M10 19v-3.96 3.15" />
+        <path d="M7 19h5" />
+        <rect width="6" height="10" x="16" y="12" rx="2" />
+      </g>
+    </Svg>
+  ),
+  phone: () => (
+    <Svg name="device">
+      <g className="p">
+        <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
+        <path d="M12 18h.01" />
+      </g>
+    </Svg>
+  ),
+  tablet: () => (
+    <Svg name="device">
+      <g className="p">
+        <rect width="16" height="20" x="4" y="2" rx="2" ry="2" />
+        <path d="M12 18h.01" />
+      </g>
+    </Svg>
+  ),
+  desktop: () => (
+    <Svg name="device">
+      <g className="p">
+        <rect width="20" height="14" x="2" y="3" rx="2" />
+        <path d="M8 21h8" />
+        <path d="M12 17v4" />
+      </g>
+    </Svg>
+  ),
   // Lucide eye-off: the slash draws across.
   eyeOff: () => (
     <Svg name="eye-off">

@@ -45,6 +45,7 @@ const FILES: Record<string, [string, string]> = {
   '/csp': ['text/html', CSP_PAGE],
   '/': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
   '/phone': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
+  '/sizes': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
   '/style.css': [
     'text/css',
     'body{font-family:system-ui;margin:0;color:#123}h1{font-size:48px;padding:24px}',
@@ -561,6 +562,30 @@ test('images dropped on a strict-CSP page are placed, shown and kept', async () 
   // Undo takes it away in one step.
   await page.keyboard.press('ControlOrMeta+z');
   await expect(placed).toHaveCount(0);
+  await page.close();
+});
+
+test('screen sizes: comments can be for one size; presets live in More', async () => {
+  const page = await context.newPage();
+  await page.goto(`${baseUrl}/sizes`);
+  await expect(page.locator('body[data-ready="1"]')).toHaveCount(1);
+  await toggleToolbar(page);
+  const ui = page.locator('chrome-design-root');
+  await ui.locator('.tb-btn[aria-label^="Comment (C)"]').click();
+  const title = (await page.locator('#title').boundingBox())!;
+  await page.mouse.click(title.x + 60, title.y + 20);
+  const chip = ui.locator('.popover .scope-chip');
+  await expect(chip).toHaveText('All sizes');
+  await chip.click();
+  await expect(chip).toHaveText('Phone');
+  await ui.locator('.popover textarea').fill('Stack these on phones');
+  await page.keyboard.press('Enter');
+  // Written at 1280px (desktop): the phone-only pin steps back.
+  await expect(ui.locator('.pin[data-other-size]')).toHaveCount(1);
+  await ui.locator('.tb-btn[aria-label="More"]').click();
+  await ui.locator('.tile', { hasText: 'Screen size' }).click();
+  await expect(ui.locator('.screen-readout')).toContainText('1280 px · Desktop');
+  await expect(ui.locator('.screen-panel .tile')).toHaveCount(4);
   await page.close();
 });
 

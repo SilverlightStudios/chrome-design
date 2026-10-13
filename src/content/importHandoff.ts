@@ -141,12 +141,15 @@ export function mergeFeedback(local: Annotation[], incoming: Annotation[]): Merg
       newer === item &&
       (item.status !== mine.status ||
         item.intent !== mine.intent ||
+        item.scope !== mine.scope ||
         JSON.stringify(item.target) !== JSON.stringify(mine.target));
     if (added.length === 0 && !changed) continue;
     result.replies += added.length;
     if (changed) result.updated++;
+    const { scope: _scope, ...base } = mine;
     result.annotations[at] = {
-      ...mine,
+      ...base,
+      ...(newer.scope ? { scope: newer.scope } : {}),
       status: newer.status,
       intent: newer.intent,
       target: newer.target,

@@ -61,3 +61,18 @@ export function getSettings(): Promise<SettingsResponse | null> {
 export function reportState(open: boolean): void {
   void sendToBackground<unknown>({ type: 'cd:state', open });
 }
+
+/**
+ * Resize the browser window so the page's viewport is `width` CSS px wide (the window's frame
+ * is added on). False without the extension.
+ */
+export async function resizeViewport(width: number): Promise<boolean> {
+  // The window frame plus a classic scrollbar sit outside the page's width.
+  const frame = Math.max(0, window.outerWidth - window.innerWidth);
+  const scrollbar = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+  const response = await sendToBackground<{ ok: boolean }>({
+    type: 'cd:resize-window',
+    width: Math.round(width + scrollbar + frame),
+  });
+  return response?.ok === true;
+}

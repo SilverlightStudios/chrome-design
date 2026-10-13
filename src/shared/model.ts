@@ -74,6 +74,23 @@ export type CommentTarget =
    */
   | { type: 'shape'; shapeId: string; at: Point; point: Point };
 
+export type Breakpoint = 'phone' | 'tablet' | 'desktop';
+
+/** Screen-size bands a comment can be limited to (CSS px of the viewport width). */
+export const BREAKPOINTS: Record<Breakpoint, { label: string; min: number; max: number | null }> = {
+  phone: { label: 'Phone', min: 0, max: 639 },
+  tablet: { label: 'Tablet', min: 640, max: 1023 },
+  desktop: { label: 'Desktop', min: 1024, max: null },
+};
+
+export function breakpointOf(width: number): Breakpoint {
+  return width < BREAKPOINTS.tablet.min
+    ? 'phone'
+    : width < BREAKPOINTS.desktop.min
+      ? 'tablet'
+      : 'desktop';
+}
+
 export interface CommentThread {
   id: string;
   type: 'comment';
@@ -85,6 +102,10 @@ export interface CommentThread {
   messages: CommentMessage[];
   createdAt: string;
   updatedAt: string;
+  /** The window size it was written at (CSS px). */
+  viewport?: { width: number; height: number };
+  /** Only for these screen sizes; unset means every size. */
+  scope?: Breakpoint;
 }
 
 export type ShapeKind = 'pen' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'text' | 'image' | 'redact';

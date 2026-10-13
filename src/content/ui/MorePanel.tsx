@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { isComment } from '../../shared/model';
 import { useEditor, useEnv } from '../context';
+import { hasExtensionRuntime } from '../ext';
 import { importHandoffFiles, pickHandoffFiles } from '../importHandoff';
+import { useCompact } from '../motion/MorphSheet';
 import { Icon, type IconName } from './icons';
 
 /** Touch screens have no keyboard, so no Shortcuts tile. */
@@ -61,6 +63,9 @@ export function MorePanel() {
   const annotations = useEditor((s) => s.doc.annotations);
   const open = annotations.filter((a) => isComment(a) && a.status === 'open').length;
   const [armed, setArmed] = useState(false);
+  // Resizing the window needs the extension, and means nothing on a phone.
+  const compact = useCompact();
+  const canResize = hasExtensionRuntime() && !compact;
 
   return (
     <div className="panel more-panel">
@@ -113,6 +118,13 @@ export function MorePanel() {
             onClick={() => store.set({ panel: 'help', panelBack: 'more' })}
           />
         )}
+        {canResize ? (
+          <Tile
+            icon="sizes"
+            label="Screen size"
+            onClick={() => store.set({ panel: 'screen', panelBack: 'more' })}
+          />
+        ) : null}
         <Tile
           icon="info"
           label="Quick tour"

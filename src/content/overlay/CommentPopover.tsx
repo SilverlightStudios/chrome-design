@@ -8,6 +8,8 @@ import {
 import { createId, nowIso } from '../../shared/ids';
 import {
   type Annotation,
+  BREAKPOINTS,
+  type Breakpoint,
   type CommentIntent,
   type CommentMessage,
   type CommentThread,
@@ -47,6 +49,8 @@ const PLACEHOLDER: Record<CommentIntent, string> = {
   note: 'Add a note',
 };
 const POPOVER_WIDTH = 300;
+/** Tapping the size chip steps through: every size, then phone, tablet, desktop. */
+const SCOPE_ORDER: (Breakpoint | undefined)[] = [undefined, 'phone', 'tablet', 'desktop'];
 const MAX_ATTACHMENTS = 6;
 
 function popoverWidth(): number {
@@ -141,6 +145,20 @@ export function CommentPopover({
   const [text, setText] = useState('');
   const [intent, setIntent] = useState<CommentIntent>(thread?.intent ?? 'change');
   const [attachments, setAttachments] = useState<ImageAttachment[]>([]);
+  const [draftScope, setDraftScope] = useState<Breakpoint | undefined>(undefined);
+  const scope = thread ? thread.scope : draftScope;
+  const cycleScope = () => {
+    const next = SCOPE_ORDER[(SCOPE_ORDER.indexOf(scope) + 1) % SCOPE_ORDER.length];
+    if (!thread) {
+      setDraftScope(next);
+      return;
+    }
+    store.updateAnnotation(thread.id, (a) => {
+      if (!isComment(a)) return a;
+      const { scope: _old, ...rest } = a;
+      return { ...rest, ...(next ? { scope: next } : {}), updatedAt: nowIso() };
+    });
+  };
   const [dropping, setDropping] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -220,6 +238,11 @@ export function CommentPopover({
         status: 'open',
         target: draft.target,
         messages: [message],
+        viewport: {
+          width: document.documentElement.clientWidth || window.innerWidth,
+          height: window.innerHeight,
+        },
+        ...(draftScope ? { scope: draftScope } : {}),
         createdAt: at,
         updatedAt: at,
       };
@@ -298,6 +321,25 @@ export function CommentPopover({
           </span>
         ) : null}
         <span className="popover-target">{target ? describeTarget(target, annotations) : ''}</span>
+        <button
+          type="button"
+          className="scope-chip"
+          data-on={scope ? '' : undefined}
+          title="Which screen sizes this is for"
+          aria-label={`Screen sizes: ${scope ? BREAKPOINTS[scope].label : 'All sizes'}`}
+          onClick={cycleScope}
+        >
+          {scope === 'phone' ? (
+            <Icon.phone />
+          ) : scope === 'tablet' ? (
+            <Icon.tablet />
+          ) : scope === 'desktop' ? (
+            <Icon.desktop />
+          ) : (
+            <Icon.sizes />
+          )}
+          {scope ? BREAKPOINTS[scope].label : 'All sizes'}
+        </button>
         {thread && (
           <>
             <button

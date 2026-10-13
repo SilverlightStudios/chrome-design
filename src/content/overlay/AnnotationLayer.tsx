@@ -14,6 +14,7 @@ import {
   unionBounds,
 } from '../../shared/geometry';
 import {
+  breakpointOf,
   type CommentThread,
   isComment,
   isShape,
@@ -380,6 +381,12 @@ function Pin({
       data-intent={thread.intent}
       data-status={thread.status}
       data-active={active ? '' : undefined}
+      data-other-size={
+        thread.scope &&
+        breakpointOf(document.documentElement.clientWidth || window.innerWidth) !== thread.scope
+          ? ''
+          : undefined
+      }
       style={{
         left: p.x,
         top: p.y,

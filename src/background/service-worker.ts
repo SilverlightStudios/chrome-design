@@ -132,6 +132,25 @@ chrome.runtime.onMessage.addListener((message: ToBackgroundMessage, sender, send
     void fetchAsset(message.url, message.maxBytes).then(sendResponse);
     return true;
   }
+  if (message?.type === 'cd:resize-window') {
+    // Screen-size presets: un-maximize the tab's window, then set its outer width.
+    const windowId = sender.tab?.windowId;
+    if (windowId === undefined) {
+      sendResponse({ ok: false });
+      return false;
+    }
+    void (async () => {
+      try {
+        const win = await chrome.windows.get(windowId);
+        if (win.state !== 'normal') await chrome.windows.update(windowId, { state: 'normal' });
+        await chrome.windows.update(windowId, { width: Math.round(message.width) });
+        sendResponse({ ok: true });
+      } catch {
+        sendResponse({ ok: false });
+      }
+    })();
+    return true;
+  }
   if (message?.type === 'cd:get-runtime') {
     // The content script's own source, built into exported files so they open with the toolbar.
     void fetch(chrome.runtime.getURL(CONTENT_SCRIPT_FILE))

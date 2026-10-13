@@ -8,7 +8,7 @@ import type {
   PageMeta,
   Shape,
 } from '../shared/model';
-import { INTENT_LABEL, isComment, isShape } from '../shared/model';
+import { BREAKPOINTS, INTENT_LABEL, isComment, isShape } from '../shared/model';
 import { findShape, shapeLabel, storedTargetPoint } from '../shared/targets';
 
 export const BLOCK_IDS = {
@@ -89,6 +89,19 @@ function describeTarget(
   return `${anchor ? where(anchor) : 'a spot'} at (${round(t.point.x)}, ${round(t.point.y)})`;
 }
 
+/** "; only on phone widths (< 640px); written at 1280px wide". */
+function sizeNote(c: CommentThread): string {
+  const parts: string[] = [];
+  if (c.scope) {
+    const b = BREAKPOINTS[c.scope];
+    parts.push(
+      `only at ${b.label.toLowerCase()} widths (${b.max === null ? `≥ ${b.min}px` : b.min === 0 ? `< ${b.max + 1}px` : `${b.min}–${b.max}px`})`,
+    );
+  }
+  if (c.viewport) parts.push(`written at ${c.viewport.width}px wide`);
+  return parts.length ? `; ${parts.join('; ')}` : '';
+}
+
 function imageFileFor(images: ImageIndexEntry[], test: (e: ImageIndexEntry) => boolean): string {
   const entry = images.find(test);
   return entry ? entry.file : '';
@@ -136,7 +149,7 @@ export function describeAnnotations(annotations: Annotation[], images: ImageInde
     lines.push('COMMENTS');
     for (const c of comments) {
       lines.push(
-        `#${c.number} ${INTENT_LABEL[c.intent]} (${c.status}) on ${describeTarget(c, annotations, images)}`,
+        `#${c.number} ${INTENT_LABEL[c.intent]} (${c.status}) on ${describeTarget(c, annotations, images)}${sizeNote(c)}`,
       );
       for (const [i, m] of c.messages.entries()) {
         const who = i === 0 ? '' : 'reply: ';
@@ -236,6 +249,7 @@ export function buildAgentPrompt(
     '   - Never paste the screenshot itself into the page as an <img> unless a comment asks for that; build it in HTML/CSS.',
     '   Grey HIDDEN AREAS (shape kind "redact") are privacy blurs, not design feedback: the content under them is masked in this copy; keep the real content as it is.',
     '5. IMAGES ATTACHED TO COMMENTS (`messages[].attachments`) illustrate that comment: an example, a mockup or the asset to use. A comment can also be ON a placed image or drawing (`target.type: "shape"`, `target.shapeId`): it is about that picture or mark specifically.',
+    '   A comment may be limited to a screen size (`scope`: phone < 640px, tablet 640–1023px, desktop ≥ 1024px); implement it with media queries for that range only. `viewport` is the window size it was written at.',
     '6. Revise the page to implement every OPEN "change" request. Every "decision" is a binding constraint that must stay true. Answer every "question" in your reply. "note" items are context. Resolved threads are history: keep them true but do not redo them.',
     '7. Preserve everything the designer did not ask to change: content, layout, responsive behaviour, accessibility and visual style.',
     '8. Return (a) the revised page (without the handoff wrapper) and (b) a checklist mapping each comment number and each placed image to what you changed, or why you could not.',

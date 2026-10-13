@@ -340,6 +340,17 @@ export const handoffSchema = {
         },
         createdAt: isoDate,
         updatedAt: isoDate,
+        viewport: {
+          type: 'object',
+          description: 'The window size the comment was written at (CSS px).',
+          required: ['width', 'height'],
+          properties: { width: num, height: num },
+        },
+        scope: {
+          enum: ['phone', 'tablet', 'desktop'],
+          description:
+            'Only for these screen sizes: phone < 640px, tablet 640–1023px, desktop ≥ 1024px. Absent = every size.',
+        },
       },
     },
     shape: {

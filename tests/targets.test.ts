@@ -106,3 +106,33 @@ describe('comments on placed things', () => {
     expect(ajv.validate(handoffSchema, out.payload)).toBe(true);
   });
 });
+
+describe('screen sizes', () => {
+  it('sorts widths into phone, tablet and desktop', async () => {
+    const { breakpointOf } = await import('../src/shared/model');
+    expect([390, 639, 640, 1023, 1024, 1440].map(breakpointOf)).toEqual([
+      'phone',
+      'phone',
+      'tablet',
+      'tablet',
+      'desktop',
+      'desktop',
+    ]);
+  });
+
+  it('tells the AI which sizes a comment is for and where it was written', async () => {
+    const { describeAnnotations } = await import('../src/export/prompt');
+    const text = describeAnnotations(
+      [
+        {
+          ...onImage,
+          target: { type: 'point', point: { x: 1, y: 2 } },
+          scope: 'phone',
+          viewport: { width: 390, height: 844 },
+        },
+      ],
+      [],
+    );
+    expect(text).toContain('only at phone widths (< 640px); written at 390px wide');
+  });
+});

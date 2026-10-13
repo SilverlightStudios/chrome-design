@@ -37,6 +37,7 @@ import { GridPanel } from './GridPanel';
 import { HelpPanel } from './HelpPanel';
 import { Icon, type IconName } from './icons';
 import { MorePanel } from './MorePanel';
+import { ScreenPanel } from './ScreenPanel';
 import { SettingsPanel } from './SettingsPanel';
 import { WelcomePanel } from './WelcomePanel';
 
@@ -353,10 +354,11 @@ const PANELS: Record<Exclude<PanelId, 'none'>, { label: string; render: () => Re
   help: { label: 'Keyboard shortcuts', render: () => <HelpPanel /> },
   welcome: { label: 'Welcome', render: () => <WelcomePanel /> },
   settings: { label: 'Settings', render: () => <SettingsPanel /> },
+  screen: { label: 'Screen size', render: () => <ScreenPanel /> },
 };
 
 /** Panels reached from More; the More button stays lit and closes them. */
-const MORE_CHILDREN = new Set<PanelId>(['list', 'grid', 'help', 'settings']);
+const MORE_CHILDREN = new Set<PanelId>(['list', 'grid', 'help', 'settings', 'screen']);
 
 const skipOwnUi = (el: Element) => el.localName === HOST_TAG;
 

@@ -41,7 +41,8 @@ export type PanelId =
   | 'help'
   | 'welcome'
   | 'more'
-  | 'settings';
+  | 'settings'
+  | 'screen';
 
 /** Comment being composed (not yet part of the document / history). */
 export interface DraftComment {

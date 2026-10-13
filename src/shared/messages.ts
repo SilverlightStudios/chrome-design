@@ -13,6 +13,7 @@ export type ToBackgroundMessage =
   | { type: 'cd:open-options' }
   | { type: 'cd:get-settings' }
   | { type: 'cd:get-runtime' }
+  | { type: 'cd:resize-window'; width: number }
   | { type: 'cd:state'; open: boolean };
 
 export interface SettingsResponse {

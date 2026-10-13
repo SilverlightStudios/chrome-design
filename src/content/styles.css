@@ -445,6 +445,49 @@ svg {
   gap: 6px;
   min-height: 28px;
 }
+.screen-readout {
+  margin: 0 0 10px;
+  color: var(--ink-muted);
+  font: 500 13px var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.screen-readout b {
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 650;
+}
+.scope-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--ink-muted);
+  font: 500 11.5px var(--font);
+  transition:
+    background-color var(--duration) var(--ease),
+    color var(--duration) var(--ease),
+    scale 0.16s var(--ease);
+}
+.scope-chip svg {
+  width: 14px;
+  height: 14px;
+}
+.scope-chip[data-on] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.scope-chip:active {
+  scale: 0.95;
+}
+/* A comment meant for another screen size steps back. */
+.pin[data-other-size] {
+  opacity: 0.42;
+}
 .popover-target {
   flex: 1;
   min-width: 0;
@@ -3879,6 +3922,11 @@ details.options .checks {
   .ai-eraser[data-play] .p {
     animation: ai-rub 0.5s var(--ai-in-out);
   }
+  .ai-device[data-play] .p {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: ai-nod 0.45s var(--ai-in-out);
+  }
   .ai-eye-off[data-play] .s {
     stroke-dasharray: 1;
     animation: ai-draw 0.4s var(--ai-out);
@@ -4134,6 +4182,14 @@ details.options .checks {
 @keyframes ai-slide-copy {
   45% {
     translate: 2px 2px;
+  }
+}
+@keyframes ai-nod {
+  40% {
+    rotate: -8deg;
+  }
+  75% {
+    rotate: 4deg;
   }
 }
 @keyframes ai-hop {

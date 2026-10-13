@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { type Annotation, type CommentThread, isComment } from '../../shared/model';
+import { type Annotation, BREAKPOINTS, type CommentThread, isComment } from '../../shared/model';
 import { findShape, shapeLabel } from '../../shared/targets';
 import { revealThread } from '../actions';
 import { useEditor, useEnv } from '../context';
@@ -77,7 +77,8 @@ export function FeedbackPanel() {
                 <span className="thread-body">
                   <span className="thread-text">{messagePreview(t.messages[0])}</span>
                   <span className="thread-meta">
-                    {targetLabel(t, annotations)} · {timeAgo(t.updatedAt)}
+                    {targetLabel(t, annotations)}
+                    {t.scope ? ` · ${BREAKPOINTS[t.scope].label}` : ''} · {timeAgo(t.updatedAt)}
                     {t.messages.length > 1
                       ? ` · ${t.messages.length - 1} repl${t.messages.length > 2 ? 'ies' : 'y'}`
                       : ''}
