@@ -50,3 +50,43 @@ describe('selecting several drawings', () => {
     });
   });
 });
+
+describe('layer order, lock and hide', () => {
+  const setup = () => {
+    const store = new EditorStore(createInitialState(emptyDoc('https://x.test/', 'X')));
+    for (const id of ['a', 'b', 'c', 'd']) store.addAnnotation(rect(id, 0, 0));
+    return store;
+  };
+  const order = (store: EditorStore) =>
+    store
+      .getState()
+      .doc.annotations.map((a) => a.id)
+      .join('');
+
+  it('brings forward, sends backward, and goes all the way', () => {
+    const store = setup();
+    store.arrange(['b'], 'forward');
+    expect(order(store)).toBe('acbd');
+    store.arrange(['b'], 'front');
+    expect(order(store)).toBe('acdb');
+    store.arrange(['d'], 'back');
+    expect(order(store)).toBe('dacb');
+    store.arrange(['a', 'c'], 'backward');
+    expect(order(store)).toBe('acdb');
+    store.undo();
+    expect(order(store)).toBe('dacb');
+  });
+
+  it('locks and hides as flags (one undo step each) that picking skips', async () => {
+    const { pickable } = await import('../src/content/store');
+    const store = setup();
+    store.setShapeFlag(['a', 'b'], 'locked', true);
+    store.setShapeFlag(['c'], 'hidden', true);
+    const shapes = store.getState().doc.annotations as Shape[];
+    expect(shapes.map(pickable)).toEqual([false, false, false, true]);
+    store.setShapeFlag(['a'], 'locked', false);
+    expect('locked' in store.getState().doc.annotations[0]!).toBe(false);
+    store.undo();
+    expect((store.getState().doc.annotations[0] as Shape).locked).toBe(true);
+  });
+});

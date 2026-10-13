@@ -369,6 +369,11 @@ export const handoffSchema = {
         point: { $ref: '#/$defs/point' },
         text: str,
         fontSize: num,
+        locked: { type: 'boolean' },
+        hidden: {
+          type: 'boolean',
+          description: 'Hidden from view while reviewing; still part of the feedback.',
+        },
         src: {
           type: 'string',
           description: 'Embedded picture (data:image/… URL, or the original link), kind "image".',

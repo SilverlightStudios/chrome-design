@@ -42,7 +42,8 @@ export type PanelId =
   | 'welcome'
   | 'more'
   | 'settings'
-  | 'screen';
+  | 'screen'
+  | 'layers';
 
 /** Comment being composed (not yet part of the document / history). */
 export interface DraftComment {
@@ -278,6 +279,60 @@ export class EditorStore {
     this.commit((doc) => ({ ...doc, annotations: [...doc.annotations, annotation] }));
   }
 
+  /**
+   * Move drawings up or down the paint order (comments keep their places). `front`/`back`
+   * go all the way; `forward`/`backward` step past the next drawing.
+   */
+  arrange(ids: readonly string[], where: 'front' | 'forward' | 'backward' | 'back'): void {
+    const set = new Set(ids);
+    const shapes = this.state.doc.annotations.filter((a): a is Shape => a.type === 'shape');
+    if (!shapes.some((s) => set.has(s.id))) return;
+    let order = [...shapes];
+    if (where === 'front')
+      order = [...shapes.filter((s) => !set.has(s.id)), ...shapes.filter((s) => set.has(s.id))];
+    else if (where === 'back')
+      order = [...shapes.filter((s) => set.has(s.id)), ...shapes.filter((s) => !set.has(s.id))];
+    else if (where === 'forward') {
+      for (let i = order.length - 2; i >= 0; i--)
+        if (set.has(order[i]!.id) && !set.has(order[i + 1]!.id))
+          [order[i], order[i + 1]] = [order[i + 1]!, order[i]!];
+    } else {
+      for (let i = 1; i < order.length; i++)
+        if (set.has(order[i]!.id) && !set.has(order[i - 1]!.id))
+          [order[i], order[i - 1]] = [order[i - 1]!, order[i]!];
+    }
+    this.setShapeOrder(order.map((s) => s.id));
+  }
+
+  /** Put the drawings in this paint order (back to front); comments keep their places. */
+  setShapeOrder(ids: readonly string[]): void {
+    const byId = new Map(
+      this.state.doc.annotations
+        .filter((a): a is Shape => a.type === 'shape')
+        .map((s) => [s.id, s]),
+    );
+    const order = ids.map((id) => byId.get(id)).filter((s): s is Shape => !!s);
+    if (order.every((s, i) => s.id === [...byId.keys()][i])) return;
+    let next = 0;
+    this.commit((doc) => ({
+      ...doc,
+      annotations: doc.annotations.map((a) => (a.type === 'shape' ? (order[next++] ?? a) : a)),
+    }));
+  }
+
+  /** Lock or hide drawings (one undo step). */
+  setShapeFlag(ids: readonly string[], flag: 'locked' | 'hidden', on: boolean): void {
+    const set = new Set(ids);
+    this.commit((doc) => ({
+      ...doc,
+      annotations: doc.annotations.map((a) => {
+        if (a.type !== 'shape' || !set.has(a.id)) return a;
+        const { [flag]: _old, ...rest } = a;
+        return (on ? { ...rest, [flag]: true } : rest) as Shape;
+      }),
+    }));
+  }
+
   /** Replace several drawings at once (a group moved or resized): one undo step. */
   replaceShapes(shapes: readonly Shape[]): void {
     if (shapes.length === 0) return;
@@ -363,4 +418,9 @@ export function selectedShapes(s: EditorState): Shape[] {
   if (s.tool !== 'select' || s.selectedIds.length === 0) return [];
   const ids = new Set(s.selectedIds);
   return s.doc.annotations.filter((a): a is Shape => a.type === 'shape' && ids.has(a.id));
+}
+
+/** Drawings that can be picked on the page: not locked or hidden. */
+export function pickable(shape: Shape): boolean {
+  return !shape.locked && !shape.hidden;
 }

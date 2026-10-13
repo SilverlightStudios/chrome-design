@@ -88,6 +88,13 @@ export function MorePanel() {
             })
           }
         />
+        {annotations.some((a) => a.type === 'shape') ? (
+          <Tile
+            icon="layers"
+            label="Layers"
+            onClick={() => store.set({ panel: 'layers', panelBack: 'more' })}
+          />
+        ) : null}
         <Tile
           icon="folder"
           label="Open file"

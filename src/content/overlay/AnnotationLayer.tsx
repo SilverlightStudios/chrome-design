@@ -229,7 +229,9 @@ function Selection({ shapes }: { shapes: Shape[] }) {
   };
 
   const isSegment = single?.kind === 'line' || single?.kind === 'arrow';
-  const handles: Handle[] = single ? handlesFor(single) : ['nw', 'ne', 'sw', 'se'];
+  // Locked (picked from Layers): shown selected, but it stays where it is.
+  const locked = shapes.some((s) => s.locked);
+  const handles: Handle[] = locked ? [] : single ? handlesFor(single) : ['nw', 'ne', 'sw', 'se'];
   const handlePos = (h: Handle): Point => {
     if (h === 'from' && (single?.kind === 'line' || single?.kind === 'arrow')) return single.from;
     if (h === 'to' && (single?.kind === 'line' || single?.kind === 'arrow')) return single.to;
@@ -261,6 +263,7 @@ function Selection({ shapes }: { shapes: Shape[] }) {
       <div
         className="sel-frame"
         data-segment={isSegment ? '' : undefined}
+        data-locked={locked ? '' : undefined}
         style={{ left: frame.x, top: frame.y, width: frame.width, height: frame.height }}
         onPointerDown={(e) => {
           const p = toPage(e.clientX, e.clientY);
@@ -306,7 +309,11 @@ function Selection({ shapes }: { shapes: Shape[] }) {
         className="size-pill"
         style={{ left: frame.x + frame.width / 2, top: frame.y + frame.height + 8 }}
       >
-        {single?.kind === 'text' ? 'Label' : `${Math.round(b.width)} × ${Math.round(b.height)}`}
+        {locked
+          ? 'Locked'
+          : single?.kind === 'text'
+            ? 'Label'
+            : `${Math.round(b.width)} × ${Math.round(b.height)}`}
       </div>
     </>
   );
@@ -553,12 +560,13 @@ export function AnnotationLayer() {
         <div
           key={r.id}
           className="redact-box"
+          data-hidden={r.hidden ? '' : undefined}
           style={{ left: r.rect.x, top: r.rect.y, width: r.rect.width, height: r.rect.height }}
         />
       ))}
       <svg className="shape-layer" width="1" height="1" aria-hidden="true">
         {shapes.map((shape) => {
-          if (erasing.includes(shape.id) || shape.id === editingTextId) return null;
+          if (shape.hidden || erasing.includes(shape.id) || shape.id === editingTextId) return null;
           return <ShapeView key={shape.id} shape={shape} />;
         })}
         {preview && <ShapeView shape={preview} />}

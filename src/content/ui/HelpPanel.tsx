@@ -28,6 +28,8 @@ const SECTIONS: { title: string; rows: [string, string][] }[] = [
       ['Arrows', 'Nudge a drawing (⇧ for 10)'],
       [`${mod}C ${mod}V`, 'Copy and paste drawings'],
       [`${mod}D · ⌥ drag`, 'Duplicate'],
+      [`${mod}] ${mod}[`, 'Bring forward · send backward (⌥ for all the way)'],
+      [`⇧${mod}L · ⇧${mod}H`, 'Lock · hide the selection'],
       [`⇧ click · ${mod}A`, 'Select several · all drawings'],
       ['⇧ drag', 'Straight lines and perfect squares'],
       ['⌥ hover', 'Show spacing between things'],

@@ -97,7 +97,11 @@ function pinMarkup(thread: CommentThread, annotations: readonly Annotation[]): s
 
 /** Static SVG overlay (page coordinates) shown above the snapshot in the exported viewer. */
 export function renderOverlaySvg(annotations: Annotation[], width: number, height: number): string {
-  const shapes = annotations.filter(isShape).map(shapeToSvg).join('');
+  const shapes = annotations
+    .filter(isShape)
+    .filter((s) => !s.hidden || s.kind === 'redact')
+    .map(shapeToSvg)
+    .join('');
   const comments = annotations.filter(isComment).toSorted((a, b) => a.number - b.number);
   const targets = comments.map((c) => targetMarkup(c, annotations)).join('');
   const pins = comments.map((c) => pinMarkup(c, annotations)).join('');

@@ -36,6 +36,7 @@ import { FeedbackPanel } from './FeedbackPanel';
 import { GridPanel } from './GridPanel';
 import { HelpPanel } from './HelpPanel';
 import { Icon, type IconName } from './icons';
+import { LayersPanel } from './LayersPanel';
 import { MorePanel } from './MorePanel';
 import { ScreenPanel } from './ScreenPanel';
 import { SettingsPanel } from './SettingsPanel';
@@ -122,6 +123,18 @@ const SHAPE_META = Object.fromEntries(SHAPES.map((s) => [s.id, s])) as Record<
 
 const WIDTHS = [2, 3, 5, 8];
 
+const ARRANGE: {
+  where: 'front' | 'forward' | 'backward' | 'back';
+  label: string;
+  icon: IconName;
+  kbd: string;
+}[] = [
+  { where: 'front', label: 'Bring to front', icon: 'toFront', kbd: '⌥⌘]' },
+  { where: 'forward', label: 'Bring forward', icon: 'forward', kbd: '⌘]' },
+  { where: 'backward', label: 'Send backward', icon: 'backward', kbd: '⌘[' },
+  { where: 'back', label: 'Send to back', icon: 'toBack', kbd: '⌥⌘[' },
+];
+
 /** Closes a flyout when the pointer goes down anywhere outside it (shadow-DOM aware). */
 function useDismiss(open: boolean, inside: React.RefObject<HTMLElement | null>, close: () => void) {
   const closeRef = useRef(close);
@@ -165,7 +178,8 @@ function StyleBar({ placement }: { placement: 'up' | 'down' }) {
   /** One selected drawing (Comment works on one at a time). */
   const selected = picked.length === 1 ? picked[0] : undefined;
   const shown = (picked.find((a) => a.kind !== 'image') ?? selected)?.style ?? style;
-  const [popover, setPopover] = useState<'color' | 'stroke' | null>(null);
+  const allLocked = picked.length > 0 && picked.every((a) => a.locked);
+  const [popover, setPopover] = useState<'color' | 'stroke' | 'arrange' | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(popover !== null, ref, () => setPopover(null));
 
@@ -253,7 +267,73 @@ function StyleBar({ placement }: { placement: 'up' | 'down' }) {
               </div>
             ),
           }
-        : null;
+        : popover === 'arrange'
+          ? {
+              owner: 'arrange',
+              label: 'Arrange',
+              content: (
+                <div className="shape-menu" role="menu" aria-label="Arrange">
+                  {ARRANGE.map((item) => {
+                    const Glyph = Icon[item.icon];
+                    return (
+                      <button
+                        key={item.where}
+                        type="button"
+                        role="menuitem"
+                        className="menu-item"
+                        onClick={() => {
+                          store.arrange(
+                            picked.map((a) => a.id),
+                            item.where,
+                          );
+                          setPopover(null);
+                        }}
+                      >
+                        <Glyph />
+                        <span>{item.label}</span>
+                        <kbd>{item.kbd}</kbd>
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="menu-item"
+                    onClick={() => {
+                      store.setShapeFlag(
+                        picked.map((a) => a.id),
+                        'locked',
+                        !allLocked,
+                      );
+                      setPopover(null);
+                    }}
+                  >
+                    {allLocked ? <Icon.unlock /> : <Icon.lock />}
+                    <span>{allLocked ? 'Unlock' : 'Lock'}</span>
+                    <kbd>⇧⌘L</kbd>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="menu-item"
+                    onClick={() => {
+                      store.setShapeFlag(
+                        picked.map((a) => a.id),
+                        'hidden',
+                        true,
+                      );
+                      store.set({ selectedIds: [] });
+                      setPopover(null);
+                    }}
+                  >
+                    <Icon.eyeOff />
+                    <span>Hide</span>
+                    <kbd>⇧⌘H</kbd>
+                  </button>
+                </div>
+              ),
+            }
+          : null;
 
   // A picture has no colour or stroke to set.
   const styled =
@@ -320,6 +400,17 @@ function StyleBar({ placement }: { placement: 'up' | 'down' }) {
               kbd="⌘D"
               onClick={() => duplicateSelection(store)}
             />
+            <button
+              type="button"
+              className="tb-btn"
+              data-tip="Arrange"
+              data-menu="arrange"
+              aria-label="Arrange"
+              aria-expanded={popover === 'arrange'}
+              onClick={() => setPopover(popover === 'arrange' ? null : 'arrange')}
+            >
+              <Icon.more />
+            </button>
             <ToolButton
               icon="trash"
               label="Delete"
@@ -355,10 +446,11 @@ const PANELS: Record<Exclude<PanelId, 'none'>, { label: string; render: () => Re
   welcome: { label: 'Welcome', render: () => <WelcomePanel /> },
   settings: { label: 'Settings', render: () => <SettingsPanel /> },
   screen: { label: 'Screen size', render: () => <ScreenPanel /> },
+  layers: { label: 'Layers', render: () => <LayersPanel /> },
 };
 
 /** Panels reached from More; the More button stays lit and closes them. */
-const MORE_CHILDREN = new Set<PanelId>(['list', 'grid', 'help', 'settings', 'screen']);
+const MORE_CHILDREN = new Set<PanelId>(['list', 'grid', 'help', 'settings', 'screen', 'layers']);
 
 const skipOwnUi = (el: Element) => el.localName === HOST_TAG;
 

@@ -10,6 +10,7 @@ import {
   type EditorState,
   type EditorStore,
   isShapeTool,
+  pickable,
   selectedShapes,
 } from './store';
 
@@ -72,11 +73,37 @@ export function handleShortcut(
     store.redo();
     return true;
   }
+  // Paint order: ⌘] / ⌘[ step, with ⌥ all the way (Figma).
+  if (mod && (event.code === 'BracketRight' || event.code === 'BracketLeft')) {
+    const ids = selectedShapes(s).map((a) => a.id);
+    if (ids.length === 0) return false;
+    const up = event.code === 'BracketRight';
+    store.arrange(
+      ids,
+      up ? (event.altKey ? 'front' : 'forward') : event.altKey ? 'back' : 'backward',
+    );
+    return true;
+  }
+  // ⇧⌘L locks / unlocks, ⇧⌘H hides the selected drawings.
+  if (mod && event.shiftKey && (lower === 'l' || lower === 'h')) {
+    const shapes = selectedShapes(s);
+    if (shapes.length === 0) return false;
+    const ids = shapes.map((a) => a.id);
+    if (lower === 'l') store.setShapeFlag(ids, 'locked', !shapes.every((a) => a.locked));
+    else {
+      store.setShapeFlag(ids, 'hidden', true);
+      store.set({ selectedIds: [] });
+    }
+    return true;
+  }
   // Duplicate the selected drawings.
   if (mod && lower === 'd' && !event.shiftKey) return duplicateSelection(store);
   // Select every drawing on the page.
   if (mod && lower === 'a') {
-    const ids = s.doc.annotations.filter(isShape).map((a) => a.id);
+    const ids = s.doc.annotations
+      .filter(isShape)
+      .filter(pickable)
+      .map((a) => a.id);
     if (ids.length === 0) return false;
     store.set({ tool: 'select', selectedIds: ids, pickedEl: null, pickedRegion: null });
     return true;

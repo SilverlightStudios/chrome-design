@@ -121,6 +121,10 @@ interface ShapeBase {
   type: 'shape';
   style: ShapeStyle;
   createdAt: string;
+  /** Can't be picked or moved on the page (unlock it from Layers). */
+  locked?: boolean;
+  /** Not shown while reviewing (still part of the handoff). */
+  hidden?: boolean;
 }
 
 export interface PenShape extends ShapeBase {

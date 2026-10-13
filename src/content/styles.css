@@ -279,6 +279,10 @@ svg {
 .hover-box {
   stroke-opacity: 0.45;
 }
+.sel-frame[data-locked] {
+  pointer-events: none;
+  border-style: dashed;
+}
 /* A blurred box hides private content; in screenshots it's solid so nothing shows through. */
 .redact-box {
   position: absolute;
@@ -290,6 +294,13 @@ svg {
   backdrop-filter: blur(14px) saturate(0.5);
   outline: 1px solid hsl(220 9% 46% / 0.5);
   outline-offset: -1px;
+}
+.redact-box[data-hidden] {
+  display: none;
+}
+/* A hidden blur still covers what it hides in every picture taken. */
+:host([data-capturing]) .redact-box[data-hidden] {
+  display: block;
 }
 :host([data-capturing]) .redact-box {
   background: hsl(220 9% 62%);
@@ -444,6 +455,82 @@ svg {
   align-items: center;
   gap: 6px;
   min-height: 28px;
+}
+/* Layers: rows are placed absolutely so a dragged row can slide past the others. */
+.layer-list {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.layer-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 12px;
+  transition:
+    translate var(--duration-settle) var(--ease-settle),
+    background-color var(--duration) var(--ease);
+}
+.layer-row[data-selected] {
+  background: var(--accent-soft);
+}
+.layer-row[data-hidden] .layer-name {
+  opacity: 0.45;
+}
+.layer-row[data-dragging] {
+  z-index: 1;
+  background: var(--raised);
+  box-shadow: 0 10px 24px -10px hsl(0 0% 0% / 0.45);
+  transition: background-color var(--duration) var(--ease);
+}
+.layer-grip {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-faint);
+  cursor: grab;
+  touch-action: none;
+}
+.layer-grip svg {
+  width: 16px;
+  height: 16px;
+}
+.layer-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: 500 13.5px var(--font);
+  text-align: left;
+}
+.layer-name svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--ink-muted);
+}
+.layer-name small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-faint);
+  font-size: 12px;
 }
 .screen-readout {
   margin: 0 0 10px;
@@ -3922,6 +4009,18 @@ details.options .checks {
   .ai-eraser[data-play] .p {
     animation: ai-rub 0.5s var(--ai-in-out);
   }
+  .ai-eye[data-play] .p {
+    animation: ai-look 0.5s var(--ai-in-out);
+  }
+  .ai-lock[data-play] .p {
+    animation: ai-hop 0.4s var(--ai-in-out);
+  }
+  .ai-layers[data-play] .l1 {
+    animation: ai-hop 0.4s var(--ai-in-out);
+  }
+  .ai-layers[data-play] .l3 {
+    animation: ai-sink 0.4s var(--ai-in-out);
+  }
   .ai-device[data-play] .p {
     transform-box: fill-box;
     transform-origin: 50% 100%;
@@ -4190,6 +4289,19 @@ details.options .checks {
   }
   75% {
     rotate: 4deg;
+  }
+}
+@keyframes ai-look {
+  30% {
+    translate: -1.5px 0;
+  }
+  70% {
+    translate: 1.5px 0;
+  }
+}
+@keyframes ai-sink {
+  45% {
+    translate: 0 2px;
   }
 }
 @keyframes ai-hop {

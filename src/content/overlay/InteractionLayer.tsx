@@ -15,7 +15,7 @@ import { spotIn } from '../../shared/targets';
 import { addCopies, cloneShapes } from '../clipboard';
 import { useEditor, useEnv } from '../context';
 import { capturePointer, elementsInRect, pickElement, releasePointer, toPage } from '../dom';
-import type { EditorStore } from '../store';
+import { type EditorStore, pickable } from '../store';
 
 type Gesture =
   | {
@@ -38,7 +38,7 @@ const LONG_PRESS_MS = 450;
 function shapesInside(store: EditorStore, r: Rect): string[] {
   return store
     .getState()
-    .doc.annotations.filter((a): a is Shape => isShape(a))
+    .doc.annotations.filter((a): a is Shape => isShape(a) && pickable(a))
     .filter((s) => {
       const b = shapeBounds(s);
       return (
@@ -56,7 +56,8 @@ function toggled(ids: readonly string[], id: string): string[] {
 }
 
 export function hitShape(store: EditorStore, p: Point, tolerance = 6): Shape | null {
-  const shapes = store.getState().doc.annotations.filter(isShape);
+  // Locked and hidden drawings let clicks through to the page.
+  const shapes = store.getState().doc.annotations.filter(isShape).filter(pickable);
   for (let i = shapes.length - 1; i >= 0; i--) {
     const shape = shapes[i]!;
     if (hitTestShape(shape, p, tolerance)) return shape;
@@ -115,7 +116,8 @@ export function InteractionLayer() {
   const erase = (p: Point) => {
     const s = store.getState();
     const hits = s.doc.annotations.filter(
-      (a): a is Shape => isShape(a) && !s.erasing.includes(a.id) && hitTestShape(a, p, 10),
+      (a): a is Shape =>
+        isShape(a) && pickable(a) && !s.erasing.includes(a.id) && hitTestShape(a, p, 10),
     );
     if (hits.length) store.set({ erasing: [...s.erasing, ...hits.map((h) => h.id)] });
   };

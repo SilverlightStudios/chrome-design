@@ -184,6 +184,78 @@ export const Icon = {
       </g>
     </Svg>
   ),
+  // Lucide eye: the pupil looks around.
+  eye: () => (
+    <Svg name="eye">
+      <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+      <circle className="p" cx="12" cy="12" r="3" />
+    </Svg>
+  ),
+  // Lucide lock / lock-open: the shackle drops shut or lifts.
+  lock: () => (
+    <Svg name="lock">
+      <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+      <path className="p" d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </Svg>
+  ),
+  unlock: () => (
+    <Svg name="lock">
+      <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+      <path className="p" d="M7 11V7a5 5 0 0 1 9.9-1" />
+    </Svg>
+  ),
+  // Lucide layers: the sheets spread.
+  layers: () => (
+    <Svg name="layers">
+      <path
+        className="l1"
+        d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"
+      />
+      <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" />
+      <path
+        className="l3"
+        d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"
+      />
+    </Svg>
+  ),
+  // Lucide chevrons-up / chevron-up / chevron-down / chevrons-down: paint order.
+  toFront: () => (
+    <Svg name="chevron">
+      <g className="p">
+        <path d="m17 11-5-5-5 5" />
+        <path d="m17 18-5-5-5 5" />
+      </g>
+    </Svg>
+  ),
+  forward: () => (
+    <Svg name="chevron">
+      <path className="p" d="m18 15-6-6-6 6" />
+    </Svg>
+  ),
+  backward: () => (
+    <Svg name="chevron">
+      <path className="p" d="m6 9 6 6 6-6" />
+    </Svg>
+  ),
+  toBack: () => (
+    <Svg name="chevron">
+      <g className="p">
+        <path d="m7 6 5 5 5-5" />
+        <path d="m7 13 5 5 5-5" />
+      </g>
+    </Svg>
+  ),
+  // Lucide grip-vertical: a handle to drag a row.
+  grip: () => (
+    <Svg name="grip">
+      <circle cx="9" cy="12" r="1" />
+      <circle cx="9" cy="5" r="1" />
+      <circle cx="9" cy="19" r="1" />
+      <circle cx="15" cy="12" r="1" />
+      <circle cx="15" cy="5" r="1" />
+      <circle cx="15" cy="19" r="1" />
+    </Svg>
+  ),
   // Lucide eye-off: the slash draws across.
   eyeOff: () => (
     <Svg name="eye-off">
