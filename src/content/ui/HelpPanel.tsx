@@ -12,7 +12,7 @@ const SECTIONS: { title: string; rows: [string, string][] }[] = [
       ['V', 'Select'],
       ['C', 'Comment'],
       ['P', 'Pencil'],
-      ['R O A L', 'Rectangle · Ellipse · Arrow · Line'],
+      ['R O A L B', 'Rectangle · Ellipse · Arrow · Line · Blur'],
       ['T', 'Text'],
       [`⇧${mod}K`, 'Place an image (or drop / paste one)'],
       ['E', 'Eraser'],

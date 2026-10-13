@@ -18,9 +18,17 @@ import { findShape, pointIn } from '../shared/targets';
 
 /** `browse` leaves the page fully interactive (no capture layer). */
 export type ToolId = 'browse' | 'select' | 'comment' | 'draw';
-export type DrawToolId = 'pen' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'text' | 'eraser';
-export type ShapeToolId = 'rect' | 'ellipse' | 'line' | 'arrow';
-export const SHAPE_TOOLS: ShapeToolId[] = ['rect', 'ellipse', 'line', 'arrow'];
+export type DrawToolId =
+  | 'pen'
+  | 'line'
+  | 'arrow'
+  | 'rect'
+  | 'ellipse'
+  | 'text'
+  | 'eraser'
+  | 'redact';
+export type ShapeToolId = 'rect' | 'ellipse' | 'line' | 'arrow' | 'redact';
+export const SHAPE_TOOLS: ShapeToolId[] = ['rect', 'ellipse', 'line', 'arrow', 'redact'];
 
 export function isShapeTool(tool: DrawToolId): tool is ShapeToolId {
   return (SHAPE_TOOLS as string[]).includes(tool);

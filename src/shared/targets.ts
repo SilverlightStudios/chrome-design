@@ -51,6 +51,8 @@ export function shapeLabel(shape: Shape): string {
   switch (shape.kind) {
     case 'image':
       return 'Image';
+    case 'redact':
+      return 'Hidden area';
     case 'text':
       return 'Text label';
     case 'pen':

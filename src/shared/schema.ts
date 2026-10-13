@@ -348,7 +348,7 @@ export const handoffSchema = {
       properties: {
         id: str,
         type: { const: 'shape' },
-        kind: { enum: ['pen', 'line', 'arrow', 'rect', 'ellipse', 'text', 'image'] },
+        kind: { enum: ['pen', 'line', 'arrow', 'rect', 'ellipse', 'text', 'image', 'redact'] },
         style: { $ref: '#/$defs/style' },
         createdAt: isoDate,
         points: { type: 'array', items: { $ref: '#/$defs/point' } },
@@ -381,7 +381,7 @@ export const handoffSchema = {
           then: { required: ['from', 'to'] },
         },
         {
-          if: { properties: { kind: { enum: ['rect', 'ellipse'] } } },
+          if: { properties: { kind: { enum: ['rect', 'ellipse', 'redact'] } } },
           then: { required: ['rect'] },
         },
         {

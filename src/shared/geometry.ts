@@ -116,6 +116,7 @@ export function shapeBounds(shape: Shape): Rect {
     case 'rect':
     case 'ellipse':
     case 'image':
+    case 'redact':
       return shape.rect;
     case 'text': {
       const lines = shape.text.split('\n');
@@ -172,6 +173,7 @@ export function hitTestShape(shape: Shape, p: Point, tolerance: number): boolean
     case 'text':
       return rectContains(shapeBounds(shape), p, tolerance);
     case 'image':
+    case 'redact':
       return rectContains(shape.rect, p, tolerance);
   }
 }
@@ -187,6 +189,7 @@ export function translateShape<T extends Shape>(shape: T, dx: number, dy: number
     case 'rect':
     case 'ellipse':
     case 'image':
+    case 'redact':
       return { ...shape, rect: { ...shape.rect, x: shape.rect.x + dx, y: shape.rect.y + dy } };
     case 'text':
       return { ...shape, point: move(shape.point) };
@@ -247,7 +250,12 @@ export function resizeShape<T extends Shape>(
     };
   }
   const next = rectFromPoints(anchor, end);
-  if (shape.kind === 'rect' || shape.kind === 'ellipse' || shape.kind === 'image')
+  if (
+    shape.kind === 'rect' ||
+    shape.kind === 'ellipse' ||
+    shape.kind === 'image' ||
+    shape.kind === 'redact'
+  )
     return { ...shape, rect: next };
   if (shape.kind !== 'pen') return shape;
   // Freehand: map every point from the old bounds into the new box.
@@ -311,7 +319,8 @@ export function transformShape<T extends Shape>(shape: T, from: Rect, to: Rect):
       return { ...shape, from: map(shape.from), to: map(shape.to) };
     case 'rect':
     case 'ellipse':
-    case 'image': {
+    case 'image':
+    case 'redact': {
       const a = map({ x: shape.rect.x, y: shape.rect.y });
       return {
         ...shape,

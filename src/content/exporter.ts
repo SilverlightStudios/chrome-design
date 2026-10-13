@@ -16,6 +16,7 @@ import type { ExportOptions, ExportStatus } from './context';
 import { containerOfRect, elementsInRect, overlappedChildren } from './dom';
 import { backgroundFetcher, captureVisibleTab, hasExtensionRuntime } from './ext';
 import type { HandoffData } from './handoff';
+import { hiddenUnder, maskAnchors, redactRects } from './redact';
 import { getRuntimeSource } from './runtime';
 import type { EditorStore } from './store';
 
@@ -304,8 +305,10 @@ export async function runExport(
   try {
     const s = store.getState();
     onStatus({ phase: 'working', label: 'Reading stylesheets…' });
-    const doc = withPlacements(await embedLinkedImages(s.doc));
+    const boxes = redactRects(s.doc);
+    const doc = maskAnchors(withPlacements(await embedLinkedImages(s.doc)), boxes);
     const anchors = doc.annotations.flatMap(anchorsOf);
+    const hidden = boxes.length ? hiddenUnder(boxes, skipFor(host)) : undefined;
     const progress = (stage: string, detail?: string) =>
       onStatus({
         phase: 'working',
@@ -319,6 +322,7 @@ export async function runExport(
           includeSource: false,
           meta: handoff.payload.page,
           onProgress: progress,
+          ...(hidden ? { hidden } : {}),
         })
       : await capturePage({
           skip: skipFor(host),
@@ -326,6 +330,7 @@ export async function runExport(
           fetchers: [pageFetcher, backgroundFetcher],
           includeSource: options.includeSource,
           onProgress: progress,
+          ...(hidden ? { hidden } : {}),
           ...(options.includeScreenshot
             ? {
                 screenshot: async () => {
@@ -358,6 +363,15 @@ export async function runExport(
         onStatus({ phase: 'working', label: `Taking screenshot… ${done}/${total}` }),
       ).catch(() => null);
       if (full) capture.fullPage = full;
+    }
+    if (boxes.length) {
+      // The page code is the unsanitized original: with parts hidden, it stays out.
+      if (capture.sourceHtml)
+        capture.warnings.push({
+          code: 'source-left-out',
+          message: 'The page code was left out because parts of the page are hidden.',
+        });
+      capture.sourceHtml = '';
     }
     onStatus({ phase: 'working', label: 'Building file…' });
     const runtime = await getRuntimeSource();

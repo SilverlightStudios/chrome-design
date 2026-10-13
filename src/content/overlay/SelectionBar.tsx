@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { buildAnchor } from '../../capture/anchor';
-import type { Rect } from '../../shared/model';
+import { createId, nowIso } from '../../shared/ids';
+import type { Rect, RedactShape } from '../../shared/model';
 import { useEditor, useEnv, useViewport } from '../context';
 import { friendlyLabel, friendlyName } from '../describe';
 import { copyText, rgbToHex, toPage } from '../dom';
@@ -87,6 +88,21 @@ export function SelectionBar() {
   };
   const parent =
     el?.parentElement && el.parentElement !== document.documentElement ? el.parentElement : null;
+  // Cover it with a blurred box: hidden in screenshots, its text and pictures left out of the
+  // handoff. The box is selected so it can be adjusted or deleted.
+  const hide = () => {
+    const box = region ?? { ...toPage(r.x, r.y), width: r.width, height: r.height };
+    const shape: RedactShape = {
+      id: createId('s'),
+      type: 'shape',
+      kind: 'redact',
+      rect: { x: box.x - 2, y: box.y - 2, width: box.width + 4, height: box.height + 4 },
+      style: { ...store.getState().style },
+      createdAt: nowIso(),
+    };
+    store.addAnnotation(shape);
+    store.set({ selectedIds: [shape.id], pickedEl: null, pickedRegion: null, hoverEl: null });
+  };
 
   return (
     <div
@@ -103,6 +119,15 @@ export function SelectionBar() {
       </span>
       <button type="button" className="chip-btn" onClick={comment}>
         <Icon.comment /> Comment
+      </button>
+      <button
+        type="button"
+        className="icon-btn"
+        aria-label="Hide"
+        title="Hide (blur)"
+        onClick={hide}
+      >
+        <Icon.eyeOff />
       </button>
       {el ? (
         <>

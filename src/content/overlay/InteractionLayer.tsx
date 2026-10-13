@@ -219,11 +219,14 @@ export function InteractionLayer() {
           preview = { ...base, kind: s.drawTool, from: p, to: p };
           break;
         default:
-          preview = {
-            ...base,
-            kind: s.drawTool === 'ellipse' ? 'ellipse' : 'rect',
-            rect: { x: p.x, y: p.y, width: 0, height: 0 },
-          };
+          preview =
+            s.drawTool === 'redact'
+              ? { ...base, kind: 'redact', rect: { x: p.x, y: p.y, width: 0, height: 0 } }
+              : {
+                  ...base,
+                  kind: s.drawTool === 'ellipse' ? 'ellipse' : 'rect',
+                  rect: { x: p.x, y: p.y, width: 0, height: 0 },
+                };
       }
       store.set({ preview });
     }
@@ -289,7 +292,11 @@ export function InteractionLayer() {
           store.set({ preview: { ...preview, points: [...preview.points, ...pts] } });
         } else if (preview.kind === 'line' || preview.kind === 'arrow') {
           store.set({ preview: { ...preview, to: e.shiftKey ? snapAngle(g.start, p) : p } });
-        } else if (preview.kind === 'rect' || preview.kind === 'ellipse') {
+        } else if (
+          preview.kind === 'rect' ||
+          preview.kind === 'ellipse' ||
+          preview.kind === 'redact'
+        ) {
           const end = e.shiftKey ? squareFrom(g.start, p) : p;
           store.set({ preview: { ...preview, rect: rectFromPoints(g.start, end) } });
         }
@@ -368,7 +375,11 @@ export function InteractionLayer() {
         } else if (preview.kind === 'line' || preview.kind === 'arrow') {
           if (Math.hypot(preview.to.x - preview.from.x, preview.to.y - preview.from.y) >= 4)
             shape = preview;
-        } else if (preview.kind === 'rect' || preview.kind === 'ellipse') {
+        } else if (
+          preview.kind === 'rect' ||
+          preview.kind === 'ellipse' ||
+          preview.kind === 'redact'
+        ) {
           if (preview.rect.width >= 4 && preview.rect.height >= 4) shape = preview;
         }
         if (!shape) return;

@@ -112,6 +112,7 @@ const SHAPES: { id: ShapeToolId; icon: IconName; label: string; kbd: string }[] 
   { id: 'ellipse', icon: 'ellipse', label: 'Ellipse', kbd: 'O' },
   { id: 'arrow', icon: 'arrow', label: 'Arrow', kbd: 'A' },
   { id: 'line', icon: 'line', label: 'Line', kbd: 'L' },
+  { id: 'redact', icon: 'eyeOff', label: 'Blur', kbd: 'B' },
 ];
 const SHAPE_META = Object.fromEntries(SHAPES.map((s) => [s.id, s])) as Record<
   ShapeToolId,
@@ -139,6 +140,9 @@ function useDismiss(open: boolean, inside: React.RefObject<HTMLElement | null>, 
     return () => window.removeEventListener('pointerdown', onDown, true);
   }, [open, inside]);
 }
+
+/** Pictures and blurred boxes have no colour or stroke to set. */
+const plain = (k: Shape['kind']) => k === 'image' || k === 'redact';
 
 /**
  * The contextual style bar (Figma's properties, in a capsule): colour, stroke, eraser,
@@ -251,7 +255,10 @@ function StyleBar({ placement }: { placement: 'up' | 'down' }) {
         : null;
 
   // A picture has no colour or stroke to set.
-  const styled = picked.length === 0 || picked.some((a) => a.kind !== 'image');
+  const styled =
+    picked.length === 0
+      ? !(tool === 'draw' && drawTool === 'redact')
+      : picked.some((a) => !plain(a.kind));
 
   return (
     <div ref={ref}>

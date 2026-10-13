@@ -279,6 +279,23 @@ svg {
 .hover-box {
   stroke-opacity: 0.45;
 }
+/* A blurred box hides private content; in screenshots it's solid so nothing shows through. */
+.redact-box {
+  position: absolute;
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(-45deg, hsl(0 0% 100% / 0.14) 0 6px, transparent 6px 12px),
+    color-mix(in oklab, hsl(220 9% 58%), transparent 40%);
+  -webkit-backdrop-filter: blur(14px) saturate(0.5);
+  backdrop-filter: blur(14px) saturate(0.5);
+  outline: 1px solid hsl(220 9% 46% / 0.5);
+  outline-offset: -1px;
+}
+:host([data-capturing]) .redact-box {
+  background: hsl(220 9% 62%);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
 /* Each drawing in a group selection gets a thin outline inside the group frame. */
 .multi-box {
   fill: none;
@@ -3861,6 +3878,10 @@ details.options .checks {
   }
   .ai-eraser[data-play] .p {
     animation: ai-rub 0.5s var(--ai-in-out);
+  }
+  .ai-eye-off[data-play] .s {
+    stroke-dasharray: 1;
+    animation: ai-draw 0.4s var(--ai-out);
   }
   .ai-copy[data-play] .front {
     animation: ai-slide-copy 0.45s var(--ai-in-out);

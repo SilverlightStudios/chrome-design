@@ -535,6 +535,29 @@ test('images dropped on a strict-CSP page are placed, shown and kept', async () 
   const full = handoffJson.blocks.fullPage;
   expect(full.height / full.scale).toBeGreaterThan(2300);
   await page.keyboard.press('Escape');
+
+  // Hide the heading with a blurred box: the download keeps none of its text.
+  await page.keyboard.press('b');
+  const title = (await page.locator('#title').boundingBox())!;
+  await page.mouse.move(title.x - 4, title.y - 4);
+  await page.mouse.down();
+  await page.mouse.move(title.x + title.width + 4, title.y + title.height + 4, { steps: 4 });
+  await page.mouse.up();
+  await expect(ui.locator('.redact-box')).toHaveCount(1);
+  await page.keyboard.press('Shift+E');
+  const [hiddenDownload] = await Promise.all([
+    page.waitForEvent('download', { timeout: 20_000 }),
+    ui.locator('[data-testid="cd-export-download"]').click(),
+  ]);
+  const hiddenPath = resolve(root, 'test-results/csp-hidden.html');
+  await hiddenDownload.saveAs(hiddenPath);
+  const hiddenHtml = readFileSync(hiddenPath, 'utf8');
+  expect(hiddenHtml).not.toContain('Strict CSP');
+  expect(hiddenHtml).toContain('•••••• •••');
+  expect(hiddenHtml).toContain('HIDDEN AREA');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+z');
+  await expect(ui.locator('.redact-box')).toHaveCount(0);
   // Undo takes it away in one step.
   await page.keyboard.press('ControlOrMeta+z');
   await expect(placed).toHaveCount(0);

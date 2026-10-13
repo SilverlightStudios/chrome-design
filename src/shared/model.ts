@@ -87,7 +87,7 @@ export interface CommentThread {
   updatedAt: string;
 }
 
-export type ShapeKind = 'pen' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'text' | 'image';
+export type ShapeKind = 'pen' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'text' | 'image' | 'redact';
 
 export interface ShapeStyle {
   color: string;
@@ -163,7 +163,16 @@ export interface ImageIndexEntry {
   embedded: boolean;
 }
 
-export type Shape = PenShape | SegmentShape | BoxShape | TextShape | ImageShape;
+/**
+ * A blurred box: hides what's under it (private data) from screenshots and the handoff. In the
+ * page copy the text beneath is replaced with dots and pictures are taken out.
+ */
+export interface RedactShape extends ShapeBase {
+  kind: 'redact';
+  rect: Rect;
+}
+
+export type Shape = PenShape | SegmentShape | BoxShape | TextShape | ImageShape | RedactShape;
 export type Annotation = CommentThread | Shape;
 
 export interface Guide {
@@ -233,6 +242,7 @@ export type WarningCode =
   | 'media-flattened'
   | 'closed-shadow-root'
   | 'screenshot-unavailable'
+  | 'source-left-out'
   | 'size-budget-exceeded';
 
 export interface CaptureWarning {

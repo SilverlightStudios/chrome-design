@@ -107,6 +107,9 @@ function describeShape(
     .map((c) => `#${c.number}`);
   const near = nearbyComments(b, comments, annotations);
   const nearText = `${own.length ? `; comment ${own.join(', ')} ${own.length === 1 ? 'is' : 'are'} on it` : ''}${near.length ? `; near comment ${near.join(', ')}` : ''}`;
+  if (shape.kind === 'redact') {
+    return `- HIDDEN AREA ${box}: the designer hid this for privacy (text under it is replaced with •, pictures with grey boxes). Not a design change; leave that content as it is.`;
+  }
   if (shape.kind === 'image') {
     const file = imageFileFor(images, (e) => e.annotationId === shape.id);
     const lines = [`- PLACED IMAGE ${file || shape.name} ("${shape.name}"), ${box}${nearText}`];
@@ -231,6 +234,7 @@ export function buildAgentPrompt(
     '   - HOW it should look: layout, content, hierarchy, colours, type and states visible in the picture. Match the page’s existing design system (fonts, colours, spacing, components) rather than copying the screenshot’s pixels, unless told to.',
     '   - WHERE it goes: where it was dropped. `placement.inside` is the page element that contains it (the section or container it belongs in) and `placement.covers` are the elements under it, most covered first (what it may replace or sit next to). Use those, the coordinates and nearby comments to decide whether it replaces, goes next to, or is inserted between existing content.',
     '   - Never paste the screenshot itself into the page as an <img> unless a comment asks for that; build it in HTML/CSS.',
+    '   Grey HIDDEN AREAS (shape kind "redact") are privacy blurs, not design feedback: the content under them is masked in this copy; keep the real content as it is.',
     '5. IMAGES ATTACHED TO COMMENTS (`messages[].attachments`) illustrate that comment: an example, a mockup or the asset to use. A comment can also be ON a placed image or drawing (`target.type: "shape"`, `target.shapeId`): it is about that picture or mark specifically.',
     '6. Revise the page to implement every OPEN "change" request. Every "decision" is a binding constraint that must stay true. Answer every "question" in your reply. "note" items are context. Resolved threads are history: keep them true but do not redo them.',
     '7. Preserve everything the designer did not ask to change: content, layout, responsive behaviour, accessibility and visual style.',

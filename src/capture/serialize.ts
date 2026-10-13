@@ -79,6 +79,46 @@ export interface SnapshotContext {
   meta: { url: string; capturedAt: string };
   report: SanitizeReport;
   warnings: CaptureWarning[];
+  /** What the designer hid (under blurred boxes): text written as dots, pictures left out. */
+  hidden?: HiddenParts;
+}
+
+export interface HiddenParts {
+  text: ReadonlySet<Node>;
+  elements: ReadonlySet<Element>;
+}
+
+/** Every visible character as a dot, so the layout keeps its shape but the words are gone. */
+export function maskText(text: string): string {
+  return text.replace(/\S/gu, '•');
+}
+
+const HIDDEN_MEDIA = new Set([
+  'img',
+  'svg',
+  'canvas',
+  'video',
+  'picture',
+  'iframe',
+  'object',
+  'embed',
+]);
+const HIDDEN_ATTRS = [
+  'alt',
+  'title',
+  'aria-label',
+  'placeholder',
+  'href',
+  'srcset',
+  'data-cd-original-src',
+];
+
+/** A hidden picture: an empty grey box the same size, so nothing beneath shifts. */
+function emitHiddenBox(el: Element, out: string[]): void {
+  const r = el.getBoundingClientRect();
+  out.push(
+    `<div data-cd-hidden style="display:inline-block;vertical-align:middle;width:${Math.round(r.width)}px;height:${Math.round(r.height)}px;background:#9ca3af;border-radius:4px"></div>`,
+  );
 }
 
 export function serializeSnapshot(ctx: SnapshotContext): string {
@@ -98,7 +138,11 @@ function emitNode(node: Node, ctx: SnapshotContext, out: string[]): void {
       emitElement(node as Element, ctx, out);
       break;
     case 3:
-      out.push(escapeText(node.nodeValue ?? ''));
+      out.push(
+        escapeText(
+          ctx.hidden?.text.has(node) ? maskText(node.nodeValue ?? '') : (node.nodeValue ?? ''),
+        ),
+      );
       break;
     default:
       // Comments, processing instructions and CDATA are dropped.
@@ -197,9 +241,23 @@ function emitElement(el: Element, ctx: SnapshotContext, out: string[]): void {
     }
   }
 
+  const hiddenEl = ctx.hidden?.elements.has(el) ?? false;
+  if (hiddenEl && html && HIDDEN_MEDIA.has(lower)) {
+    emitHiddenBox(el, out);
+    return;
+  }
   const attrs = collectAttributes(el, ctx);
   applyLiveState(el, attrs, ctx);
   keepMissingImageBox(el, attrs);
+  if (hiddenEl) {
+    for (const attr of HIDDEN_ATTRS) attrs.delete(attr);
+    if (attrs.has('value')) attrs.set('value', maskText(attrs.get('value') ?? ''));
+    const style = attrs.get('style');
+    attrs.set(
+      'style',
+      `${style ? `${style.replace(/;?\s*$/, ';')}` : ''}background-image:none!important`,
+    );
+  }
   const ref = ctx.refs.get(el);
   if (ref) attrs.set('data-cd-ref', ref);
 
@@ -226,7 +284,8 @@ function emitElement(el: Element, ctx: SnapshotContext, out: string[]): void {
   }
 
   if (html && lower === 'textarea') {
-    const value = (el as HTMLTextAreaElement).value;
+    const raw = (el as HTMLTextAreaElement).value;
+    const value = hiddenEl ? maskText(raw) : raw;
     out.push(value.startsWith('\n') ? `\n${escapeText(value)}` : escapeText(value));
   } else if (!html && lower === 'style') {
     // SVG <style> is parsed as normal markup, so escape it as text.

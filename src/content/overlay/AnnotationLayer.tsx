@@ -19,6 +19,7 @@ import {
   isShape,
   type Point,
   type Rect,
+  type RedactShape,
   type Shape,
   type TextShape,
 } from '../../shared/model';
@@ -114,6 +115,9 @@ export const ShapeView = memo(function ShapeView({ shape }: { shape: Shape }) {
           ))}
         </text>
       );
+    case 'redact':
+      // Drawn as a blurred box in HTML (see RedactBox); SVG can't blur what's behind it.
+      return null;
     case 'image':
       return (
         <image
@@ -141,12 +145,19 @@ type SelectionGesture =
     }
   | { kind: 'resize'; handle: Handle; originals: Shape[]; box: Rect };
 
+/** How far a selection frame sits outside a drawing: its stroke, some air for text, none for boxes. */
+function framePad(shape: Shape): number {
+  if (shape.kind === 'text') return 4;
+  if (shape.kind === 'image' || shape.kind === 'redact') return 0;
+  return shape.style.width / 2;
+}
+
 /** A box around a drawing with a little air (text) or none (images), as the frame hugs it. */
 function frameOf(shapes: Shape[]): Rect {
   if (shapes.length === 1) {
     const shape = shapes[0]!;
     const b = shapeBounds(shape);
-    const pad = shape.kind === 'text' ? 4 : shape.kind === 'image' ? 0 : shape.style.width / 2;
+    const pad = framePad(shape);
     return { x: b.x - pad, y: b.y - pad, width: b.width + pad * 2, height: b.height + pad * 2 };
   }
   return unionBounds(shapes);
@@ -455,7 +466,7 @@ function TargetOutline({
 /** A placed thing's box with a little air, for outlines. */
 function outlineBox(shape: Shape): { left: number; top: number; width: number; height: number } {
   const b = shapeBounds(shape);
-  const pad = 4 + (shape.kind === 'image' ? 0 : shape.style.width / 2);
+  const pad = 4 + framePad(shape);
   return { left: b.x - pad, top: b.y - pad, width: b.width + pad * 2, height: b.height + pad * 2 };
 }
 
@@ -525,8 +536,19 @@ export function AnnotationLayer() {
   const popoverThread =
     popover.key && popover.key !== 'draft' ? threads.find((t) => t.id === popover.key) : undefined;
 
+  const redactions = [...shapes, ...(preview ? [preview] : [])].filter(
+    (s): s is RedactShape => s.kind === 'redact' && !erasing.includes(s.id),
+  );
+
   return (
     <div className="page-layer">
+      {redactions.map((r) => (
+        <div
+          key={r.id}
+          className="redact-box"
+          style={{ left: r.rect.x, top: r.rect.y, width: r.rect.width, height: r.rect.height }}
+        />
+      ))}
       <svg className="shape-layer" width="1" height="1" aria-hidden="true">
         {shapes.map((shape) => {
           if (erasing.includes(shape.id) || shape.id === editingTextId) return null;

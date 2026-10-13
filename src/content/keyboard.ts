@@ -23,6 +23,7 @@ const DRAW_KEYS: Record<string, DrawToolId> = {
   l: 'line',
   a: 'arrow',
   t: 'text',
+  b: 'redact',
 };
 
 function pickDraw(store: EditorStore, tool: DrawToolId): void {

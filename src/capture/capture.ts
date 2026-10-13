@@ -17,7 +17,7 @@ import {
 } from './css';
 import { recordMediaAnswers } from './media';
 import { emptySanitizeReport } from './sanitize';
-import { currentImageUrl, serializeSnapshot } from './serialize';
+import { currentImageUrl, type HiddenParts, serializeSnapshot } from './serialize';
 
 export type CaptureStage = 'styles' | 'assets' | 'snapshot' | 'screenshot' | 'done';
 
@@ -38,6 +38,8 @@ export interface CaptureOptions {
    * where the document is a copy of a page that lives elsewhere).
    */
   meta?: PageMeta;
+  /** Parts the designer hid: their text is written as dots and pictures left out. */
+  hidden?: HiddenParts;
 }
 
 export interface CaptureResult {
@@ -429,6 +431,7 @@ export async function capturePage(options: CaptureOptions): Promise<CaptureResul
     meta: { url: meta.url, capturedAt: meta.capturedAt },
     report,
     warnings,
+    ...(options.hidden ? { hidden: options.hidden } : {}),
   });
 
   for (const [url, reason] of embedder.failures) {
