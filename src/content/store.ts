@@ -49,8 +49,10 @@ export interface EditorState {
   doc: AnnotationDoc;
   past: AnnotationDoc[];
   future: AnnotationDoc[];
-  /** Selected annotation (shape or comment) id. */
+  /** Selected annotation (shape or comment) id: the last of `selectedIds`. */
   selectedId: string | null;
+  /** Everything selected (several drawings can be; a comment is selected on its own). */
+  selectedIds: string[];
   /** Comment thread whose popover is open. */
   openThreadId: string | null;
   draft: DraftComment | null;
@@ -62,8 +64,8 @@ export interface EditorState {
   hoverShapeId: string | null;
   /** Shape being drawn. */
   preview: Shape | null;
-  /** Live copy of the selected drawing while it is moved or resized (committed on release). */
-  liveShape: Shape | null;
+  /** Live copies of the selected drawings while they're moved or resized (committed on release). */
+  liveShapes: Shape[];
   /** Area selected by dragging with the Select tool (page space). */
   pickedRegion: Rect | null;
   /** Text label being re-edited (its id). */
@@ -104,13 +106,14 @@ export function createInitialState(
     past: [],
     future: [],
     selectedId: null,
+    selectedIds: [],
     openThreadId: null,
     draft: null,
     pickedEl: null,
     hoverEl: null,
     hoverShapeId: null,
     preview: null,
-    liveShape: null,
+    liveShapes: [],
     pickedRegion: null,
     editingTextId: null,
     showDetails: false,
@@ -163,6 +166,11 @@ export class EditorStore {
     const prevDoc = this.state.doc;
     // Opening a panel any other way forgets the way back.
     if ('panel' in patch && !('panelBack' in patch)) patch = { ...patch, panelBack: null };
+    // `selectedId` is always the last of `selectedIds`; setting either keeps both in step.
+    if ('selectedIds' in patch && !('selectedId' in patch))
+      patch = { ...patch, selectedId: patch.selectedIds?.at(-1) ?? null };
+    else if ('selectedId' in patch && !('selectedIds' in patch))
+      patch = { ...patch, selectedIds: patch.selectedId ? [patch.selectedId] : [] };
     this.state = { ...this.state, ...patch };
     this.emit(prevDoc);
   }
@@ -190,7 +198,7 @@ export class EditorStore {
       doc: prev,
       past: past.slice(0, -1),
       future: [doc, ...future],
-      selectedId: this.keepIfExists(prev, this.state.selectedId),
+      ...this.keepSelection(prev),
       openThreadId: this.keepIfExists(prev, this.state.openThreadId),
     };
     this.emit(doc);
@@ -205,11 +213,16 @@ export class EditorStore {
       doc: next,
       past: [...past, doc],
       future: future.slice(1),
-      selectedId: this.keepIfExists(next, this.state.selectedId),
+      ...this.keepSelection(next),
       openThreadId: this.keepIfExists(next, this.state.openThreadId),
     };
     this.emit(doc);
   };
+
+  private keepSelection(doc: AnnotationDoc): Pick<EditorState, 'selectedId' | 'selectedIds'> {
+    const ids = this.state.selectedIds.filter((id) => doc.annotations.some((a) => a.id === id));
+    return { selectedIds: ids, selectedId: ids.at(-1) ?? null };
+  }
 
   private keepIfExists(doc: AnnotationDoc, id: string | null): string | null {
     return id && doc.annotations.some((a) => a.id === id) ? id : null;
@@ -224,13 +237,14 @@ export class EditorStore {
       past: [],
       future: [],
       selectedId: null,
+      selectedIds: [],
       openThreadId: null,
       draft: null,
       pickedEl: null,
       hoverEl: null,
       hoverShapeId: null,
       preview: null,
-      liveShape: null,
+      liveShapes: [],
       pickedRegion: null,
       editingTextId: null,
       erasing: [],
@@ -255,6 +269,16 @@ export class EditorStore {
     this.commit((doc) => ({ ...doc, annotations: [...doc.annotations, annotation] }));
   }
 
+  /** Replace several drawings at once (a group moved or resized): one undo step. */
+  replaceShapes(shapes: readonly Shape[]): void {
+    if (shapes.length === 0) return;
+    const byId = new Map(shapes.map((s) => [s.id, s]));
+    this.commit((doc) => ({
+      ...doc,
+      annotations: doc.annotations.map((a) => byId.get(a.id) ?? a),
+    }));
+  }
+
   updateAnnotation(id: string, update: (a: Annotation) => Annotation): void {
     this.commit((doc) => ({
       ...doc,
@@ -277,9 +301,9 @@ export class EditorStore {
           return { ...a, target: { type: 'point' as const, point } };
         }),
     }));
-    const { selectedId, openThreadId } = this.state;
+    const { selectedIds, openThreadId } = this.state;
     this.set({
-      selectedId: selectedId && set.has(selectedId) ? null : selectedId,
+      selectedIds: selectedIds.filter((id) => !set.has(id)),
       openThreadId: openThreadId && set.has(openThreadId) ? null : openThreadId,
     });
   }
@@ -292,7 +316,7 @@ export class EditorStore {
 
   clearAll(): void {
     this.commit((doc) => ({ ...doc, annotations: [], guides: [] }));
-    this.set({ selectedId: null, openThreadId: null, draft: null });
+    this.set({ selectedIds: [], openThreadId: null, draft: null });
   }
 
   setBrief(brief: string): void {
@@ -323,4 +347,11 @@ export class EditorStore {
   removeGuide(id: string): void {
     this.commit((doc) => ({ ...doc, guides: doc.guides.filter((g) => g.id !== id) }));
   }
+}
+
+/** The drawings currently selected (with the Select tool), in paint order. */
+export function selectedShapes(s: EditorState): Shape[] {
+  if (s.tool !== 'select' || s.selectedIds.length === 0) return [];
+  const ids = new Set(s.selectedIds);
+  return s.doc.annotations.filter((a): a is Shape => a.type === 'shape' && ids.has(a.id));
 }

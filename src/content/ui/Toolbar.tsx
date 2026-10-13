@@ -150,13 +150,15 @@ function StyleBar({ placement }: { placement: 'up' | 'down' }) {
   const style = useEditor((s) => s.style);
   const canUndo = useEditor((s) => s.past.length > 0);
   const canRedo = useEditor((s) => s.future.length > 0);
-  const selectedId = useEditor((s) => s.selectedId);
+  const selectedIds = useEditor((s) => s.selectedIds);
   const annotations = useEditor((s) => s.doc.annotations);
-  const selected =
+  const picked =
     tool === 'select'
-      ? (annotations.find((a) => a.id === selectedId && isShape(a)) as Shape | undefined)
-      : undefined;
-  const shown = selected?.style ?? style;
+      ? annotations.filter((a): a is Shape => isShape(a) && selectedIds.includes(a.id))
+      : [];
+  /** One selected drawing (Comment works on one at a time). */
+  const selected = picked.length === 1 ? picked[0] : undefined;
+  const shown = (picked.find((a) => a.kind !== 'image') ?? selected)?.style ?? style;
   const [popover, setPopover] = useState<'color' | 'stroke' | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(popover !== null, ref, () => setPopover(null));
@@ -164,13 +166,13 @@ function StyleBar({ placement }: { placement: 'up' | 'down' }) {
   const applyStyle = (next: ShapeStyle) => {
     store.set({ style: next });
     void saveUiPrefs({ style: next });
-    if (selected) {
-      store.updateAnnotation(selected.id, (a) =>
-        isShape(a)
-          ? a.kind === 'text'
+    if (picked.length) {
+      store.replaceShapes(
+        picked.map((a) =>
+          a.kind === 'text'
             ? { ...a, style: next, fontSize: textFontSize(next.width) }
-            : { ...a, style: next }
-          : a,
+            : { ...a, style: next },
+        ),
       );
     }
   };
@@ -248,7 +250,7 @@ function StyleBar({ placement }: { placement: 'up' | 'down' }) {
         : null;
 
   // A picture has no colour or stroke to set.
-  const styled = selected?.kind !== 'image';
+  const styled = picked.length === 0 || picked.some((a) => a.kind !== 'image');
 
   return (
     <div ref={ref}>
@@ -292,25 +294,31 @@ function StyleBar({ placement }: { placement: 'up' | 'down' }) {
             onClick={() => store.set({ drawTool: drawTool === 'eraser' ? 'pen' : 'eraser' })}
           />
         ) : null}
-        {selected ? (
+        {picked.length ? (
           <>
             {styled ? <Divider /> : null}
-            <ToolButton
-              icon="comment"
-              label="Comment"
-              kbd="↵"
-              onClick={() => commentOnShape(store, selected)}
-            />
+            {selected ? (
+              <ToolButton
+                icon="comment"
+                label="Comment"
+                kbd="↵"
+                onClick={() => commentOnShape(store, selected)}
+              />
+            ) : null}
             <ToolButton
               icon="trash"
               label="Delete"
               kbd="⌫"
               onClick={() => {
-                store.removeAnnotations([selected.id]);
-                toast(styled ? 'Drawing deleted' : 'Image deleted', {
-                  label: 'Undo',
-                  run: store.undo,
-                });
+                store.removeAnnotations(picked.map((a) => a.id));
+                toast(
+                  picked.length > 1
+                    ? `${picked.length} items deleted`
+                    : styled
+                      ? 'Drawing deleted'
+                      : 'Image deleted',
+                  { label: 'Undo', run: store.undo },
+                );
               }}
             />
           </>
@@ -360,8 +368,8 @@ export function Toolbar() {
   const selectedShape = useEditor(
     (s) =>
       s.tool === 'select' &&
-      s.selectedId !== null &&
-      s.doc.annotations.some((a) => a.id === s.selectedId && isShape(a)),
+      s.selectedIds.length > 0 &&
+      s.doc.annotations.some((a) => isShape(a) && s.selectedIds.includes(a.id)),
   );
   const openCount = useEditor(
     (s) => s.doc.annotations.filter((a) => isComment(a) && a.status === 'open').length,

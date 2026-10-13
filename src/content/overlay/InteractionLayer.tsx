@@ -17,12 +17,42 @@ import { capturePointer, elementsInRect, pickElement, releasePointer, toPage } f
 import type { EditorStore } from '../store';
 
 type Gesture =
-  | { kind: 'pick'; start: Point; client: Point; moved: boolean }
-  | { kind: 'move'; shape: Shape; start: Point; moved: boolean }
+  | {
+      kind: 'pick';
+      start: Point;
+      client: Point;
+      moved: boolean;
+      /** Shift: a drag-select adds to what's already selected. */
+      base: string[];
+    }
+  | { kind: 'move'; shapes: Shape[]; start: Point; moved: boolean; timer: number }
   | { kind: 'draw'; start: Point }
   | { kind: 'erase' };
 
 const DRAG_THRESHOLD = 4;
+/** Touch has no Shift: press and hold a drawing to add it to the selection. */
+const LONG_PRESS_MS = 450;
+
+/** Drawings entirely inside a page-space box (what a drag-select picks up). */
+function shapesInside(store: EditorStore, r: Rect): string[] {
+  return store
+    .getState()
+    .doc.annotations.filter((a): a is Shape => isShape(a))
+    .filter((s) => {
+      const b = shapeBounds(s);
+      return (
+        b.x >= r.x &&
+        b.y >= r.y &&
+        b.x + b.width <= r.x + r.width &&
+        b.y + b.height <= r.y + r.height
+      );
+    })
+    .map((s) => s.id);
+}
+
+function toggled(ids: readonly string[], id: string): string[] {
+  return ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
+}
 
 export function hitShape(store: EditorStore, p: Point, tolerance = 6): Shape | null {
   const shapes = store.getState().doc.annotations.filter(isShape);
@@ -101,10 +131,34 @@ export function InteractionLayer() {
 
     if (s.tool === 'select') {
       const hit = hitShape(store, p, e.pointerType === 'touch' ? 14 : 6);
+      if (hit && e.shiftKey) {
+        // Shift-click adds a drawing to the selection (or takes it out).
+        releasePointer(e.currentTarget, e.pointerId);
+        store.set({
+          selectedIds: toggled(s.selectedIds, hit.id),
+          pickedEl: null,
+          pickedRegion: null,
+        });
+        return;
+      }
       if (hit) {
-        // Figma: press on a drawing selects it and dragging moves it right away.
-        store.set({ selectedId: hit.id, pickedEl: null, pickedRegion: null });
-        gesture.current = { kind: 'move', shape: hit, start: p, moved: false };
+        // Figma: press on a drawing selects it and dragging moves it right away; pressing one
+        // that's part of a selection moves them all.
+        const before = s.selectedIds;
+        const ids = before.includes(hit.id) ? before : [hit.id];
+        store.set({ selectedIds: ids, pickedEl: null, pickedRegion: null });
+        const timer =
+          e.pointerType === 'touch'
+            ? window.setTimeout(() => {
+                const g = gesture.current;
+                if (g?.kind !== 'move' || g.moved) return;
+                gesture.current = null;
+                store.set({ selectedIds: toggled(before, hit.id) });
+              }, LONG_PRESS_MS)
+            : 0;
+        const ids2 = new Set(ids);
+        const shapes = s.doc.annotations.filter((a): a is Shape => isShape(a) && ids2.has(a.id));
+        gesture.current = { kind: 'move', shapes, start: p, moved: false, timer };
         return;
       }
       gesture.current = {
@@ -112,6 +166,7 @@ export function InteractionLayer() {
         start: p,
         client: { x: e.clientX, y: e.clientY },
         moved: false,
+        base: e.shiftKey ? s.selectedIds : [],
       };
       return;
     }
@@ -121,6 +176,7 @@ export function InteractionLayer() {
         start: p,
         client: { x: e.clientX, y: e.clientY },
         moved: false,
+        base: [],
       };
       return;
     }
@@ -186,7 +242,13 @@ export function InteractionLayer() {
         if (!g.moved && Math.hypot(e.clientX - g.client.x, e.clientY - g.client.y) < DRAG_THRESHOLD)
           return;
         g.moved = true;
-        store.set({ region: rectFromPoints(g.start, p), hoverEl: null });
+        const region = rectFromPoints(g.start, p);
+        // Select tool: drawings wholly inside the box are selected as you drag (Figma).
+        if (s.tool === 'select') {
+          const inside = shapesInside(store, region);
+          const ids = [...new Set([...g.base, ...inside])];
+          store.set({ region, hoverEl: null, selectedIds: ids });
+        } else store.set({ region, hoverEl: null });
         return;
       }
       case 'move': {
@@ -194,7 +256,11 @@ export function InteractionLayer() {
         const dy = p.y - g.start.y;
         if (!g.moved && Math.hypot(dx, dy) < 2) return;
         g.moved = true;
-        store.set({ liveShape: translateShape(g.shape, dx, dy), hoverShapeId: null });
+        window.clearTimeout(g.timer);
+        store.set({
+          liveShapes: g.shapes.map((sh) => translateShape(sh, dx, dy)),
+          hoverShapeId: null,
+        });
         return;
       }
       case 'erase': {
@@ -229,7 +295,8 @@ export function InteractionLayer() {
     if (!g) return;
     const s = store.getState();
     if (cancelled) {
-      store.set({ preview: null, liveShape: null, erasing: [], region: null });
+      if (g.kind === 'move') window.clearTimeout(g.timer);
+      store.set({ preview: null, liveShapes: [], erasing: [], region: null });
       return;
     }
     const p = toPage(e.clientX, e.clientY);
@@ -245,9 +312,12 @@ export function InteractionLayer() {
               pickedEl: null,
               selectedId: null,
             });
+          } else if (shapesInside(store, region).length) {
+            // Drawings were picked up by the drag: they're the selection.
+            store.set({ pickedEl: null, pickedRegion: null });
           } else {
             // Select tool: keep the area selected; the selection bar offers "Comment".
-            store.set({ pickedRegion: region, pickedEl: null, selectedId: null });
+            store.set({ pickedRegion: region, pickedEl: null, selectedIds: g.base });
           }
           return;
         }
@@ -266,9 +336,10 @@ export function InteractionLayer() {
         return;
       }
       case 'move': {
-        const live = s.liveShape;
-        store.set({ liveShape: null });
-        if (g.moved && live) store.updateAnnotation(live.id, () => live);
+        window.clearTimeout(g.timer);
+        const live = s.liveShapes;
+        store.set({ liveShapes: [] });
+        if (g.moved) store.replaceShapes(live);
         return;
       }
       case 'erase': {

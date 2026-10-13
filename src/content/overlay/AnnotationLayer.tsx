@@ -4,16 +4,21 @@ import {
   arrowHead,
   type Handle,
   handlesFor,
+  hitTestShape,
   pointsToPath,
+  resizeRect,
   resizeShape,
   shapeBounds,
+  transformShape,
   translateShape,
+  unionBounds,
 } from '../../shared/geometry';
 import {
   type CommentThread,
   isComment,
   isShape,
   type Point,
+  type Rect,
   type Shape,
   type TextShape,
 } from '../../shared/model';
@@ -124,26 +129,32 @@ export const ShapeView = memo(function ShapeView({ shape }: { shape: Shape }) {
 });
 
 type SelectionGesture =
-  | { kind: 'move'; start: Point; original: Shape; moved: boolean }
-  | { kind: 'resize'; handle: Handle; original: Shape };
+  | { kind: 'move'; start: Point; originals: Shape[]; moved: boolean; toggle: string | null }
+  | { kind: 'resize'; handle: Handle; originals: Shape[]; box: Rect };
+
+/** A box around a drawing with a little air (text) or none (images), as the frame hugs it. */
+function frameOf(shapes: Shape[]): Rect {
+  if (shapes.length === 1) {
+    const shape = shapes[0]!;
+    const b = shapeBounds(shape);
+    const pad = shape.kind === 'text' ? 4 : shape.kind === 'image' ? 0 : shape.style.width / 2;
+    return { x: b.x - pad, y: b.y - pad, width: b.width + pad * 2, height: b.height + pad * 2 };
+  }
+  return unionBounds(shapes);
+}
 
 /**
- * Figma-style selection for a drawing: a frame you can drag to move, corner (or endpoint)
- * handles to resize, a size pill, and double-click / tap again to edit a text label.
- * Touch-friendly: the frame and handles opt out of page scrolling (touch-action: none).
+ * Figma-style selection: a frame you can drag to move, corner (or endpoint) handles to
+ * resize, a size pill, and double-click / tap again to edit a text label. Several drawings
+ * move and scale together as one box. Shift-click toggles one in or out. Touch-friendly: the
+ * frame and handles opt out of page scrolling (touch-action: none).
  */
-function ShapeSelection({ shape }: { shape: Shape }) {
+function Selection({ shapes }: { shapes: Shape[] }) {
   const { store } = useEnv();
   const gesture = useRef<SelectionGesture | null>(null);
-  const b = shapeBounds(shape);
-  // Figma hugs the shape: handles sit on its corners (text gets a little air).
-  const pad = shape.kind === 'text' ? 4 : shape.kind === 'image' ? 0 : shape.style.width / 2;
-  const frame = {
-    x: b.x - pad,
-    y: b.y - pad,
-    width: b.width + pad * 2,
-    height: b.height + pad * 2,
-  };
+  const single = shapes.length === 1 ? shapes[0]! : null;
+  const frame = frameOf(shapes);
+  const b = single ? shapeBounds(single) : frame;
 
   const start = (e: ReactPointerEvent<HTMLElement>, g: SelectionGesture) => {
     if (e.button !== 0) return;
@@ -161,62 +172,90 @@ function ShapeSelection({ shape }: { shape: Shape }) {
       const dy = p.y - g.start.y;
       if (!g.moved && Math.hypot(dx, dy) < 3) return;
       g.moved = true;
-      store.set({ liveShape: translateShape(g.original, dx, dy) });
+      store.set({ liveShapes: g.originals.map((s) => translateShape(s, dx, dy)) });
+    } else if (g.originals.length === 1) {
+      store.set({ liveShapes: [resizeShape(g.originals[0]!, g.handle, p, e.shiftKey)] });
     } else {
-      store.set({ liveShape: resizeShape(g.original, g.handle, p, e.shiftKey) });
+      // Pictures keep their proportions unless Shift is held; drawings only with Shift.
+      const hasImage = g.originals.some((s) => s.kind === 'image');
+      const box = resizeRect(g.box, g.handle, p, hasImage ? !e.shiftKey : e.shiftKey);
+      store.set({ liveShapes: g.originals.map((s) => transformShape(s, g.box, box)) });
     }
   };
   const end = (e: ReactPointerEvent<HTMLElement>) => {
     const g = gesture.current;
     gesture.current = null;
     if (!g) return;
-    const live = store.getState().liveShape;
-    store.set({ liveShape: null });
+    const live = store.getState().liveShapes;
+    store.set({ liveShapes: [] });
     if (g.kind === 'move' && !g.moved) {
+      if (g.toggle) {
+        const ids = store.getState().selectedIds;
+        store.set({ selectedIds: ids.filter((id) => id !== g.toggle) });
+        return;
+      }
       // A tap on an already-selected label edits it (touch has no double-click).
-      if (g.original.kind === 'text' && e.pointerType === 'touch')
-        store.set({ editingTextId: g.original.id });
+      const only = g.originals.length === 1 ? g.originals[0]! : null;
+      if (only?.kind === 'text' && e.pointerType === 'touch') store.set({ editingTextId: only.id });
       return;
     }
-    if (live) store.updateAnnotation(live.id, () => live);
+    store.replaceShapes(live);
   };
   const cancel = () => {
     gesture.current = null;
-    store.set({ liveShape: null });
+    store.set({ liveShapes: [] });
   };
 
+  const isSegment = single?.kind === 'line' || single?.kind === 'arrow';
+  const handles: Handle[] = single ? handlesFor(single) : ['nw', 'ne', 'sw', 'se'];
   const handlePos = (h: Handle): Point => {
-    if (h === 'from' && (shape.kind === 'line' || shape.kind === 'arrow')) return shape.from;
-    if (h === 'to' && (shape.kind === 'line' || shape.kind === 'arrow')) return shape.to;
+    if (h === 'from' && (single?.kind === 'line' || single?.kind === 'arrow')) return single.from;
+    if (h === 'to' && (single?.kind === 'line' || single?.kind === 'arrow')) return single.to;
     return {
       x: h === 'nw' || h === 'sw' ? frame.x : frame.x + frame.width,
       y: h === 'nw' || h === 'ne' ? frame.y : frame.y + frame.height,
     };
   };
-  const isSegment = shape.kind === 'line' || shape.kind === 'arrow';
 
   return (
     <>
+      {single ? null : (
+        <svg className="shape-layer" width="1" height="1" aria-hidden="true">
+          {shapes.map((s) => {
+            const sb = shapeBounds(s);
+            return (
+              <rect
+                key={s.id}
+                className="multi-box"
+                x={sb.x}
+                y={sb.y}
+                width={sb.width}
+                height={sb.height}
+              />
+            );
+          })}
+        </svg>
+      )}
       <div
         className="sel-frame"
         data-segment={isSegment ? '' : undefined}
         style={{ left: frame.x, top: frame.y, width: frame.width, height: frame.height }}
-        onPointerDown={(e) =>
-          start(e, {
-            kind: 'move',
-            start: toPage(e.clientX, e.clientY),
-            original: shape,
-            moved: false,
-          })
-        }
+        onPointerDown={(e) => {
+          const p = toPage(e.clientX, e.clientY);
+          // Shift-click a selected drawing to take it out of the selection.
+          const toggle = e.shiftKey
+            ? (shapes.toReversed().find((s) => hitTestShape(s, p, 6))?.id ?? single?.id ?? null)
+            : null;
+          start(e, { kind: 'move', start: p, originals: shapes, moved: false, toggle });
+        }}
         onPointerMove={move}
         onPointerUp={end}
         onPointerCancel={cancel}
         onDoubleClick={() => {
-          if (shape.kind === 'text') store.set({ editingTextId: shape.id });
+          if (single?.kind === 'text') store.set({ editingTextId: single.id });
         }}
       />
-      {handlesFor(shape).map((h) => {
+      {handles.map((h) => {
         const p = handlePos(h);
         return (
           <div
@@ -225,7 +264,9 @@ function ShapeSelection({ shape }: { shape: Shape }) {
             data-handle={h}
             data-round={isSegment ? '' : undefined}
             style={{ left: p.x, top: p.y }}
-            onPointerDown={(e) => start(e, { kind: 'resize', handle: h, original: shape })}
+            onPointerDown={(e) =>
+              start(e, { kind: 'resize', handle: h, originals: shapes, box: frameOf(shapes) })
+            }
             onPointerMove={move}
             onPointerUp={end}
             onPointerCancel={cancel}
@@ -236,7 +277,7 @@ function ShapeSelection({ shape }: { shape: Shape }) {
         className="size-pill"
         style={{ left: frame.x + frame.width / 2, top: frame.y + frame.height + 8 }}
       >
-        {shape.kind === 'text' ? 'Label' : `${Math.round(b.width)} × ${Math.round(b.height)}`}
+        {single?.kind === 'text' ? 'Label' : `${Math.round(b.width)} × ${Math.round(b.height)}`}
       </div>
     </>
   );
@@ -425,10 +466,11 @@ export function AnnotationLayer() {
   useLayoutVersion();
   const annotations = useEditor((s) => s.doc.annotations);
   const selectedId = useEditor((s) => s.selectedId);
+  const selectedIds = useEditor((s) => s.selectedIds);
   const openThreadId = useEditor((s) => s.openThreadId);
   const draft = useEditor((s) => s.draft);
   const preview = useEditor((s) => s.preview);
-  const liveShape = useEditor((s) => s.liveShape);
+  const liveShapes = useEditor((s) => s.liveShapes);
   const erasing = useEditor((s) => s.erasing);
   const region = useEditor((s) => s.region);
   const textEdit = useEditor((s) => s.textEdit);
@@ -436,15 +478,21 @@ export function AnnotationLayer() {
   const tool = useEditor((s) => s.tool);
   const hoverShapeId = useEditor((s) => s.hoverShapeId);
 
-  const shapes = annotations.filter(isShape).map((s) => (liveShape?.id === s.id ? liveShape : s));
+  const live = new Map(liveShapes.map((s) => [s.id, s]));
+  const shapes = annotations.filter(isShape).map((s) => live.get(s.id) ?? s);
   const threads = annotations.filter(isComment);
-  const selectedShape = tool === 'select' ? shapes.find((s) => s.id === selectedId) : undefined;
+  const selected =
+    tool === 'select'
+      ? shapes.filter(
+          (s) => selectedIds.includes(s.id) && !erasing.includes(s.id) && s.id !== editingTextId,
+        )
+      : [];
   const editingText = shapes.find(
     (s): s is TextShape => s.id === editingTextId && s.kind === 'text',
   );
   const pinsInteractive = tool !== 'draw';
   const hovered =
-    hoverShapeId && hoverShapeId !== selectedId && !liveShape
+    hoverShapeId && !selectedIds.includes(hoverShapeId) && liveShapes.length === 0
       ? shapes.find((s) => s.id === hoverShapeId)
       : undefined;
 
@@ -500,11 +548,9 @@ export function AnnotationLayer() {
           </span>
         </div>
       )}
-      {selectedShape &&
-        !erasing.includes(selectedShape.id) &&
-        selectedShape.id !== editingTextId && (
-          <ShapeSelection key={selectedShape.id} shape={selectedShape} />
-        )}
+      {selected.length > 0 && (
+        <Selection key={selected.map((s) => s.id).join()} shapes={selected} />
+      )}
       {threads.map((t) => (
         <Pin
           key={t.id}

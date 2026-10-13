@@ -4,7 +4,13 @@ import { isShape } from '../shared/model';
 import { isTypingEvent, toPage } from './dom';
 import { placeImagesFromPicker } from './images';
 import { commentOnShape, draftForRegion } from './overlay/InteractionLayer';
-import { type DrawToolId, type EditorState, type EditorStore, isShapeTool } from './store';
+import {
+  type DrawToolId,
+  type EditorState,
+  type EditorStore,
+  isShapeTool,
+  selectedShapes,
+} from './store';
 
 /** Figma's single-key tools. */
 const DRAW_KEYS: Record<string, DrawToolId> = {
@@ -64,6 +70,13 @@ export function handleShortcut(
     store.redo();
     return true;
   }
+  // Select every drawing on the page.
+  if (mod && lower === 'a') {
+    const ids = s.doc.annotations.filter(isShape).map((a) => a.id);
+    if (ids.length === 0) return false;
+    store.set({ tool: 'select', selectedIds: ids, pickedEl: null, pickedRegion: null });
+    return true;
+  }
   // Figma's "Place image".
   if (mod && event.shiftKey && lower === 'k') {
     void placeImagesFromPicker(store);
@@ -73,8 +86,8 @@ export function handleShortcut(
 
   if (key === 'Escape') {
     if (s.viewImage) store.set({ viewImage: null });
-    else if (s.preview || s.region || s.liveShape)
-      store.set({ preview: null, region: null, liveShape: null });
+    else if (s.preview || s.region || s.liveShapes.length)
+      store.set({ preview: null, region: null, liveShapes: [] });
     else if (s.draft || s.openThreadId) store.set({ draft: null, openThreadId: null });
     else if (s.panel !== 'none') store.set({ panel: 'none' });
     else if (s.selectedId) store.set({ selectedId: null });
@@ -86,27 +99,29 @@ export function handleShortcut(
     return true;
   }
 
-  if ((key === 'Delete' || key === 'Backspace') && s.selectedId) {
-    const target = s.doc.annotations.find((a) => a.id === s.selectedId);
-    store.removeAnnotations([s.selectedId]);
-    if (target)
+  if ((key === 'Delete' || key === 'Backspace') && s.selectedIds.length) {
+    const targets = s.doc.annotations.filter((a) => s.selectedIds.includes(a.id));
+    store.removeAnnotations(s.selectedIds);
+    const only = targets.length === 1 ? targets[0] : undefined;
+    if (only)
       notify?.(
-        target.type === 'comment'
-          ? `Comment ${target.number} deleted`
-          : target.kind === 'image'
+        only.type === 'comment'
+          ? `Comment ${only.number} deleted`
+          : only.kind === 'image'
             ? 'Image deleted'
             : 'Drawing deleted',
       );
+    else if (targets.length) notify?.(`${targets.length} items deleted`);
     return true;
   }
 
   if (key.startsWith('Arrow')) {
-    const selected = s.doc.annotations.find((a) => a.id === s.selectedId);
-    if (selected && isShape(selected)) {
+    const shapes = selectedShapes(s);
+    if (shapes.length) {
       const step = event.shiftKey ? 10 : 1;
       const dx = key === 'ArrowLeft' ? -step : key === 'ArrowRight' ? step : 0;
       const dy = key === 'ArrowUp' ? -step : key === 'ArrowDown' ? step : 0;
-      store.updateAnnotation(selected.id, (a) => (isShape(a) ? translateShape(a, dx, dy) : a));
+      store.replaceShapes(shapes.map((a) => translateShape(a, dx, dy)));
       return true;
     }
     if (s.pickedEl && s.tool === 'select') {

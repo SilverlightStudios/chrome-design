@@ -184,6 +184,7 @@ svg {
 :host([data-capturing]) .sel-handle,
 :host([data-capturing]) .size-pill,
 :host([data-capturing]) .hover-box,
+:host([data-capturing]) .multi-box,
 :host([data-capturing]) .region-drag,
 :host([data-capturing]) .target-outline.draft,
 :host([data-capturing]) .inspect-layer,
@@ -277,6 +278,12 @@ svg {
 }
 .hover-box {
   stroke-opacity: 0.45;
+}
+/* Each drawing in a group selection gets a thin outline inside the group frame. */
+.multi-box {
+  fill: none;
+  stroke: var(--inspect);
+  stroke-width: 1;
 }
 .region-drag {
   position: absolute;

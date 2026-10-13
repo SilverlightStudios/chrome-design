@@ -261,3 +261,64 @@ export function resizeShape<T extends Shape>(
     })),
   };
 }
+
+/** The box around several shapes. */
+export function unionBounds(shapes: readonly Shape[]): Rect {
+  const boxes = shapes.map(shapeBounds);
+  const x = Math.min(...boxes.map((b) => b.x));
+  const y = Math.min(...boxes.map((b) => b.y));
+  const right = Math.max(...boxes.map((b) => b.x + b.width));
+  const bottom = Math.max(...boxes.map((b) => b.y + b.height));
+  return { x, y, width: right - x, height: bottom - y };
+}
+
+/**
+ * Drag a corner `handle` of the box `r` to `p`: the opposite corner stays put. With `keepRatio`
+ * the box keeps its proportions.
+ */
+export function resizeRect(r: Rect, handle: Handle, p: Point, keepRatio: boolean): Rect {
+  const anchor = oppositeCorner(r, handle);
+  let end = p;
+  if (keepRatio && r.width > 0 && r.height > 0) {
+    const ratio = r.width / r.height;
+    const w = Math.abs(p.x - anchor.x);
+    const h = Math.abs(p.y - anchor.y);
+    const size = Math.max(w, h * ratio);
+    end = {
+      x: anchor.x + Math.sign(p.x - anchor.x || 1) * size,
+      y: anchor.y + Math.sign(p.y - anchor.y || 1) * (size / ratio),
+    };
+  }
+  return rectFromPoints(anchor, end);
+}
+
+/**
+ * Map a shape from one box to another (moving and scaling a group together). Text labels move
+ * but keep their size.
+ */
+export function transformShape<T extends Shape>(shape: T, from: Rect, to: Rect): T {
+  const sx = from.width > 0 ? to.width / from.width : 1;
+  const sy = from.height > 0 ? to.height / from.height : 1;
+  const map = (pt: Point): Point => ({
+    x: to.x + (pt.x - from.x) * sx,
+    y: to.y + (pt.y - from.y) * sy,
+  });
+  switch (shape.kind) {
+    case 'pen':
+      return { ...shape, points: shape.points.map(map) };
+    case 'line':
+    case 'arrow':
+      return { ...shape, from: map(shape.from), to: map(shape.to) };
+    case 'rect':
+    case 'ellipse':
+    case 'image': {
+      const a = map({ x: shape.rect.x, y: shape.rect.y });
+      return {
+        ...shape,
+        rect: { x: a.x, y: a.y, width: shape.rect.width * sx, height: shape.rect.height * sy },
+      };
+    }
+    case 'text':
+      return { ...shape, point: map(shape.point) };
+  }
+}
