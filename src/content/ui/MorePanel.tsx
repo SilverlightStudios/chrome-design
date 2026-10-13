@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { isComment } from '../../shared/model';
 import { useEditor, useEnv } from '../context';
+import { importHandoffFiles, pickHandoffFiles } from '../importHandoff';
 import { Icon, type IconName } from './icons';
 
 /** Touch screens have no keyboard, so no Shortcuts tile. */
@@ -81,6 +82,13 @@ export function MorePanel() {
               hoverEl: null,
             })
           }
+        />
+        <Tile
+          icon="folder"
+          label="Open file"
+          onClick={() => {
+            void pickHandoffFiles().then((files) => importHandoffFiles(store, files, toast));
+          }}
         />
         <Tile
           icon="rulers"

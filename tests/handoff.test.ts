@@ -5,10 +5,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { recordMediaAnswers } from '../src/capture/media';
+import {
+  mergeFeedback,
+  parseHandoffHtml,
+  readHandoffFile,
+  readStoredZip,
+} from '../src/content/importHandoff';
 import { buildHandoff } from '../src/export/build';
 import { extractScript } from '../src/export/prompt';
 import { crc32, zipEntries, zipFiles } from '../src/export/zip';
-import type { PageCapture } from '../src/shared/model';
+import type { CommentThread, PageCapture } from '../src/shared/model';
 import { AT, sampleDoc } from './helpers';
 
 const URL_ = 'https://example.com/landing';
@@ -109,5 +115,46 @@ describe.runIf(hasPython)('extract script in the instructions', () => {
     ]);
     expect(readFileSync(join(unpacked, 'page.html'), 'utf8')).toBe(capture().snapshotHtml);
     expect(existsSync(join(unpacked, 'handoff.json'))).toBe(true);
+  });
+});
+
+describe('bringing a handoff back', () => {
+  it('finds the payload in a downloaded file and in the agent .zip', async () => {
+    const out = await buildHandoff({ capture: capture(), doc: sampleDoc(URL_), exportedAt: AT });
+    const payload = parseHandoffHtml(out.html);
+    expect(payload?.annotations).toHaveLength(5);
+    const zipped = readStoredZip(zipEntries(zipFiles(out, capture())));
+    expect([...zipped.keys()]).toContain('handoff.json');
+    const file = new File([zipEntries(zipFiles(out, capture()))], 'handoff.zip', {
+      type: 'application/zip',
+    });
+    expect((await readHandoffFile(file))?.exportedAt).toBe(AT);
+    expect(parseHandoffHtml('<html><body>nothing</body></html>')).toBeNull();
+  });
+
+  it('merges replies both ways without losing anything, numbering new threads freshly', () => {
+    const base = sampleDoc(URL_).annotations;
+    const local = structuredClone(base);
+    const theirs = structuredClone(base);
+    const c1 = theirs[0] as CommentThread;
+    c1.messages.push({ id: 'm-theirs', body: 'Agreed', createdAt: '2026-10-12T10:00:00.000Z' });
+    c1.status = 'resolved';
+    c1.updatedAt = '2026-10-12T10:00:00.000Z';
+    const mine = local[0] as CommentThread;
+    mine.messages.push({ id: 'm-mine', body: 'One more', createdAt: '2026-10-11T13:00:00.000Z' });
+    // A new thread elsewhere that reuses number 1
+    theirs.push({ ...(base[0] as CommentThread), id: 'c-new', number: 1, messages: [] });
+    const merged = mergeFeedback(local, theirs);
+    expect(merged.comments).toBe(1);
+    expect(merged.replies).toBe(1);
+    expect(merged.updated).toBe(1);
+    const thread = merged.annotations[0] as CommentThread;
+    expect(thread.messages.map((m) => m.id)).toEqual(['m1', 'm-mine', 'm-theirs']);
+    expect(thread.status).toBe('resolved');
+    const added = merged.annotations.find((a) => a.id === 'c-new') as CommentThread;
+    expect(added.number).toBe(3);
+    // Merging the same file again adds nothing
+    const again = mergeFeedback(merged.annotations, theirs);
+    expect(again.comments + again.replies + again.shapes + again.updated).toBe(0);
   });
 });

@@ -3849,6 +3849,9 @@ details.options .checks {
   .ai-eraser[data-play] .p {
     animation: ai-rub 0.5s var(--ai-in-out);
   }
+  .ai-folder[data-play] .p {
+    animation: ai-hop 0.4s var(--ai-in-out);
+  }
   /* image — the sun pops while the hills hop */
   .ai-image[data-play] .sun {
     transform-box: fill-box;

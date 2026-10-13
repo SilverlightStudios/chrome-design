@@ -23,6 +23,8 @@ export type ExportStatus =
 export interface ToastAction {
   label: string;
   run: () => void;
+  /** How long the toast stays (ms). Undo: 5 s; a decision to read first: longer. */
+  duration?: number;
 }
 
 export interface EditorEnv {

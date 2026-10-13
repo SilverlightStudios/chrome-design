@@ -34,8 +34,9 @@ function Toast({ item, onDone }: { item: ToastItem | null; onDone: () => void })
               type="button"
               className="toast-btn"
               onClick={() => {
-                item.action?.run();
+                // Clear first: the action may show a toast of its own.
                 onDone();
+                item.action?.run();
               }}
             >
               {item.action.label}
@@ -81,7 +82,10 @@ export function App({ env }: { env: Omit<EditorEnv, 'toast'> }) {
   const showToast = useCallback((text: string, action?: ToastAction) => {
     window.clearTimeout(timer.current);
     setToast({ id: Date.now(), text, ...(action ? { action } : {}) });
-    timer.current = window.setTimeout(() => setToast(null), action ? 5000 : 2200);
+    timer.current = window.setTimeout(
+      () => setToast(null),
+      action ? (action.duration ?? 5000) : 2200,
+    );
   }, []);
   const clearToast = useCallback(() => {
     window.clearTimeout(timer.current);

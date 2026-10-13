@@ -300,6 +300,21 @@ test('comment, draw and export a self-contained handoff from a live page', async
   expect(requests).toEqual([]);
   expect(errors).toEqual([]);
 
+  // Back on the live site: open the teammate's file and their reply joins the thread
+  await page.bringToFront();
+  await page.keyboard.press('Escape');
+  await ui.locator('.tb-btn[aria-label="More"]').click();
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    ui.locator('.tile', { hasText: 'Open file' }).click(),
+  ]);
+  await chooser.setFiles(againPath);
+  await expect(ui.locator('.toast')).toContainText('Added 1 reply');
+  await ui.locator('.pin').first().click();
+  await expect(ui.locator('.popover .message')).toHaveCount(2);
+  await expect(ui.locator('.popover')).toContainText('Agreed, ship it');
+  await page.keyboard.press('Escape');
+
   // Close removes every trace from the page
   await page.bringToFront();
   await page.keyboard.press('Alt+Shift+D');

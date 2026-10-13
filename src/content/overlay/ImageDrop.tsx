@@ -12,6 +12,7 @@ import {
   placeImages,
   viewportCentre,
 } from '../images';
+import { importHandoffFiles, isHandoffFile } from '../importHandoff';
 import { Icon } from '../ui/icons';
 
 /** Anything marked `data-drop-attach` (the comment bubble) takes dropped images itself. */
@@ -73,6 +74,12 @@ export function ImageDrop() {
       e.stopPropagation();
       window.clearTimeout(timer);
       setOver(false);
+      // A downloaded handoff (.html / .zip) brings its feedback onto this page.
+      const handoffs = Array.from(e.dataTransfer?.files ?? []).filter(isHandoffFile);
+      if (handoffs.length) {
+        void importHandoffFiles(store, handoffs, toast);
+        return;
+      }
       const loading = fromData(e.dataTransfer);
       if (loading) place(loading, toPage(e.clientX, e.clientY));
       else toast('Only images can be placed on the page');
