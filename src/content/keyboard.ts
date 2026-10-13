@@ -3,7 +3,7 @@ import { translateShape } from '../shared/geometry';
 import { isShape } from '../shared/model';
 import { isTypingEvent, toPage } from './dom';
 import { placeImagesFromPicker } from './images';
-import { draftForRegion } from './overlay/InteractionLayer';
+import { commentOnShape, draftForRegion } from './overlay/InteractionLayer';
 import { type DrawToolId, type EditorState, type EditorStore, isShapeTool } from './store';
 
 /** Figma's single-key tools. */
@@ -140,6 +140,10 @@ export function handleShortcut(
     const selected = s.doc.annotations.find((a) => a.id === s.selectedId);
     if (selected && isShape(selected) && selected.kind === 'text') {
       store.set({ editingTextId: selected.id });
+      return true;
+    }
+    if (selected && isShape(selected)) {
+      commentOnShape(store, selected);
       return true;
     }
   }

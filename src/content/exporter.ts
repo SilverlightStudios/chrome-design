@@ -27,6 +27,7 @@ function anchorsOf(a: Annotation): ElementAnchor[] {
   }
   const t = (a as CommentThread).target;
   if (t.type === 'region') return t.anchors;
+  if (t.type === 'shape') return [];
   return t.anchor ? [t.anchor] : [];
 }
 

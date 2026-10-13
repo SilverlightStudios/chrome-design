@@ -304,6 +304,18 @@ export const handoffSchema = {
                 anchors: { type: 'array', items: { $ref: '#/$defs/anchor' } },
               },
             },
+            {
+              type: 'object',
+              description:
+                "On a placed image or drawing: `at` is the pin's spot within its box (0–1), `point` where it was made.",
+              required: ['type', 'shapeId', 'at', 'point'],
+              properties: {
+                type: { const: 'shape' },
+                shapeId: str,
+                at: { $ref: '#/$defs/point' },
+                point: { $ref: '#/$defs/point' },
+              },
+            },
           ],
         },
         messages: {

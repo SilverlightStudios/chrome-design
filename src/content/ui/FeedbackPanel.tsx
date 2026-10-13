@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { type CommentThread, isComment } from '../../shared/model';
+import { type Annotation, type CommentThread, isComment } from '../../shared/model';
+import { findShape, shapeLabel } from '../../shared/targets';
 import { revealThread } from '../actions';
 import { useEditor, useEnv } from '../context';
 import { friendlyAnchorLabel } from '../describe';
@@ -10,9 +11,13 @@ import { PanelHead } from './PanelHead';
 type Filter = 'all' | 'open' | 'resolved';
 const FILTERS: Filter[] = ['all', 'open', 'resolved'];
 
-function targetLabel(thread: CommentThread): string {
+function targetLabel(thread: CommentThread, annotations: readonly Annotation[]): string {
   const t = thread.target;
   if (t.type === 'region') return 'An area';
+  if (t.type === 'shape') {
+    const shape = findShape(annotations, t.shapeId);
+    return shape ? shapeLabel(shape) : 'A spot on the page';
+  }
   if (t.anchor) return friendlyAnchorLabel(t.anchor);
   return 'A spot on the page';
 }
@@ -72,7 +77,7 @@ export function FeedbackPanel() {
                 <span className="thread-body">
                   <span className="thread-text">{messagePreview(t.messages[0])}</span>
                   <span className="thread-meta">
-                    {targetLabel(t)} · {timeAgo(t.updatedAt)}
+                    {targetLabel(t, annotations)} · {timeAgo(t.updatedAt)}
                     {t.messages.length > 1
                       ? ` · ${t.messages.length - 1} repl${t.messages.length > 2 ? 'ies' : 'y'}`
                       : ''}

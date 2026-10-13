@@ -77,6 +77,7 @@ export function linkAnnotations(
       };
     }
     const t = a.target;
+    if (t.type === 'shape') return a;
     if (t.type === 'region')
       return { ...a, target: { ...t, anchors: t.anchors.map((x) => withRef(x, refs)) } };
     if (t.type === 'element') return { ...a, target: { ...t, anchor: withRef(t.anchor, refs) } };

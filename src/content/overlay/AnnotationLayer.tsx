@@ -17,6 +17,7 @@ import {
   type Shape,
   type TextShape,
 } from '../../shared/model';
+import { findShape, spotIn } from '../../shared/targets';
 import { livePinPoint } from '../actions';
 import { useEditor, useEnv, useLayoutVersion } from '../context';
 import { capturePointer, toPage } from '../dom';
@@ -243,15 +244,18 @@ function ShapeSelection({ shape }: { shape: Shape }) {
 
 function Pin({
   thread,
+  shapes,
   active,
   interactive,
 }: {
   thread: CommentThread;
+  /** Drawings as drawn right now (a dragged one carries its pins along). */
+  shapes: Shape[];
   active: boolean;
   interactive: boolean;
 }) {
   const { store } = useEnv();
-  const p = livePinPoint(thread);
+  const p = livePinPoint(thread, shapes);
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
 
   const onDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
@@ -290,6 +294,12 @@ function Pin({
       const t = a.target;
       if (t.type === 'region')
         return { ...a, target: { ...t, rect: { ...t.rect, x: t.rect.x + dx, y: t.rect.y + dy } } };
+      if (t.type === 'shape') {
+        // Stays on its image or drawing: the new spot within its box.
+        const shape = findShape(store.getState().doc.annotations, t.shapeId);
+        const to = { x: p.x + dx, y: p.y + dy };
+        return shape ? { ...a, target: { ...t, at: spotIn(shape, to), point: to } } : a;
+      }
       return { ...a, target: { ...t, point: { x: t.point.x + dx, y: t.point.y + dy } } };
     });
   };
@@ -325,7 +335,16 @@ function Pin({
   );
 }
 
-function TargetOutline({ thread, active }: { thread: CommentThread; active: boolean }) {
+/** A dashed box around what a comment is about (an area, a page element, or a placed thing). */
+function TargetOutline({
+  thread,
+  shapes,
+  active,
+}: {
+  thread: CommentThread;
+  shapes: Shape[];
+  active: boolean;
+}) {
   const t = thread.target;
   if (t.type === 'region') {
     return (
@@ -342,8 +361,21 @@ function TargetOutline({ thread, active }: { thread: CommentThread; active: bool
       />
     );
   }
-  if (!active || !t.anchor) return null;
-  const p = livePinPoint(thread);
+  if (!active) return null;
+  if (t.type === 'shape') {
+    const shape = findShape(shapes, t.shapeId);
+    if (!shape) return null;
+    const b = outlineBox(shape);
+    return (
+      <div
+        className="target-outline"
+        data-active=""
+        style={{ ...b, ['--pin' as string]: pinColor(thread) }}
+      />
+    );
+  }
+  if (!t.anchor) return null;
+  const p = livePinPoint(thread, shapes);
   const dx = p.x - t.point.x;
   const dy = p.y - t.point.y;
   const r = t.anchor.rect;
@@ -362,8 +394,21 @@ function TargetOutline({ thread, active }: { thread: CommentThread; active: bool
   );
 }
 
+/** A placed thing's box with a little air, for outlines. */
+function outlineBox(shape: Shape): { left: number; top: number; width: number; height: number } {
+  const b = shapeBounds(shape);
+  const pad = 4 + (shape.kind === 'image' ? 0 : shape.style.width / 2);
+  return { left: b.x - pad, top: b.y - pad, width: b.width + pad * 2, height: b.height + pad * 2 };
+}
+
 /** While composing, outlines what the comment is about (under the bubble, never over it). */
-function DraftOutline({ target }: { target: CommentThread['target'] }) {
+function DraftOutline({ target, shapes }: { target: CommentThread['target']; shapes: Shape[] }) {
+  if (target.type === 'shape') {
+    const shape = findShape(shapes, target.shapeId);
+    return shape ? (
+      <div className="target-outline draft" data-active="" style={outlineBox(shape)} />
+    ) : null;
+  }
   const r = target.type === 'region' ? target.rect : target.anchor?.rect;
   if (!r) return null;
   return (
@@ -438,11 +483,12 @@ export function AnnotationLayer() {
         <TargetOutline
           key={`o-${t.id}`}
           thread={t}
+          shapes={shapes}
           active={t.id === selectedId || t.id === openThreadId}
         />
       ))}
       {popover.key === 'draft' && popover.payload && !popover.exiting && (
-        <DraftOutline target={popover.payload.target} />
+        <DraftOutline target={popover.payload.target} shapes={shapes} />
       )}
       {region && (
         <div
@@ -463,6 +509,7 @@ export function AnnotationLayer() {
         <Pin
           key={t.id}
           thread={t}
+          shapes={shapes}
           active={t.id === selectedId || t.id === openThreadId}
           interactive={pinsInteractive}
         />

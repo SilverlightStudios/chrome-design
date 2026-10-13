@@ -1,16 +1,24 @@
 import { currentAnchorPoint } from '../capture/anchor';
-import type { CommentThread, Point } from '../shared/model';
+import type { Annotation, CommentThread, Point } from '../shared/model';
+import { findShape, pointIn } from '../shared/targets';
 import type { EditorStore } from './store';
 
-/** Live page position of a thread's pin (follows its anchor element if it moved). */
-export function livePinPoint(thread: CommentThread): Point {
+/**
+ * Live page position of a thread's pin: follows its anchor element if the page moved, or the
+ * image / drawing it belongs to (`annotations` should include a drawing being dragged).
+ */
+export function livePinPoint(thread: CommentThread, annotations: readonly Annotation[]): Point {
   const t = thread.target;
   if (t.type === 'region') return { x: t.rect.x, y: t.rect.y };
+  if (t.type === 'shape') {
+    const shape = findShape(annotations, t.shapeId);
+    return shape ? pointIn(shape, t.at) : t.point;
+  }
   return currentAnchorPoint(t.point, t.anchor);
 }
 
 export function revealThread(store: EditorStore, thread: CommentThread): void {
-  const p = livePinPoint(thread);
+  const p = livePinPoint(thread, store.getState().doc.annotations);
   window.scrollTo({
     top: Math.max(0, p.y - window.innerHeight / 3),
     left: Math.max(0, p.x - window.innerWidth / 2),

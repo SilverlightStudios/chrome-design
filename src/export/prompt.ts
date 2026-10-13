@@ -9,6 +9,7 @@ import type {
   Shape,
 } from '../shared/model';
 import { INTENT_LABEL, isComment, isShape } from '../shared/model';
+import { findShape, shapeLabel, storedTargetPoint } from '../shared/targets';
 
 export const BLOCK_IDS = {
   payload: 'chrome-design-payload',
@@ -34,20 +35,24 @@ function where(anchor: ElementAnchor | undefined): string {
   return `\`${anchor.selector}\`${ref}${text}`;
 }
 
-function threadPointOf(thread: CommentThread): { x: number; y: number } {
-  const t = thread.target;
-  return t.type === 'region' ? { x: t.rect.x, y: t.rect.y } : t.point;
+function threadPointOf(
+  thread: CommentThread,
+  annotations: readonly Annotation[],
+): { x: number; y: number } {
+  return storedTargetPoint(thread.target, annotations);
 }
 
 /** Comments within ~120px of a box: what a drawing or image most likely belongs to. */
 function nearbyComments(
   box: { x: number; y: number; width: number; height: number },
   comments: CommentThread[],
+  annotations: readonly Annotation[],
 ): string[] {
   const pad = 120;
   return comments
     .filter((c) => {
-      const p = threadPointOf(c);
+      if (c.target.type === 'shape') return false;
+      const p = threadPointOf(c, annotations);
       return (
         p.x >= box.x - pad &&
         p.x <= box.x + box.width + pad &&
@@ -58,8 +63,23 @@ function nearbyComments(
     .map((c) => `#${c.number}`);
 }
 
-function describeTarget(thread: CommentThread): string {
+function describeTarget(
+  thread: CommentThread,
+  annotations: readonly Annotation[],
+  images: ImageIndexEntry[],
+): string {
   const t = thread.target;
+  if (t.type === 'shape') {
+    const shape = findShape(annotations, t.shapeId);
+    if (shape?.kind === 'image') {
+      const file = imageFileFor(images, (e) => e.annotationId === shape.id);
+      return `placed image ${file || shape.name} ("${shape.name}")`;
+    }
+    const b = shape ? shapeBounds(shape) : null;
+    return shape && b
+      ? `the ${shapeLabel(shape).toLowerCase()} drawn at (${round(b.x)}, ${round(b.y)})`
+      : `a spot at (${round(t.point.x)}, ${round(t.point.y)})`;
+  }
   if (t.type === 'region') {
     const inside = t.anchors.length ? `, containing ${t.anchors.map(where).join(', ')}` : '';
     return `area ${round(t.rect.width)}×${round(t.rect.height)} at (${round(t.rect.x)}, ${round(t.rect.y)})${inside}`;
@@ -73,11 +93,19 @@ function imageFileFor(images: ImageIndexEntry[], test: (e: ImageIndexEntry) => b
   return entry ? entry.file : '';
 }
 
-function describeShape(shape: Shape, comments: CommentThread[], images: ImageIndexEntry[]): string {
+function describeShape(
+  shape: Shape,
+  comments: CommentThread[],
+  annotations: readonly Annotation[],
+  images: ImageIndexEntry[],
+): string {
   const b = shapeBounds(shape);
   const box = `${round(b.width)}×${round(b.height)} at (${round(b.x)}, ${round(b.y)})`;
-  const near = nearbyComments(b, comments);
-  const nearText = near.length ? `; near comment ${near.join(', ')}` : '';
+  const own = comments
+    .filter((c) => c.target.type === 'shape' && c.target.shapeId === shape.id)
+    .map((c) => `#${c.number}`);
+  const near = nearbyComments(b, comments, annotations);
+  const nearText = `${own.length ? `; comment ${own.join(', ')} ${own.length === 1 ? 'is' : 'are'} on it` : ''}${near.length ? `; near comment ${near.join(', ')}` : ''}`;
   if (shape.kind === 'image') {
     const file = imageFileFor(images, (e) => e.annotationId === shape.id);
     const lines = [`- PLACED IMAGE ${file || shape.name} ("${shape.name}"), ${box}${nearText}`];
@@ -103,7 +131,9 @@ export function describeAnnotations(annotations: Annotation[], images: ImageInde
   if (comments.length) {
     lines.push('COMMENTS');
     for (const c of comments) {
-      lines.push(`#${c.number} ${INTENT_LABEL[c.intent]} (${c.status}) on ${describeTarget(c)}`);
+      lines.push(
+        `#${c.number} ${INTENT_LABEL[c.intent]} (${c.status}) on ${describeTarget(c, annotations, images)}`,
+      );
       for (const [i, m] of c.messages.entries()) {
         const who = i === 0 ? '' : 'reply: ';
         if (m.body) lines.push(`    ${who}${m.body.replace(/\n/g, '\n    ')}`);
@@ -117,7 +147,7 @@ export function describeAnnotations(annotations: Annotation[], images: ImageInde
   if (shapes.length) {
     if (lines.length) lines.push('');
     lines.push('DRAWINGS AND PLACED IMAGES');
-    for (const s of shapes) lines.push(describeShape(s, comments, images));
+    for (const s of shapes) lines.push(describeShape(s, comments, annotations, images));
   }
   return lines.join('\n');
 }
@@ -197,7 +227,7 @@ export function buildAgentPrompt(
     '   - HOW it should look: layout, content, hierarchy, colours, type and states visible in the picture. Match the page’s existing design system (fonts, colours, spacing, components) rather than copying the screenshot’s pixels, unless told to.',
     '   - WHERE it goes: where it was dropped. `placement.inside` is the page element that contains it (the section or container it belongs in) and `placement.covers` are the elements under it, most covered first (what it may replace or sit next to). Use those, the coordinates and nearby comments to decide whether it replaces, goes next to, or is inserted between existing content.',
     '   - Never paste the screenshot itself into the page as an <img> unless a comment asks for that; build it in HTML/CSS.',
-    '5. IMAGES ATTACHED TO COMMENTS (`messages[].attachments`) illustrate that comment: an example, a mockup or the asset to use.',
+    '5. IMAGES ATTACHED TO COMMENTS (`messages[].attachments`) illustrate that comment: an example, a mockup or the asset to use. A comment can also be ON a placed image or drawing (`target.type: "shape"`, `target.shapeId`): it is about that picture or mark specifically.',
     '6. Revise the page to implement every OPEN "change" request. Every "decision" is a binding constraint that must stay true. Answer every "question" in your reply. "note" items are context. Resolved threads are history: keep them true but do not redo them.',
     '7. Preserve everything the designer did not ask to change: content, layout, responsive behaviour, accessibility and visual style.',
     '8. Return (a) the revised page (without the handoff wrapper) and (b) a checklist mapping each comment number and each placed image to what you changed, or why you could not.',

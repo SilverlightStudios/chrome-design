@@ -66,7 +66,13 @@ export interface CommentMessage {
 export type CommentTarget =
   | { type: 'point'; point: Point; anchor?: ElementAnchor }
   | { type: 'element'; point: Point; anchor: ElementAnchor }
-  | { type: 'region'; rect: Rect; anchors: ElementAnchor[] };
+  | { type: 'region'; rect: Rect; anchors: ElementAnchor[] }
+  /**
+   * On something the designer placed (an image or a drawing). `at` is the pin's spot within
+   * its box (0–1 fractions), so it follows when that thing moves or is resized; `point` is
+   * where it was made (kept if the thing is deleted).
+   */
+  | { type: 'shape'; shapeId: string; at: Point; point: Point };
 
 export interface CommentThread {
   id: string;

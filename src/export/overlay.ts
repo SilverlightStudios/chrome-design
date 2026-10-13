@@ -1,7 +1,8 @@
 import { escapeHtml } from '../shared/escape';
-import { arrowHead, pointsToPath } from '../shared/geometry';
+import { arrowHead, pointsToPath, shapeBounds } from '../shared/geometry';
 import type { Annotation, CommentThread, Point, Shape } from '../shared/model';
 import { isComment, isShape } from '../shared/model';
+import { findShape, storedTargetPoint } from '../shared/targets';
 
 const PIN_COLORS: Record<CommentThread['intent'], string> = {
   change: '#2563EB',
@@ -15,9 +16,8 @@ export function pinColor(thread: CommentThread): string {
 }
 
 /** Where a thread's pin sits in page space. */
-export function threadPoint(thread: CommentThread): Point {
-  const t = thread.target;
-  return t.type === 'region' ? { x: t.rect.x, y: t.rect.y } : t.point;
+export function threadPoint(thread: CommentThread, annotations: readonly Annotation[]): Point {
+  return storedTargetPoint(thread.target, annotations);
 }
 
 const n = (v: number) => Math.round(v * 10) / 10;
@@ -60,9 +60,15 @@ export function shapeToSvg(shape: Shape): string {
   }
 }
 
-function targetMarkup(thread: CommentThread): string {
+function targetMarkup(thread: CommentThread, annotations: readonly Annotation[]): string {
   const color = pinColor(thread);
   const t = thread.target;
+  if (t.type === 'shape') {
+    const shape = findShape(annotations, t.shapeId);
+    if (!shape) return '';
+    const r = shapeBounds(shape);
+    return `<rect class="cd-target" data-annotation-id="${escapeHtml(thread.id)}" x="${n(r.x - 4)}" y="${n(r.y - 4)}" width="${n(r.width + 8)}" height="${n(r.height + 8)}" fill="none" stroke="${color}" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.8"/>`;
+  }
   if (t.type === 'region') {
     const r = t.rect;
     return `<rect class="cd-target" data-annotation-id="${escapeHtml(thread.id)}" x="${n(r.x)}" y="${n(r.y)}" width="${n(r.width)}" height="${n(r.height)}" fill="${color}" fill-opacity="0.08" stroke="${color}" stroke-width="1.5" stroke-dasharray="6 4"/>`;
@@ -74,8 +80,8 @@ function targetMarkup(thread: CommentThread): string {
   return '';
 }
 
-function pinMarkup(thread: CommentThread): string {
-  const p = threadPoint(thread);
+function pinMarkup(thread: CommentThread, annotations: readonly Annotation[]): string {
+  const p = threadPoint(thread, annotations);
   const color = pinColor(thread);
   const label = String(thread.number);
   const text = thread.messages
@@ -89,7 +95,7 @@ function pinMarkup(thread: CommentThread): string {
 export function renderOverlaySvg(annotations: Annotation[], width: number, height: number): string {
   const shapes = annotations.filter(isShape).map(shapeToSvg).join('');
   const comments = annotations.filter(isComment).toSorted((a, b) => a.number - b.number);
-  const targets = comments.map(targetMarkup).join('');
-  const pins = comments.map(pinMarkup).join('');
+  const targets = comments.map((c) => targetMarkup(c, annotations)).join('');
+  const pins = comments.map((c) => pinMarkup(c, annotations)).join('');
   return `<svg class="cd-overlay" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-label="Annotation overlay"><g class="cd-layer-targets">${targets}</g><g class="cd-layer-shapes">${shapes}</g><g class="cd-layer-pins">${pins}</g></svg>`;
 }

@@ -14,6 +14,7 @@ import {
   type Shape,
   type ShapeStyle,
 } from '../shared/model';
+import { findShape, pointIn } from '../shared/targets';
 
 /** `browse` leaves the page fully interactive (no capture layer). */
 export type ToolId = 'browse' | 'select' | 'comment' | 'draw';
@@ -264,7 +265,18 @@ export class EditorStore {
   removeAnnotations(ids: readonly string[]): void {
     if (ids.length === 0) return;
     const set = new Set(ids);
-    this.commit((doc) => ({ ...doc, annotations: doc.annotations.filter((a) => !set.has(a.id)) }));
+    this.commit((doc) => ({
+      ...doc,
+      annotations: doc.annotations
+        .filter((a) => !set.has(a.id))
+        // Comments on a deleted image or drawing stay where they were, on the page.
+        .map((a) => {
+          if (!isComment(a) || a.target.type !== 'shape' || !set.has(a.target.shapeId)) return a;
+          const shape = findShape(doc.annotations, a.target.shapeId);
+          const point = shape ? pointIn(shape, a.target.at) : a.target.point;
+          return { ...a, target: { type: 'point' as const, point } };
+        }),
+    }));
     const { selectedId, openThreadId } = this.state;
     this.set({
       selectedId: selectedId && set.has(selectedId) ? null : selectedId,

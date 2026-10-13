@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { createId, nowIso } from '../../shared/ids';
 import {
+  type Annotation,
   type CommentIntent,
   type CommentMessage,
   type CommentThread,
@@ -15,6 +16,7 @@ import {
   isComment,
   type Point,
 } from '../../shared/model';
+import { findShape, shapeLabel, storedTargetPoint } from '../../shared/targets';
 import { livePinPoint } from '../actions';
 import { useEnv } from '../context';
 import { friendlyAnchorLabel } from '../describe';
@@ -66,13 +68,15 @@ function placement(p: Point): { left: number; top: number; originX: number; orig
   return { left, top, originX: p.x - left, originY: p.y - top - 15 };
 }
 
-function draftPoint(draft: DraftComment): Point {
-  const t = draft.target;
-  return t.type === 'region' ? { x: t.rect.x, y: t.rect.y } : t.point;
-}
-
-function describeTarget(target: CommentThread['target']): string {
+function describeTarget(
+  target: CommentThread['target'],
+  annotations: readonly Annotation[],
+): string {
   if (target.type === 'region') return 'This area';
+  if (target.type === 'shape') {
+    const shape = findShape(annotations, target.shapeId);
+    return shape ? `This ${shapeLabel(shape).toLowerCase()}` : 'This spot';
+  }
   if (target.anchor) return friendlyAnchorLabel(target.anchor);
   return 'This spot';
 }
@@ -254,7 +258,12 @@ export function CommentPopover({
     }
   };
 
-  const point = draft ? draftPoint(draft) : thread ? livePinPoint(thread) : { x: 0, y: 0 };
+  const annotations = store.getState().doc.annotations;
+  const point = draft
+    ? storedTargetPoint(draft.target, annotations)
+    : thread
+      ? livePinPoint(thread, annotations)
+      : { x: 0, y: 0 };
   const pos = placement(point);
   const target = draft?.target ?? thread?.target;
   const current = thread?.intent ?? intent;
@@ -288,7 +297,7 @@ export function CommentPopover({
             {thread.number}
           </span>
         ) : null}
-        <span className="popover-target">{target ? describeTarget(target) : ''}</span>
+        <span className="popover-target">{target ? describeTarget(target, annotations) : ''}</span>
         {thread && (
           <>
             <button

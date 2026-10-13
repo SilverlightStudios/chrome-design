@@ -3,6 +3,7 @@ import { buildAnchor } from '../../capture/anchor';
 import {
   hitTestShape,
   rectFromPoints,
+  shapeBounds,
   simplifyPath,
   snapAngle,
   squareFrom,
@@ -10,6 +11,7 @@ import {
 } from '../../shared/geometry';
 import { createId, nowIso } from '../../shared/ids';
 import { isShape, type Point, type Rect, type Shape } from '../../shared/model';
+import { spotIn } from '../../shared/targets';
 import { useEditor, useEnv } from '../context';
 import { capturePointer, elementsInRect, pickElement, releasePointer, toPage } from '../dom';
 import type { EditorStore } from '../store';
@@ -39,6 +41,22 @@ export function draftForPoint(p: Point, clientX: number, clientY: number) {
   const el = pickElement(clientX, clientY);
   if (isPageRoot(el)) return { target: { type: 'point' as const, point: p } };
   return { target: { type: 'element' as const, point: p, anchor: buildAnchor(el!) } };
+}
+
+/** A comment on a placed image or drawing, pinned where it was clicked within it. */
+export function draftForShape(shape: Shape, p: Point) {
+  return { target: { type: 'shape' as const, shapeId: shape.id, at: spotIn(shape, p), point: p } };
+}
+
+/** Start a comment on a selected image or drawing (pinned at its top-right corner). */
+export function commentOnShape(store: EditorStore, shape: Shape): void {
+  const b = shapeBounds(shape);
+  store.set({
+    draft: draftForShape(shape, { x: b.x + b.width, y: b.y }),
+    openThreadId: null,
+    pickedEl: null,
+    pickedRegion: null,
+  });
 }
 
 export function draftForRegion(rect: Rect) {
@@ -150,12 +168,16 @@ export function InteractionLayer() {
     const g = gesture.current;
     const s = store.getState();
     if (!g) {
-      if (s.tool === 'select' || s.tool === 'comment') updateHover(e.clientX, e.clientY);
-      if (s.tool === 'select' && e.pointerType !== 'touch') {
-        const hit = hitShape(store, toPage(e.clientX, e.clientY));
-        const id = hit?.id ?? null;
-        if (id !== s.hoverShapeId) store.set({ hoverShapeId: id });
-      }
+      const overShape =
+        (s.tool === 'select' || s.tool === 'comment') && e.pointerType !== 'touch'
+          ? hitShape(store, toPage(e.clientX, e.clientY))
+          : null;
+      const id = overShape?.id ?? null;
+      if (id !== s.hoverShapeId) store.set({ hoverShapeId: id });
+      // Over a drawing the comment would be on it, so the page element isn't highlighted.
+      if (overShape && s.tool === 'comment') {
+        if (s.hoverEl) store.set({ hoverEl: null });
+      } else if (s.tool === 'select' || s.tool === 'comment') updateHover(e.clientX, e.clientY);
       return;
     }
     const p = toPage(e.clientX, e.clientY);
@@ -230,7 +252,13 @@ export function InteractionLayer() {
           return;
         }
         if (s.tool === 'comment') {
-          store.set({ draft: draftForPoint(p, e.clientX, e.clientY), selectedId: null });
+          // On a placed image or drawing, the comment belongs to it.
+          const shape = hitShape(store, p, e.pointerType === 'touch' ? 14 : 6);
+          store.set({
+            draft: shape ? draftForShape(shape, p) : draftForPoint(p, e.clientX, e.clientY),
+            selectedId: null,
+            hoverShapeId: null,
+          });
         } else {
           const el = pickElement(e.clientX, e.clientY);
           store.set({ pickedEl: isPageRoot(el) ? null : el, selectedId: null, pickedRegion: null });

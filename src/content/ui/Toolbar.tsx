@@ -19,6 +19,7 @@ import {
 } from '../motion/glass';
 import { BottomSheet, FloatingSheet, useCompact, useSheetPresence } from '../motion/MorphSheet';
 import { MorphTooltipGroup } from '../motion/MorphTooltip';
+import { commentOnShape } from '../overlay/InteractionLayer';
 import { textFontSize } from '../overlay/TextEditor';
 import { loadUiPrefs, saveUiPrefs, type UiPrefs } from '../persistence';
 import {
@@ -294,6 +295,12 @@ function StyleBar({ placement }: { placement: 'up' | 'down' }) {
         {selected ? (
           <>
             {styled ? <Divider /> : null}
+            <ToolButton
+              icon="comment"
+              label="Comment"
+              kbd="↵"
+              onClick={() => commentOnShape(store, selected)}
+            />
             <ToolButton
               icon="trash"
               label="Delete"
