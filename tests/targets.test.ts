@@ -136,3 +136,41 @@ describe('screen sizes', () => {
     expect(text).toContain('only at phone widths (< 640px); written at 390px wide');
   });
 });
+
+describe('copy for AI', () => {
+  it('reads as one chat message: page, how to read it, the feedback, what to send back', async () => {
+    const { buildChatPrompt } = await import('../src/export/prompt');
+    const text = buildChatPrompt(
+      {
+        url: 'https://x.test/',
+        title: 'X',
+        brief: 'Make it calmer',
+        annotations: [image, onImage],
+        guides: [],
+        updatedAt: AT,
+      },
+      {
+        url: 'https://x.test/',
+        title: 'X',
+        viewport: { width: 1280, height: 800, devicePixelRatio: 2 },
+      },
+      [
+        {
+          file: 'images/placed-01-card.png',
+          kind: 'placed',
+          name: 'Card.png',
+          annotationId: 'img',
+          embedded: true,
+        },
+      ],
+    );
+    expect(text.startsWith('Design feedback on https://x.test/ ("X"), reviewed at 1280×800.')).toBe(
+      true,
+    );
+    expect(text).toContain('scratch board');
+    expect(text).toContain('Make it calmer');
+    expect(text).toContain('#1 Change request (open) on placed image images/placed-01-card.png');
+    expect(text).toContain('(placed-01-card.png) aren’t in this message');
+    expect(text.trim().endsWith('done, or why not.')).toBe(true);
+  });
+});

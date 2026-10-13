@@ -70,6 +70,7 @@ export function ExportPanel() {
   const [includeScreenshot, setIncludeScreenshot] = useState(true);
   const [includeSource, setIncludeSource] = useState(true);
   const [status, setStatus] = useState<ExportStatus>({ phase: 'idle' });
+  const [copied, setCopied] = useState(false);
   const comments = annotations.filter(isComment);
   const drawings = annotations.length - comments.length;
   const busy = status.phase === 'working';
@@ -147,15 +148,35 @@ export function ExportPanel() {
         </span>
         <span className="layer error">Couldn’t save — try again</span>
       </button>
-      <button
-        type="button"
-        className="ghost-action"
-        disabled={busy}
-        data-testid="cd-export-zip"
-        onClick={() => run('zip')}
-      >
-        <Icon.image /> Download .zip with images
-      </button>
+      <div className="ghost-row">
+        <button
+          type="button"
+          className="ghost-action"
+          disabled={busy}
+          data-testid="cd-export-zip"
+          onClick={() => run('zip')}
+        >
+          <Icon.image /> .zip with images
+        </button>
+        <button
+          type="button"
+          className="ghost-action"
+          data-testid="cd-copy-for-ai"
+          data-done={copied ? '' : undefined}
+          onClick={() => {
+            void env.copyForAi().then((ok) => {
+              if (!ok) {
+                env.toast('Couldn’t copy');
+                return;
+              }
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1600);
+            });
+          }}
+        >
+          {copied ? <Icon.check /> : <Icon.copy />} Copy for AI
+        </button>
+      </div>
       {status.phase === 'done' && missing.length > 0 && !env.handoff && (
         <div className="export-result" role="status">
           <span className="warn">

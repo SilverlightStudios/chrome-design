@@ -51,18 +51,18 @@ describe('selecting several drawings', () => {
   });
 });
 
-describe('layer order, lock and hide', () => {
-  const setup = () => {
-    const store = new EditorStore(createInitialState(emptyDoc('https://x.test/', 'X')));
-    for (const id of ['a', 'b', 'c', 'd']) store.addAnnotation(rect(id, 0, 0));
-    return store;
-  };
-  const order = (store: EditorStore) =>
-    store
-      .getState()
-      .doc.annotations.map((a) => a.id)
-      .join('');
+const setup = () => {
+  const store = new EditorStore(createInitialState(emptyDoc('https://x.test/', 'X')));
+  for (const id of ['a', 'b', 'c', 'd']) store.addAnnotation(rect(id, 0, 0));
+  return store;
+};
+const order = (store: EditorStore) =>
+  store
+    .getState()
+    .doc.annotations.map((a) => a.id)
+    .join('');
 
+describe('layer order, lock and hide', () => {
   it('brings forward, sends backward, and goes all the way', () => {
     const store = setup();
     store.arrange(['b'], 'forward');

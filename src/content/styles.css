@@ -2025,6 +2025,15 @@ p.muted {
   font: 10.5px var(--mono);
   color: var(--ink-faint);
 }
+.ghost-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.ghost-action[data-done] {
+  color: var(--success);
+  border-color: color-mix(in oklab, var(--success), transparent 50%);
+}
 .ghost-action {
   display: flex;
   align-items: center;

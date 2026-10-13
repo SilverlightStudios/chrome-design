@@ -1,8 +1,10 @@
 import { buildAnchor } from '../capture/anchor';
 import { pageFetcher } from '../capture/assets';
 import { capturePage } from '../capture/capture';
-import { type BuildOutput, buildHandoff } from '../export/build';
+import { type BuildOutput, buildHandoff, imageIndex } from '../export/build';
+import { buildChatPrompt } from '../export/prompt';
 import { buildZip, type ZipEntry } from '../export/zip';
+import { escapeHtml } from '../shared/escape';
 import type {
   Annotation,
   AnnotationDoc,
@@ -34,7 +36,7 @@ function anchorsOf(a: Annotation): ElementAnchor[] {
 }
 
 /** Where each placed image sits on the page right now: its container and what it covers. */
-function withPlacements(doc: AnnotationDoc): AnnotationDoc {
+export function withPlacements(doc: AnnotationDoc): AnnotationDoc {
   return {
     ...doc,
     annotations: doc.annotations.map((a): Annotation => {
@@ -397,5 +399,58 @@ export async function runExport(
   } catch (error) {
     console.error('[Chrome Design] export failed', error);
     onStatus({ phase: 'error', message: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+/**
+ * Copy the feedback for an AI chat: the instructions and every comment, drawing and placed
+ * image (with where it sits) as text, plus an HTML version carrying the pictures for editors
+ * that take them. False when the clipboard refuses.
+ */
+export async function copyForAi(store: EditorStore, handoff?: HandoffData): Promise<boolean> {
+  const s = store.getState();
+  const boxes = redactRects(s.doc);
+  const doc = maskAnchors(withPlacements(s.doc), boxes);
+  const meta = handoff?.payload.page ?? {
+    url: location.href,
+    title: document.title,
+    viewport: {
+      width: document.documentElement.clientWidth || window.innerWidth,
+      height: window.innerHeight,
+      devicePixelRatio: window.devicePixelRatio || 1,
+    },
+  };
+  const images = imageIndex(doc.annotations);
+  const text = buildChatPrompt(doc, meta, images);
+  const srcs = new Map<string, string>();
+  for (const a of doc.annotations) {
+    if (isShape(a) && a.kind === 'image') srcs.set(a.id, a.src);
+    if (isComment(a))
+      for (const m of a.messages) for (const att of m.attachments ?? []) srcs.set(att.id, att.src);
+  }
+  const pictures = images
+    .map((i) => ({ name: i.file, src: srcs.get(i.attachmentId ?? i.annotationId) ?? '' }))
+    .filter((p) => p.src.startsWith('data:image/'))
+    .map(
+      (p) =>
+        `<figure><img src="${escapeHtml(p.src)}" alt="${escapeHtml(p.name)}"><figcaption>${escapeHtml(p.name)}</figcaption></figure>`,
+    )
+    .join('');
+  const html = `<meta charset="utf-8"><pre>${escapeHtml(text)}</pre>${pictures}`;
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'text/plain': new Blob([text], { type: 'text/plain' }),
+        'text/html': new Blob([html], { type: 'text/html' }),
+      }),
+    ]);
+    return true;
+  } catch {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }

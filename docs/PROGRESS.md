@@ -15,6 +15,16 @@ extension (including a phone-width bottom-sheet test). Verified on the demo page
   plain-language element names (`src/content/describe.ts`) + floating selection bar + Details;
   comment bubble with send button; More sheet of tiles; contextual style bar; phone bottom sheets on
   the Remote Desktop drawer physics; exit animations everywhere (bubble, bars, sheets, whole UI).
+- R11 (owner's picks from the ranked list; #2 names on comments waits for login):
+  open a handoff on the live page (More → Open file / drop; `content/importHandoff.ts` merges
+  by id); comments on images and drawings (`target.type: 'shape'`, spot `at` within its box,
+  `shared/targets.ts`); full-page picture by scroll-and-stitch + in-context crops
+  (`captureFullPage` in exporter, block `#chrome-design-fullpage`); multi-select
+  (`selectedIds`, `liveShapes`, group frame scales via `transformShape`); copy/paste/duplicate
+  (`content/clipboard.ts`, HTML carrying the shapes); Blur boxes + Hide (`kind: 'redact'`,
+  `content/redact.ts` masks text/pictures in the copy, drops page code); screen sizes (comment
+  `viewport` + `scope`, More → Screen size via `cd:resize-window`); arrange/lock/hide + Layers
+  panel (`store.arrange`, `setShapeFlag`); Copy for AI (`buildChatPrompt`, `copyForAi`).
 - R10: shareable handoff. The file *is* the page copy plus a marked wrapper
   (`<!--chrome-design:begin/end-->`, `data-chrome-design-handoff` on <html>): CSP + width lock +
   viewport in head; DSD `chrome-design-static` no-JS layer (overlay SVG + comment list), data

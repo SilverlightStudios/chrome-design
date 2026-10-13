@@ -33,6 +33,8 @@ export interface EditorEnv {
   shadow: ShadowRoot;
   close: () => void;
   runExport: (options: ExportOptions, onStatus: (status: ExportStatus) => void) => Promise<void>;
+  /** Copy the instructions and feedback for pasting into an AI chat. */
+  copyForAi: () => Promise<boolean>;
   toast: (message: string, action?: ToastAction) => void;
   /** Open the extension's full settings page in a tab; false without the extension. */
   openSettingsPage: () => Promise<boolean>;

@@ -260,3 +260,37 @@ export function buildAgentPrompt(
     lines.push('', 'DESIGNER BRIEF (applies to the whole page)', doc.brief.trim());
   return lines.join('\n');
 }
+
+/**
+ * The feedback as one message for an AI chat (pasted, not a file): what the page is, how to
+ * read a scratch board, then every comment, drawing and picture with where it is.
+ */
+export function buildChatPrompt(
+  doc: AnnotationDoc,
+  meta: Pick<PageMeta, 'url' | 'title' | 'viewport'>,
+  images: ImageIndexEntry[] = [],
+): string {
+  const feedback = describeAnnotations(doc.annotations, images);
+  const lines = [
+    `Design feedback on ${meta.url}${meta.title ? ` ("${meta.title}")` : ''}, reviewed at ${meta.viewport.width}×${meta.viewport.height}.`,
+    '',
+    'How to read it:',
+    '- Comments are numbered; read them all in order. "Change" = do it, "Decision" = must stay true, "Question" = answer it, "Note" = context. The latest reply wins.',
+    '- Elements are given as CSS selectors with their text, and positions as CSS px from the top-left of the page at the width above.',
+    '- It\u2019s a scratch board: drawings point at things and positions/sizes are approximate, unless a comment asks for exact values.',
+    '- A placed image is usually a screenshot of the intended design (often a component from Figma): build what it shows, in the site\u2019s own styles, roughly where it was placed ("sits inside" = the section it belongs in, "covers" = what it sits on).',
+    '- "only at phone/tablet/desktop widths" means just that screen range; grey hidden areas are privacy blurs, not changes.',
+  ];
+  if (images.length)
+    lines.push(
+      `- The pictures (${images.map((i) => i.file.replace(/^images\//, '')).join(', ')}) aren\u2019t in this message; ask for them if you need to see them.`,
+    );
+  if (doc.brief.trim()) lines.push('', 'Brief:', doc.brief.trim());
+  lines.push(
+    '',
+    feedback || '(no comments or drawings yet)',
+    '',
+    'Please reply with the changes, then a checklist of every comment number and placed image: done, or why not.',
+  );
+  return lines.join('\n');
+}

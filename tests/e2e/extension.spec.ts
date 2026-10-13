@@ -582,6 +582,16 @@ test('screen sizes: comments can be for one size; presets live in More', async (
   await page.keyboard.press('Enter');
   // Written at 1280px (desktop): the phone-only pin steps back.
   await expect(ui.locator('.pin[data-other-size]')).toHaveCount(1);
+  // Copy for AI puts a chat-ready message on the clipboard.
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseUrl });
+  await page.keyboard.press('Shift+E');
+  await ui.locator('[data-testid="cd-copy-for-ai"]').click();
+  await expect(ui.locator('[data-testid="cd-copy-for-ai"][data-done]')).toHaveCount(1);
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toContain('Design feedback on');
+  expect(copied).toContain('Stack these on phones');
+  expect(copied).toContain('only at phone widths');
+  await page.keyboard.press('Escape');
   await ui.locator('.tb-btn[aria-label="More"]').click();
   await ui.locator('.tile', { hasText: 'Screen size' }).click();
   await expect(ui.locator('.screen-readout')).toContainText('1280 px · Desktop');
