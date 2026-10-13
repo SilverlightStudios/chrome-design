@@ -1,6 +1,6 @@
 import { freezeMediaQueries } from '../capture/media';
 import { BLOCK_IDS, ROOT_ATTRIBUTE } from '../export/prompt';
-import type { AnnotationDoc, HandoffPayload } from '../shared/model';
+import type { AnnotationDoc, FullPageShot, HandoffPayload } from '../shared/model';
 
 /**
  * A shared handoff file opened in a browser: the page copy with Chrome Design built in. The
@@ -15,6 +15,7 @@ export interface HandoffData {
   /** The original page's rendered DOM (reference block), carried over unchanged. */
   source: string;
   screenshot?: { dataUrl: string; width: number; height: number };
+  fullPage?: FullPageShot;
   /** Where edits made in this copy are remembered (per file, in this browser). */
   storageKey: string;
 }
@@ -48,6 +49,15 @@ export function readHandoff(runtime: string): HandoffData | null {
         dataUrl,
         width: Number(shot.getAttribute('data-width')) || 0,
         height: Number(shot.getAttribute('data-height')) || 0,
+      };
+    const full = document.getElementById(BLOCK_IDS.fullPage);
+    const fullUrl = full?.textContent?.trim();
+    if (full && fullUrl?.startsWith('data:image/'))
+      data.fullPage = {
+        dataUrl: fullUrl,
+        width: Number(full.getAttribute('data-width')) || 0,
+        height: Number(full.getAttribute('data-height')) || 0,
+        scale: Number(full.getAttribute('data-scale')) || 1,
       };
     return data;
   } catch (error) {

@@ -180,6 +180,12 @@ svg {
 
 :host([data-capturing]) .ui,
 :host([data-capturing]) .active-edge,
+:host([data-capturing]) .sel-frame,
+:host([data-capturing]) .sel-handle,
+:host([data-capturing]) .size-pill,
+:host([data-capturing]) .hover-box,
+:host([data-capturing]) .region-drag,
+:host([data-capturing]) .target-outline.draft,
 :host([data-capturing]) .inspect-layer,
 :host([data-capturing]) .grid-overlay {
   /* biome-ignore lint/complexity/noImportantStyles: must win while taking the screenshot */

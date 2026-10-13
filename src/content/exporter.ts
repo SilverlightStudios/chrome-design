@@ -1,19 +1,20 @@
 import { buildAnchor } from '../capture/anchor';
 import { pageFetcher } from '../capture/assets';
 import { capturePage } from '../capture/capture';
-import { buildHandoff } from '../export/build';
-import { buildZip } from '../export/zip';
+import { type BuildOutput, buildHandoff } from '../export/build';
+import { buildZip, type ZipEntry } from '../export/zip';
 import type {
   Annotation,
   AnnotationDoc,
   CommentThread,
   ElementAnchor,
+  FullPageShot,
   ImageShape,
 } from '../shared/model';
 import { isComment, isShape } from '../shared/model';
 import type { ExportOptions, ExportStatus } from './context';
 import { containerOfRect, elementsInRect, overlappedChildren } from './dom';
-import { backgroundFetcher, captureVisibleTab } from './ext';
+import { backgroundFetcher, captureVisibleTab, hasExtensionRuntime } from './ext';
 import type { HandoffData } from './handoff';
 import { getRuntimeSource } from './runtime';
 import type { EditorStore } from './store';
@@ -115,6 +116,145 @@ async function shrinkScreenshot(
   return { dataUrl: canvas.toDataURL('image/jpeg', 0.86), width, height };
 }
 
+const MAX_SLICES = 16;
+/** Chrome allows two tab captures a second. */
+const CAPTURE_GAP_MS = 560;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  const img = new Image();
+  img.src = src;
+  return img.decode().then(() => img);
+}
+
+/**
+ * The whole page, top to bottom, with the feedback drawn on: scroll a screen at a time and
+ * capture each (the toolbar and panels are hidden, drawings and pins stay). Fixed and sticky
+ * page parts are hidden after the first screen so headers aren't repeated. Extension only.
+ */
+async function captureFullPage(
+  host: HTMLElement,
+  onProgress: (done: number, total: number) => void,
+): Promise<FullPageShot | null> {
+  const root = document.documentElement;
+  const viewW = root.clientWidth || window.innerWidth;
+  const viewH = window.innerHeight;
+  const pageH = Math.max(root.scrollHeight, document.body?.scrollHeight ?? 0);
+  const total = Math.min(MAX_SLICES, Math.ceil(pageH / viewH));
+  const start = { x: window.scrollX, y: window.scrollY };
+  const behavior = root.style.scrollBehavior;
+  root.style.scrollBehavior = 'auto';
+  host.setAttribute('data-capturing', '');
+  const hidden: { el: HTMLElement; value: string; priority: string }[] = [];
+  const slices: { dataUrl: string; y: number }[] = [];
+  let last = 0;
+  try {
+    for (let i = 0; i < total; i++) {
+      window.scrollTo(0, i * viewH);
+      if (i === 1) {
+        for (const el of Array.from(document.body?.querySelectorAll<HTMLElement>('*') ?? [])) {
+          if (el.localName.startsWith('chrome-design')) continue;
+          const position = getComputedStyle(el).position;
+          if (position !== 'fixed' && position !== 'sticky') continue;
+          hidden.push({
+            el,
+            value: el.style.getPropertyValue('visibility'),
+            priority: el.style.getPropertyPriority('visibility'),
+          });
+          el.style.setProperty('visibility', 'hidden', 'important');
+        }
+      }
+      await nextFrame();
+      await nextFrame();
+      await sleep(Math.max(80, CAPTURE_GAP_MS - (performance.now() - last)));
+      last = performance.now();
+      const shot = await captureVisibleTab();
+      if (!shot) return null;
+      slices.push({ dataUrl: shot, y: window.scrollY });
+      onProgress(i + 1, total);
+    }
+  } finally {
+    for (const h of hidden) h.el.style.setProperty('visibility', h.value, h.priority);
+    window.scrollTo(start.x, start.y);
+    root.style.scrollBehavior = behavior;
+    host.removeAttribute('data-capturing');
+  }
+  const coveredH = Math.min(pageH, (slices.at(-1)?.y ?? 0) + viewH);
+  const width = Math.min(1280, viewW);
+  const scale = width / viewW;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = Math.round(coveredH * scale);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  for (const slice of slices) {
+    const img = await loadImage(slice.dataUrl);
+    const dpr = img.naturalWidth / (window.innerWidth || viewW);
+    // Leave out a classic scrollbar on the right.
+    ctx.drawImage(
+      img,
+      0,
+      0,
+      viewW * dpr,
+      viewH * dpr,
+      0,
+      Math.round(slice.y * scale),
+      width,
+      Math.round(viewH * scale),
+    );
+  }
+  return {
+    dataUrl: canvas.toDataURL('image/jpeg', 0.8),
+    width: canvas.width,
+    height: canvas.height,
+    scale,
+  };
+}
+
+/**
+ * Each placed image as it sits on the page: a crop of the full-page picture around it, so an
+ * agent sees the picture in its place without hunting through a tall screenshot.
+ */
+async function contextCrops(out: BuildOutput, shot: FullPageShot): Promise<ZipEntry[]> {
+  const page = await loadImage(shot.dataUrl);
+  const crops: ZipEntry[] = [];
+  for (const entry of out.payload.images) {
+    if (entry.kind !== 'placed' || !entry.rect) continue;
+    const r = entry.rect;
+    const margin = Math.max(160, Math.max(r.width, r.height) * 0.5);
+    const x0 = Math.max(0, (r.x - margin) * shot.scale);
+    const y0 = Math.max(0, (r.y - margin) * shot.scale);
+    const x1 = Math.min(shot.width, (r.x + r.width + margin) * shot.scale);
+    const y1 = Math.min(shot.height, (r.y + r.height + margin) * shot.scale);
+    if (x1 - x0 < 8 || y1 - y0 < 8) continue;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(x1 - x0);
+    canvas.height = Math.round(y1 - y0);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) continue;
+    ctx.drawImage(page, x0, y0, x1 - x0, y1 - y0, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, 'image/jpeg', 0.85));
+    if (!blob) continue;
+    crops.push({
+      name: entry.file.replace(/\.[a-z0-9]+$/i, '-in-context.jpg'),
+      data: new Uint8Array(await blob.arrayBuffer()),
+    });
+  }
+  return crops;
+}
+
+/** The drawings and comment pins as they'd show in a picture of the page. */
+function pictureKey(annotations: readonly Annotation[]): string {
+  return JSON.stringify(
+    annotations.map((a) => {
+      if (!isShape(a)) return { id: a.id, target: a.target, status: a.status };
+      if (a.kind !== 'image') return a;
+      const { placement: _placement, ...shape } = a;
+      return shape;
+    }),
+  );
+}
+
 export function downloadBlob(filename: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -207,6 +347,17 @@ export async function runExport(
     if (handoff) {
       capture.sourceHtml = handoff.source;
       if (handoff.screenshot) capture.screenshot = handoff.screenshot;
+      // The full-page picture shows the feedback as exported; keep it only while that's true.
+      if (
+        handoff.fullPage &&
+        pictureKey(handoff.payload.annotations) === pictureKey(s.doc.annotations)
+      )
+        capture.fullPage = handoff.fullPage;
+    } else if (options.includeScreenshot && hasExtensionRuntime()) {
+      const full = await captureFullPage(host, (done, total) =>
+        onStatus({ phase: 'working', label: `Taking screenshot… ${done}/${total}` }),
+      ).catch(() => null);
+      if (full) capture.fullPage = full;
     }
     onStatus({ phase: 'working', label: 'Building file…' });
     const runtime = await getRuntimeSource();
@@ -220,7 +371,8 @@ export async function runExport(
     let filename = out.filename;
     let bytes = out.bytes;
     if (options.format === 'zip') {
-      const zip = buildZip(out, capture);
+      const crops = capture.fullPage ? await contextCrops(out, capture.fullPage) : [];
+      const zip = buildZip(out, capture, crops);
       filename = out.filename.replace(/\.html$/, '.zip');
       bytes = zip.size;
       downloadBlob(filename, zip);

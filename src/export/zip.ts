@@ -116,7 +116,11 @@ function dataUrlBytes(src: string): Uint8Array | null {
 /** The files in the agent folder (exported for tests). */
 const text = (s: string) => new TextEncoder().encode(s);
 
-export function zipFiles(out: BuildOutput, capture: PageCapture): ZipEntry[] {
+export function zipFiles(
+  out: BuildOutput,
+  capture: PageCapture,
+  extra: ZipEntry[] = [],
+): ZipEntry[] {
   const { payload } = out;
   const srcs = new Map<string, string>();
   for (const a of payload.annotations) {
@@ -130,6 +134,7 @@ export function zipFiles(out: BuildOutput, capture: PageCapture): ZipEntry[] {
     if (bytes) images.push({ name: img.file, data: bytes });
   }
   const shot = capture.screenshot ? dataUrlBytes(capture.screenshot.dataUrl) : null;
+  const full = capture.fullPage ? dataUrlBytes(capture.fullPage.dataUrl) : null;
   const agents = [
     '# Design feedback handoff',
     '',
@@ -139,6 +144,12 @@ export function zipFiles(out: BuildOutput, capture: PageCapture): ZipEntry[] {
     '- `handoff.json`: every comment, drawing and picture, machine-readable.',
     '- `images/`: every picture placed on the page (`placed-…`) or attached to a comment (`comment-NN-…`). Look at them.',
     shot ? '- `screenshot.jpg`: the designer’s screen with the feedback visible.' : '',
+    full
+      ? `- \`page-annotated.jpg\`: the whole page top to bottom with every drawing, placed image and comment pin on it (page coordinates × ${capture.fullPage?.scale.toFixed(3)} = image pixels).`
+      : '',
+    extra.length
+      ? '- `images/placed-…-in-context.jpg`: each placed image in its place on the page, with the content around it.'
+      : '',
     '',
     '## Instructions',
     '',
@@ -159,12 +170,14 @@ export function zipFiles(out: BuildOutput, capture: PageCapture): ZipEntry[] {
     { name: 'handoff.json', data: text(JSON.stringify(payload, null, 2)) },
     { name: 'page.html', data: text(capture.snapshotHtml) },
     ...(shot ? [{ name: 'screenshot.jpg', data: shot }] : []),
+    ...(full ? [{ name: 'page-annotated.jpg', data: full }] : []),
     ...images,
+    ...extra,
   ];
 }
 
-export function buildZip(out: BuildOutput, capture: PageCapture): Blob {
+export function buildZip(out: BuildOutput, capture: PageCapture, extra: ZipEntry[] = []): Blob {
   const folder = out.filename.replace(/\.html$/, '');
-  const entries = zipFiles(out, capture).map((e) => ({ ...e, name: `${folder}/${e.name}` }));
+  const entries = zipFiles(out, capture, extra).map((e) => ({ ...e, name: `${folder}/${e.name}` }));
   return new Blob([zipEntries(entries)], { type: 'application/zip' });
 }

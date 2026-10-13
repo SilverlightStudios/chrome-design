@@ -55,7 +55,8 @@ function friendlyStage(label: string): string {
   if (/asset/i.test(label))
     return `Saving images${label.match(/\d+\/\d+/) ? ` ${label.match(/\d+\/\d+/)![0]}` : ''}…`;
   if (/serializ/i.test(label)) return 'Copying the page…';
-  if (/screenshot/i.test(label)) return 'Taking a picture…';
+  if (/screenshot/i.test(label))
+    return `Taking pictures${label.match(/\d+\/\d+/) ? ` ${label.match(/\d+\/\d+/)![0]}` : ''}…`;
   if (/build/i.test(label)) return 'Putting it together…';
   return label;
 }

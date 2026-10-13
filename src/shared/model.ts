@@ -257,6 +257,13 @@ export interface AssetReport {
 }
 
 /** Output of the in-page capture step, input to the document builder. */
+export interface FullPageShot {
+  dataUrl: string;
+  width: number;
+  height: number;
+  scale: number;
+}
+
 export interface PageCapture {
   meta: PageMeta;
   /** Sanitized, self-contained HTML document used for the static preview. */
@@ -268,6 +275,11 @@ export interface PageCapture {
   warnings: CaptureWarning[];
   /** Viewport screenshot (PNG data URL) taken with annotations visible, toolbar hidden. */
   screenshot?: { dataUrl: string; width: number; height: number };
+  /**
+   * The whole page, top to bottom, with the feedback drawn on (JPEG data URL). `scale` is image
+   * pixels per CSS pixel, so page coordinates × scale find things in it.
+   */
+  fullPage?: FullPageShot;
 }
 
 export interface HandoffPayload {
@@ -310,6 +322,8 @@ export interface HandoffPayload {
     source: { elementId: string; mediaType: 'application/json'; bytes: number };
     schema: { elementId: string };
     screenshot?: { elementId: string; width: number; height: number };
+    /** The whole page with the feedback drawn on (`page-annotated.jpg` when unpacked). */
+    fullPage?: { elementId: string; width: number; height: number; scale: number };
     /** The built-in Chrome Design toolbar (runs when the file is opened in a browser). */
     runtime?: { elementId: string; bytes: number };
   };

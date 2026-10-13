@@ -103,6 +103,21 @@ test.afterAll(async () => {
   server?.close();
 });
 
+/** A file from a stored (uncompressed) zip, as the .zip download writes them. */
+function zipEntry(zip: Buffer, suffix: string): string {
+  let at = 0;
+  while (zip.readUInt32LE(at) === 0x04034b50) {
+    const size = zip.readUInt32LE(at + 18);
+    const nameLength = zip.readUInt16LE(at + 26);
+    const extraLength = zip.readUInt16LE(at + 28);
+    const name = zip.subarray(at + 30, at + 30 + nameLength).toString('utf8');
+    const start = at + 30 + nameLength + extraLength;
+    if (name.endsWith(suffix)) return zip.subarray(start, start + size).toString('utf8');
+    at = start + size;
+  }
+  throw new Error(`${suffix} not in zip`);
+}
+
 /** Where each pin is placed on the page (not its box, which pops in with an animation). */
 const pinSpots = (pins: Element[]) =>
   pins.map((p) => [
@@ -255,7 +270,13 @@ test('comment, draw and export a self-contained handoff from a live page', async
   await zipDownload.saveAs(zipPath);
   const zipText = readFileSync(zipPath).toString('latin1');
   expect(zipText.startsWith('PK')).toBe(true);
-  for (const name of ['AGENTS.md', 'handoff.json', 'page.html', 'screenshot.jpg'])
+  for (const name of [
+    'AGENTS.md',
+    'handoff.json',
+    'page.html',
+    'screenshot.jpg',
+    'page-annotated.jpg',
+  ])
     expect(zipText).toContain(`/${name}`);
 
   // The shared file opens offline as the page, with the toolbar on and the feedback on top
@@ -494,6 +515,26 @@ test('images dropped on a strict-CSP page are placed, shown and kept', async () 
   expect(rgb[0]).toBeGreaterThan(200);
   expect(rgb[1]).toBeLessThan(60);
   expect(refused).toEqual([]);
+
+  // A tall page: the .zip carries the whole page stitched from several screens, with the
+  // image drawn on, and the image cropped in its place.
+  await page.evaluate(() => {
+    document.body.style.minHeight = '2400px';
+  });
+  await page.keyboard.press('Shift+E');
+  const [zipDownload] = await Promise.all([
+    page.waitForEvent('download', { timeout: 20_000 }),
+    ui.locator('[data-testid="cd-export-zip"]').click(),
+  ]);
+  const zipPath = resolve(root, 'test-results/csp-export.zip');
+  await zipDownload.saveAs(zipPath);
+  const zipText = readFileSync(zipPath).toString('latin1');
+  expect(zipText).toContain('/page-annotated.jpg');
+  expect(zipText).toContain('/images/placed-01-red-in-context.jpg');
+  const handoffJson = JSON.parse(zipEntry(readFileSync(zipPath), 'handoff.json'));
+  const full = handoffJson.blocks.fullPage;
+  expect(full.height / full.scale).toBeGreaterThan(2300);
+  await page.keyboard.press('Escape');
   // Undo takes it away in one step.
   await page.keyboard.press('ControlOrMeta+z');
   await expect(placed).toHaveCount(0);

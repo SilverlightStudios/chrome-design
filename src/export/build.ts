@@ -296,6 +296,10 @@ export async function buildHandoff(input: BuildInput): Promise<BuildOutput> {
       height: capture.screenshot.height,
     };
   }
+  if (capture.fullPage) {
+    const { width, height, scale } = capture.fullPage;
+    payload.blocks.fullPage = { elementId: BLOCK_IDS.fullPage, width, height, scale };
+  }
   if (runtime)
     payload.blocks.runtime = { elementId: BLOCK_IDS.runtime, bytes: byteLength(runtime) };
 
@@ -339,6 +343,9 @@ ${describeAnnotations(annotations, images) || '(no comments or drawings; see the
       `<script type="application/json" id="${BLOCK_IDS.source}" data-chrome-design>${jsonForScript(capture.sourceHtml)}</script>`,
       capture.screenshot
         ? `<script type="text/plain" id="${BLOCK_IDS.screenshot}" data-chrome-design data-width="${capture.screenshot.width}" data-height="${capture.screenshot.height}">${escapeHtml(capture.screenshot.dataUrl)}</script>`
+        : '',
+      capture.fullPage
+        ? `<script type="text/plain" id="${BLOCK_IDS.fullPage}" data-chrome-design data-width="${capture.fullPage.width}" data-height="${capture.fullPage.height}" data-scale="${capture.fullPage.scale}">${escapeHtml(capture.fullPage.dataUrl)}</script>`
         : '',
       runtime ? `<script id="${BLOCK_IDS.runtime}" data-chrome-design>${runtime}</script>` : '',
     ].join('\n'),

@@ -166,6 +166,12 @@ export const handoffSchema = {
           required: ['elementId', 'width', 'height'],
           properties: { elementId: str, width: num, height: num },
         },
+        fullPage: {
+          type: 'object',
+          description: 'The whole page with the feedback drawn on; scale = image px per CSS px.',
+          required: ['elementId', 'width', 'height', 'scale'],
+          properties: { elementId: str, width: num, height: num, scale: num },
+        },
         runtime: {
           type: 'object',
           required: ['elementId', 'bytes'],

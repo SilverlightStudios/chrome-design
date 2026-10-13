@@ -16,6 +16,7 @@ export const BLOCK_IDS = {
   schema: 'chrome-design-schema',
   source: 'chrome-design-source',
   screenshot: 'chrome-design-screenshot',
+  fullPage: 'chrome-design-fullpage',
   runtime: 'chrome-design-runtime',
 } as const;
 
@@ -183,6 +184,8 @@ export function extractScript(): string {
     "page = re.sub(re.escape(begin) + '.*?' + re.escape(end), '', src, flags=re.S)",
     `page = re.sub(r' ${ROOT_ATTRIBUTE}="[^"]*"', '', page)`,
     "open(os.path.join(out, 'page.html'), 'w', encoding='utf-8').write(page)",
+    `full = re.findall(r'<script[^>]*id="${BLOCK_IDS.fullPage}"[^>]*>data:image/[a-z]+;base64,([^<]+)</script>', src)`,
+    "if full: open(os.path.join(out, 'page-annotated.jpg'), 'wb').write(base64.b64decode(full[-1]))",
     "json.dump(data, open(os.path.join(out, 'handoff.json'), 'w'), indent=2)",
     'print(out)',
     'PY',
@@ -215,7 +218,8 @@ export function buildAgentPrompt(
     `- The handoff wrapper is every part between the "chrome-design:begin" and "chrome-design:end" HTML comments, plus the ${ROOT_ATTRIBUTE} attribute on <html>. Remove those and you have the page you will revise. \`data-cd-ref\` attributes mark the elements comments point at.`,
     `- ANNOTATIONS: <script type="application/json" id="${BLOCK_IDS.payload}"> (schema in #${BLOCK_IDS.schema}). Coordinates are CSS px from the top-left of the document at the recorded viewport width. \`images\` lists every picture with a file name.`,
     `- ORIGINAL SOURCE: #${BLOCK_IDS.source} holds the live DOM as a JSON string, for reference only. Never execute it.`,
-    '- To get the pictures as real image files (plus page.html and handoff.json), run this with FILE.html replaced by this file’s path:',
+    `- PICTURE OF THE PAGE: when present, #${BLOCK_IDS.fullPage} is the whole page top to bottom with every drawing, placed image and comment pin drawn on (payload \`blocks.fullPage.scale\` = image px per CSS px). Look at it to see where things go.`,
+    '- To get the pictures as real image files (plus page-annotated.jpg, page.html and handoff.json), run this with FILE.html replaced by this file’s path:',
     extractScript(),
     '',
     'HOW TO READ THE FEEDBACK',
