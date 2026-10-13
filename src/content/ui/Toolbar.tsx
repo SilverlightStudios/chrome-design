@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react';
 import { isComment, isShape, PALETTE, type Shape, type ShapeStyle } from '../../shared/model';
+import { duplicateSelection } from '../clipboard';
 import { useEditor, useEnv } from '../context';
 import { capturePointer, HOST_TAG } from '../dom';
 import { placeImagesFromPicker } from '../images';
@@ -305,6 +306,12 @@ function StyleBar({ placement }: { placement: 'up' | 'down' }) {
                 onClick={() => commentOnShape(store, selected)}
               />
             ) : null}
+            <ToolButton
+              icon="copy"
+              label="Duplicate"
+              kbd="⌘D"
+              onClick={() => duplicateSelection(store)}
+            />
             <ToolButton
               icon="trash"
               label="Delete"

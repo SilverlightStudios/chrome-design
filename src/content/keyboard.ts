@@ -1,6 +1,7 @@
 import { buildAnchor } from '../capture/anchor';
 import { translateShape } from '../shared/geometry';
 import { isShape } from '../shared/model';
+import { duplicateSelection } from './clipboard';
 import { isTypingEvent, toPage } from './dom';
 import { placeImagesFromPicker } from './images';
 import { commentOnShape, draftForRegion } from './overlay/InteractionLayer';
@@ -70,6 +71,8 @@ export function handleShortcut(
     store.redo();
     return true;
   }
+  // Duplicate the selected drawings.
+  if (mod && lower === 'd' && !event.shiftKey) return duplicateSelection(store);
   // Select every drawing on the page.
   if (mod && lower === 'a') {
     const ids = s.doc.annotations.filter(isShape).map((a) => a.id);

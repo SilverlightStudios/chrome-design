@@ -3862,6 +3862,9 @@ details.options .checks {
   .ai-eraser[data-play] .p {
     animation: ai-rub 0.5s var(--ai-in-out);
   }
+  .ai-copy[data-play] .front {
+    animation: ai-slide-copy 0.45s var(--ai-in-out);
+  }
   .ai-folder[data-play] .p {
     animation: ai-hop 0.4s var(--ai-in-out);
   }
@@ -4105,6 +4108,11 @@ details.options .checks {
 @keyframes ai-shorten {
   50% {
     scale: 1 0.64;
+  }
+}
+@keyframes ai-slide-copy {
+  45% {
+    translate: 2px 2px;
   }
 }
 @keyframes ai-hop {

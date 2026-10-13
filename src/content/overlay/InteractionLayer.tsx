@@ -12,6 +12,7 @@ import {
 import { createId, nowIso } from '../../shared/ids';
 import { isShape, type Point, type Rect, type Shape } from '../../shared/model';
 import { spotIn } from '../../shared/targets';
+import { addCopies, cloneShapes } from '../clipboard';
 import { useEditor, useEnv } from '../context';
 import { capturePointer, elementsInRect, pickElement, releasePointer, toPage } from '../dom';
 import type { EditorStore } from '../store';
@@ -25,7 +26,7 @@ type Gesture =
       /** Shift: a drag-select adds to what's already selected. */
       base: string[];
     }
-  | { kind: 'move'; shapes: Shape[]; start: Point; moved: boolean; timer: number }
+  | { kind: 'move'; shapes: Shape[]; start: Point; moved: boolean; timer: number; copies: boolean }
   | { kind: 'draw'; start: Point }
   | { kind: 'erase' };
 
@@ -158,7 +159,15 @@ export function InteractionLayer() {
             : 0;
         const ids2 = new Set(ids);
         const shapes = s.doc.annotations.filter((a): a is Shape => isShape(a) && ids2.has(a.id));
-        gesture.current = { kind: 'move', shapes, start: p, moved: false, timer };
+        // ⌥-drag drags copies, leaving the originals where they are.
+        gesture.current = {
+          kind: 'move',
+          shapes: e.altKey ? cloneShapes(shapes, 0, 0) : shapes,
+          start: p,
+          moved: false,
+          timer,
+          copies: e.altKey,
+        };
         return;
       }
       gesture.current = {
@@ -339,7 +348,8 @@ export function InteractionLayer() {
         window.clearTimeout(g.timer);
         const live = s.liveShapes;
         store.set({ liveShapes: [] });
-        if (g.moved) store.replaceShapes(live);
+        if (g.moved && g.copies) addCopies(store, live);
+        else if (g.moved) store.replaceShapes(live);
         return;
       }
       case 'erase': {

@@ -24,6 +24,7 @@ import {
 } from '../../shared/model';
 import { findShape, spotIn } from '../../shared/targets';
 import { livePinPoint } from '../actions';
+import { addCopies, cloneShapes } from '../clipboard';
 import { useEditor, useEnv, useLayoutVersion } from '../context';
 import { capturePointer, toPage } from '../dom';
 import { usePresence } from '../motion/presence';
@@ -129,7 +130,15 @@ export const ShapeView = memo(function ShapeView({ shape }: { shape: Shape }) {
 });
 
 type SelectionGesture =
-  | { kind: 'move'; start: Point; originals: Shape[]; moved: boolean; toggle: string | null }
+  | {
+      kind: 'move';
+      start: Point;
+      originals: Shape[];
+      moved: boolean;
+      toggle: string | null;
+      /** ⌥-drag: `originals` are fresh copies, added where they're dropped. */
+      copies: boolean;
+    }
   | { kind: 'resize'; handle: Handle; originals: Shape[]; box: Rect };
 
 /** A box around a drawing with a little air (text) or none (images), as the frame hugs it. */
@@ -199,7 +208,8 @@ function Selection({ shapes }: { shapes: Shape[] }) {
       if (only?.kind === 'text' && e.pointerType === 'touch') store.set({ editingTextId: only.id });
       return;
     }
-    store.replaceShapes(live);
+    if (g.kind === 'move' && g.copies) addCopies(store, live);
+    else store.replaceShapes(live);
   };
   const cancel = () => {
     gesture.current = null;
@@ -246,7 +256,14 @@ function Selection({ shapes }: { shapes: Shape[] }) {
           const toggle = e.shiftKey
             ? (shapes.toReversed().find((s) => hitTestShape(s, p, 6))?.id ?? single?.id ?? null)
             : null;
-          start(e, { kind: 'move', start: p, originals: shapes, moved: false, toggle });
+          start(e, {
+            kind: 'move',
+            start: p,
+            originals: e.altKey ? cloneShapes(shapes, 0, 0) : shapes,
+            moved: false,
+            toggle,
+            copies: e.altKey,
+          });
         }}
         onPointerMove={move}
         onPointerUp={end}
@@ -479,7 +496,13 @@ export function AnnotationLayer() {
   const hoverShapeId = useEditor((s) => s.hoverShapeId);
 
   const live = new Map(liveShapes.map((s) => [s.id, s]));
-  const shapes = annotations.filter(isShape).map((s) => live.get(s.id) ?? s);
+  const docShapes = annotations.filter(isShape);
+  // ⌥-drag shows the copies being dragged before they're added.
+  const known = new Set(docShapes.map((s) => s.id));
+  const shapes = [
+    ...docShapes.map((s) => live.get(s.id) ?? s),
+    ...liveShapes.filter((s) => !known.has(s.id)),
+  ];
   const threads = annotations.filter(isComment);
   const selected =
     tool === 'select'

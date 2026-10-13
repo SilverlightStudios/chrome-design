@@ -148,6 +148,13 @@ export const Icon = {
       <path d="M9 20h6" />
     </Svg>
   ),
+  // Lucide copy: the front sheet slides off the back one.
+  copy: () => (
+    <Svg name="copy">
+      <rect className="front" width="14" height="14" x="8" y="8" rx="2" ry="2" />
+      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+    </Svg>
+  ),
   // Lucide folder-open: the folder hops.
   folder: () => (
     <Svg name="folder">

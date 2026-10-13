@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { copySelection, pasteShapes, removeSelection, shapesInPaste } from '../clipboard';
 import { useEditor, useEnv } from '../context';
 import { toPage } from '../dom';
 import {
@@ -88,6 +89,14 @@ export function ImageDrop() {
       // Text fields handle their own paste (the comment box attaches images).
       if (isTypingTarget(e)) return;
       const data = e.clipboardData;
+      // Drawings copied with ⌘C (from this page, another tab or a shared file).
+      const shapes = shapesInPaste(data);
+      if (shapes) {
+        e.preventDefault();
+        e.stopPropagation();
+        pasteShapes(store, shapes);
+        return;
+      }
       const loading =
         imageFiles(data).length || asImageLink(data?.getData('text/plain') ?? '')
           ? fromData(data)
@@ -97,6 +106,15 @@ export function ImageDrop() {
       e.stopPropagation();
       place(loading, viewportCentre());
     };
+    // ⌘C / ⌘X with drawings selected copies them (the page keeps its own copy otherwise).
+    const onCopy = (e: ClipboardEvent) => {
+      if (isTypingTarget(e) || !copySelection(store, e.clipboardData)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.type === 'cut') removeSelection(store);
+    };
+    window.addEventListener('copy', onCopy, true);
+    window.addEventListener('cut', onCopy, true);
     window.addEventListener('dragenter', onOver, true);
     window.addEventListener('dragover', onOver, true);
     window.addEventListener('drop', onDrop, true);
@@ -104,6 +122,8 @@ export function ImageDrop() {
     return () => {
       window.clearTimeout(timer);
       setOver(false);
+      window.removeEventListener('copy', onCopy, true);
+      window.removeEventListener('cut', onCopy, true);
       window.removeEventListener('dragenter', onOver, true);
       window.removeEventListener('dragover', onOver, true);
       window.removeEventListener('drop', onDrop, true);
