@@ -12,10 +12,11 @@
     "exactOptionalPropertyTypes": false,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["chrome", "node", "vite/client"]
   },
-  "include": ["src", "tests", "demo", "scripts", "*.config.ts"]
+  "include": ["src", "tests", "demo", "scripts", "tools", "bridge", "*.config.ts"]
 }

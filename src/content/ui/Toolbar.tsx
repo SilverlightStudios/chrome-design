@@ -40,6 +40,8 @@ import { LayersPanel } from './LayersPanel';
 import { MorePanel } from './MorePanel';
 import { ScreenPanel } from './ScreenPanel';
 import { SettingsPanel } from './SettingsPanel';
+import { RecordingButtons, useRecording } from './WalkthroughBar';
+import { WalkthroughPanel } from './WalkthroughPanel';
 import { WelcomePanel } from './WelcomePanel';
 
 interface ButtonProps {
@@ -447,10 +449,19 @@ const PANELS: Record<Exclude<PanelId, 'none'>, { label: string; render: () => Re
   settings: { label: 'Settings', render: () => <SettingsPanel /> },
   screen: { label: 'Screen size', render: () => <ScreenPanel /> },
   layers: { label: 'Layers', render: () => <LayersPanel /> },
+  walkthrough: { label: 'Walkthrough', render: () => <WalkthroughPanel /> },
 };
 
 /** Panels reached from More; the More button stays lit and closes them. */
-const MORE_CHILDREN = new Set<PanelId>(['list', 'grid', 'help', 'settings', 'screen', 'layers']);
+const MORE_CHILDREN = new Set<PanelId>([
+  'list',
+  'grid',
+  'help',
+  'settings',
+  'screen',
+  'layers',
+  'walkthrough',
+]);
 
 const skipOwnUi = (el: Element) => el.localName === HOST_TAG;
 
@@ -483,6 +494,7 @@ export function Toolbar() {
     (s) => s.doc.annotations.filter((a) => isComment(a) && a.status === 'open').length,
   );
   const compact = useCompact();
+  const recording = useRecording();
   const [pos, setPos] = useState<UiPrefs['toolbar']>({ edge: 'bottom', x: 0, y: 0 });
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
   const dragStart = useRef<{
@@ -712,6 +724,7 @@ export function Toolbar() {
         data-edge={edge}
         data-dragging={drag ? '' : undefined}
         data-covered={sheetOpenOnPhone ? '' : undefined}
+        data-recording={recording ? '' : undefined}
         style={dockStyle}
       >
         <GlassFilters map={glassMode === 'svg' ? map : null} />
@@ -759,86 +772,92 @@ export function Toolbar() {
             onPointerDown={onBarPointerDown}
             menu={shapesMenu}
           >
-            <ToolButton
-              icon="close"
-              label="Close"
-              kbd="⌥⇧D"
-              className="close"
-              onClick={env.close}
-            />
-            <Divider />
-            <ToolButton
-              icon="select"
-              label="Select"
-              kbd="V"
-              active={tool === 'select'}
-              onClick={() => choose('select')}
-            />
-            <ToolButton
-              icon="comment"
-              label="Comment"
-              kbd="C"
-              active={tool === 'comment'}
-              onClick={() => choose('comment')}
-            />
-            <ToolButton
-              icon="draw"
-              label="Pencil"
-              kbd="P"
-              active={tool === 'draw' && (drawTool === 'pen' || drawTool === 'eraser')}
-              onClick={() => chooseDraw('pen')}
-            />
-            <div className="tb-pop-anchor" ref={shapesRef}>
-              <ToolButton
-                icon={SHAPE_META[lastShape].icon}
-                label="Shapes"
-                kbd={SHAPE_META[lastShape].kbd}
-                className="has-menu"
-                menu="shapes"
-                longPress="menu"
-                expanded={shapesOpen}
-                active={shapeActive}
-                onClick={onShapesClick}
-                onPointerDown={onShapesDown}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setShapesOpen(true);
-                }}
-              >
-                <span className="menu-mark" aria-hidden="true" />
-              </ToolButton>
-            </div>
-            <ToolButton
-              icon="text"
-              label="Text"
-              kbd="T"
-              active={tool === 'draw' && drawTool === 'text'}
-              onClick={() => chooseDraw('text')}
-            />
-            <ToolButton
-              icon="image"
-              label="Image"
-              kbd="⇧⌘K"
-              onClick={() => void placeImagesFromPicker(store, env.toast)}
-            />
-            <Divider />
-            <ToolButton
-              icon="more"
-              label="More"
-              hideTip
-              active={panel === 'more' || MORE_CHILDREN.has(panel)}
-              badge={openCount}
-              onClick={() => togglePanel(MORE_CHILDREN.has(panel) ? panel : 'more')}
-            />
-            <ToolButton
-              icon="export"
-              label="Send to AI"
-              hideTip
-              kbd="⇧E"
-              className="droplet"
-              active={panel === 'export'}
-              onClick={() => togglePanel('export')}
-            />
+            {recording ? (
+              <RecordingButtons />
+            ) : (
+              <>
+                <ToolButton
+                  icon="close"
+                  label="Close"
+                  kbd="⌥⇧D"
+                  className="close"
+                  onClick={env.close}
+                />
+                <Divider />
+                <ToolButton
+                  icon="select"
+                  label="Select"
+                  kbd="V"
+                  active={tool === 'select'}
+                  onClick={() => choose('select')}
+                />
+                <ToolButton
+                  icon="comment"
+                  label="Comment"
+                  kbd="C"
+                  active={tool === 'comment'}
+                  onClick={() => choose('comment')}
+                />
+                <ToolButton
+                  icon="draw"
+                  label="Pencil"
+                  kbd="P"
+                  active={tool === 'draw' && (drawTool === 'pen' || drawTool === 'eraser')}
+                  onClick={() => chooseDraw('pen')}
+                />
+                <div className="tb-pop-anchor" ref={shapesRef}>
+                  <ToolButton
+                    icon={SHAPE_META[lastShape].icon}
+                    label="Shapes"
+                    kbd={SHAPE_META[lastShape].kbd}
+                    className="has-menu"
+                    menu="shapes"
+                    longPress="menu"
+                    expanded={shapesOpen}
+                    active={shapeActive}
+                    onClick={onShapesClick}
+                    onPointerDown={onShapesDown}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setShapesOpen(true);
+                    }}
+                  >
+                    <span className="menu-mark" aria-hidden="true" />
+                  </ToolButton>
+                </div>
+                <ToolButton
+                  icon="text"
+                  label="Text"
+                  kbd="T"
+                  active={tool === 'draw' && drawTool === 'text'}
+                  onClick={() => chooseDraw('text')}
+                />
+                <ToolButton
+                  icon="image"
+                  label="Image"
+                  kbd="⇧⌘K"
+                  onClick={() => void placeImagesFromPicker(store, env.toast)}
+                />
+                <Divider />
+                <ToolButton
+                  icon="more"
+                  label="More"
+                  hideTip
+                  active={panel === 'more' || MORE_CHILDREN.has(panel)}
+                  badge={openCount}
+                  onClick={() => togglePanel(MORE_CHILDREN.has(panel) ? panel : 'more')}
+                />
+                <ToolButton
+                  icon="export"
+                  label="Send to AI"
+                  hideTip
+                  kbd="⇧E"
+                  className="droplet"
+                  active={panel === 'export'}
+                  onClick={() => togglePanel('export')}
+                />
+              </>
+            )}
           </MorphTooltipGroup>
         </div>
       </div>

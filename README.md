@@ -4,7 +4,9 @@ A Chrome extension (Manifest V3) for reviewing a live web page the way you would
 
 It is made for designers, so the interface stays quiet and plain: elements are named the way you would say them (“Button “Start free””, “Heading”, “Image”), not as CSS selectors. The selectors and computed styles still go into the file for the AI.
 
-Personal-use prototype. No accounts, no server, no analytics: page content never leaves your machine unless you send the exported file to someone yourself.
+Personal-use prototype. No accounts, no server, no analytics: page content never leaves your machine unless you send the exported file to someone yourself (a walkthrough goes only to your own voice recorder, on the same computer, when you turn the voice link on).
+
+**Walkthroughs** (after [Scrawl](https://github.com/kitlangton/scrawl)): talk a page through while it follows along — laser pointer, ink, numbered pins, clicks — and get numbered pictures plus a summary for the agent, with what you said lined up by time. Audio stays in your own voice recorder; the two connect through a small local bridge ([docs/WALKTHROUGH.md](docs/WALKTHROUGH.md)).
 
 ## Using it
 
@@ -23,6 +25,7 @@ The toolbar is one row: **Close · Select · Comment · Pencil · Shapes · Text
 | Style bar | | Appears above the toolbar while drawing or when a drawing is selected: colour, stroke width, dashed, eraser, delete, undo and redo. Changes apply to the selected drawing. |
 | More ⋯ | | Comments list (`F`, filter by open or resolved, click to jump to one), Use the page (pauses the tools so the page works normally), Open file (bring a downloaded handoff `.html` or `.zip` back onto the live page: its comments, replies, drawings and images join yours as one undoable step; a file for another page asks first; dropping the file on the page does the same), Rulers (`M`, drag from a ruler to add a guide), Columns (`G` toggles; the ⋯ on the tile opens its settings: Stretch / Left / Center / Right / Space between / around / evenly, DialKit-style sliders for count, width, gutter, margin and opacity where a typed number can go past the slider, colour swatches), Screen size (with the extension, on a computer: resize the window to Phone 390 / Tablet 834 / Laptop 1280 / Desktop 1440 so the page's own breakpoints apply, with a live width readout and a way back), Shortcuts (`?`, desktop only), Quick tour, Settings and Clear this page. Panels opened from More have a back button. |
 | Send to AI | `⇧E` | Shows what will be included, takes an optional note for the assistant, and downloads the file. |
+| Walkthrough | `W` | Talk a page through while Chrome Design follows along (also More → Walkthrough). The page stays usable; hold `⇧` and move for a laser pointer, `⇧`-drag for red ink (circles, underlines and arrows are recognised), `⇧`-click for a numbered pin. Clicks, scrolling, typing (which field, never what was typed) and page changes are noted, and pictures of the screen are taken at those moments. On a touch screen the bar's **Draw** does what `⇧` does. **Stop** (`⌥⇧W`) shows the numbered contact sheet; add what you said from any speech-to-text tool (.srt, .vtt, .json or .txt; the **Voice starts** dial lines it up), then **Download .zip** (`summary.md`, `walkthrough.json`, `contact-sheet.jpg`, `frames/`) or **Copy for AI**. With the voice link on, your own voice recorder starts and stops it and gets it back: see [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md). |
 | Undo / redo | `⌘Z` / `⇧⌘Z` | Applies to every change: comments, drawings, guides, moves and deletes. |
 | Step back | `Esc` | Each press goes back one level: closes bubbles and panels, deselects, returns to Select, then pauses the tools. While paused the page gets all its keys back. |
 
@@ -127,8 +130,11 @@ After changing code, run `pnpm build` again and click the reload icon on the ext
 | `pnpm lint:fix` / `pnpm format` | Auto-fix / format |
 | `pnpm test` | Vitest unit tests (schema/export, sanitizer, CSS rewriting, geometry incl. resize handles, store history, shortcuts, plain-language element names) |
 | `pnpm e2e:install` | One-time project-local Chromium download for e2e (`PLAYWRIGHT_BROWSERS_PATH=0`, stored in `node_modules`) |
-| `pnpm test:e2e` | Builds `dist-e2e/` and runs Playwright against the real unpacked extension: welcome, comment, select and comment from the selection bar, draw then move and resize, undo/redo, export (then opens the file offline and asserts zero network requests), hostile pages (transformed root, max z-index widgets, page shortcuts, inner scrollers, modal dialogs), single-page apps, strict CSP, an image dropped on a strict-CSP page (placed, painted, undoable), the .zip download, opening the downloaded file offline (toolbar on, pins exactly where they were on the live page, a reply, a re-download, zero network requests and console errors), and phone-width bottom sheets. |
+| `pnpm test:e2e` | Builds `dist-e2e/` and runs Playwright against the real unpacked extension: welcome, comment, select and comment from the selection bar, draw then move and resize, undo/redo, export (then opens the file offline and asserts zero network requests), hostile pages (transformed root, max z-index widgets, page shortcuts, inner scrollers, modal dialogs), single-page apps, strict CSP, an image dropped on a strict-CSP page (placed, painted, undoable), the .zip download, opening the downloaded file offline (toolbar on, pins exactly where they were on the live page, a reply, a re-download, zero network requests and console errors),, phone-width bottom sheets, a walkthrough (laser, ink read as a circle, a pin, clicks, typing without the text, the .zip, a transcript, Copy for AI), and the voice link through the real bridge with a stand-in recorder. |
 | `pnpm check` | typecheck + lint + unit tests + build |
+| `node tools/walkthrough-merge.ts <folder or .zip> <transcript>` | Write a walkthrough's `summary.md` with what was said (for voice tools; see docs/WALKTHROUGH.md) |
+| `bridge/install.sh <extension id>` | Register the voice link's bridge with Chrome (macOS) |
+| `node bridge/example-recorder.mjs` | A stand-in voice recorder for trying the voice link |
 
 `dist-e2e/` is a test-only build that adds `<all_urls>` host access, because automated tests can't click the toolbar icon to grant `activeTab`. Don't load it for real use.
 
@@ -148,15 +154,21 @@ src/
     ui/             toolbar (tools, Shapes menu, style bar), panels (More, Comments, Columns, Send to AI, Settings, Shortcuts, Welcome), `Dial` slider, Paused chip
     motion/         spring.ts (Spark's spring), glass.tsx (Liquid Glass), MorphTooltip, MorphSheet (desktop sheets + phone bottom sheets), presence.ts (exit animations)
     exporter.ts     capture → build → download
+    walkthrough/    recorder.ts (laser, ink, pins, clicks, scrolls, pictures on one clock), bundle.ts (annotated pictures,
+                    contact sheet, .zip, Copy for AI), voice.ts (the page's side of the voice link)
   capture/     DOM → sanitized snapshot: stylesheets (CSSOM, @import, adopted sheets, shadow roots),
                asset embedding with byte budget, viewport-unit rewriting, element anchors/selectors
   export/      pure document builder (build.ts), agent prompt, SVG overlay, self-contained viewer runtime
+  walkthrough/ pure, also runs in Node: model.ts (walkthrough.json), shapes.ts (ink → circle / underline / arrow / pin,
+               ported from Scrawl), transcript.ts (SRT, VTT, Whisper / NeMo JSON, text), summary.ts (summary.md), protocol.ts
+bridge/        the voice link's native messaging host (host.mjs), its installer, and a stand-in voice recorder
+tools/         walkthrough-merge.ts: transcript + walkthrough → summary.md, for voice tools
 demo/          sample site + harness for the in-page UI (also the phone preview)
 tests/         Vitest unit tests; tests/e2e Playwright extension tests
 scripts/       build.mjs (three Vite builds + manifest), make-icons.mjs (dependency-free PNG icons)
 ```
 
-- **Permissions:** `activeTab`, `scripting`, `storage` and `unlimitedStorage` (no install warning; placed and attached images would outgrow `chrome.storage.local`'s 10 MB), plus the optional `<all_urls>` that Settings requests only when you turn on **Images from other websites**. There are no static content scripts and no host permissions by default.
+- **Permissions:** `activeTab`, `scripting`, `storage` and `unlimitedStorage` (no install warning; placed and attached images would outgrow `chrome.storage.local`'s 10 MB), plus the optional `<all_urls>` that Settings requests only when you turn on **Images from other websites**, and the optional `nativeMessaging` it requests only when you turn on **Voice recorder**. There are no static content scripts and no host permissions by default.
 - **Messages:** only the content script talks to the service worker, to ask for a screenshot or an asset fetch. The service worker checks that the sender is this extension.
 - **Living on any page:** the UI is a `popover="manual"` host in the top layer, so page transforms and `z-index: 2147483647` widgets can't cover it. When the page opens a modal `<dialog>`, the host moves into it to stay usable. The stylesheet is a constructable stylesheet, which strict CSPs allow. While a tool is active, our single-key shortcuts don't reach the page; while paused, the page gets every key. Single-page-app navigations swap to that URL's notes. Pins follow elements inside inner scrollers and fixed headers.
 - **Snapshot fidelity:**
@@ -183,6 +195,8 @@ scripts/       build.mjs (three Vite builds + manifest), make-icons.mjs (depende
 - Very large pages are capped at an 80 MB embed budget (8 MB per asset). Anything over the cap is listed as a warning.
 
 ## Attribution
+
+Walkthroughs follow [Scrawl](https://github.com/kitlangton/scrawl) by Kit Langton (MIT): the ⇧ laser and ink gestures, the stroke-shape rules (`src/walkthrough/shapes.ts` is a port of its `sketch.rs`), the 1.5 s ink fade, and the summary format (a line per picture, with what was said then). No Scrawl code ships beyond that port; recording, pictures and the voice link are this project's own.
 
 Chrome Design is an original implementation inspired by the workflow in [Squints](https://x.com/andreaskatzmann/status/2109119904351924379) by Andreas Katzmann: design inspection tools (inspect, rulers and guides, column grid, drawing) layered over live web pages. I studied the public demo video and the public feature description. No Squints source code, branding, logos, icons or assets were used. The interface, extension icon, code and the AI-handoff export format are original to this project. The visual language and motion follow the owner's own projects: the Remote Desktop viewer (Liquid Glass) and Spark (morphing tooltip, StackableDrawer springs, the scrubbed phone drawer, DialKit sliders).
 

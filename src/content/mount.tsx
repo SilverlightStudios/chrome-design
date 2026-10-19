@@ -9,6 +9,7 @@ import { type HandoffData, handoffDoc } from './handoff';
 import { debounce, loadDoc, loadGrid, pageKey, saveDoc, saveGrid } from './persistence';
 import { createInitialState, EditorStore, emptyDoc } from './store';
 import css from './styles.css?inline';
+import { recorder } from './walkthrough/recorder';
 
 export interface Mounted {
   store: EditorStore;
@@ -218,6 +219,8 @@ export async function mountEditor(onClose: () => void, handoff?: HandoffData): P
         window.setTimeout(resolve, reduced ? 0 : 240);
       }),
     unmount: () => {
+      // Closing the toolbar ends a recording; the walkthrough is kept for when it opens again.
+      if (recorder.recording) void recorder.stop();
       window.clearInterval(navWatch);
       topLayerWatch.disconnect();
       document.removeEventListener('toggle', onToggle, true);

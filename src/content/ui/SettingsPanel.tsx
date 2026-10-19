@@ -48,6 +48,25 @@ export function SettingsPanel() {
             </button>
           )}
         </div>
+        {demo ? null : (
+          <div className="set-row">
+            <span className="set-title">Voice recorder</span>
+            <button
+              type="button"
+              className="set-action"
+              data-on={settings?.voice?.on ? '' : undefined}
+              onClick={openPage}
+            >
+              {settings === undefined
+                ? ''
+                : !settings.voice?.on
+                  ? 'Off'
+                  : settings.voice.connected
+                    ? (settings.voice.app ?? 'Connected')
+                    : 'Waiting'}
+            </button>
+          </div>
+        )}
         {touch() ? null : (
           <div className="set-row">
             <span className="set-title">Shortcut</span>

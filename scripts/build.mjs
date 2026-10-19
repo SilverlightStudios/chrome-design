@@ -52,8 +52,17 @@ function manifest() {
     },
     background: { service_worker: 'background.js', type: 'module' },
     options_ui: { page: 'options.html', open_in_tab: true },
-    permissions: ['activeTab', 'scripting', 'storage', 'unlimitedStorage'],
+    permissions: [
+      'activeTab',
+      'scripting',
+      'storage',
+      'unlimitedStorage',
+      // Tests drive the voice link without the permission prompt.
+      ...(e2e ? ['nativeMessaging'] : []),
+    ],
     optional_host_permissions: ['<all_urls>'],
+    // The voice link (Settings → Voice recorder): talks to a local bridge, asked for when turned on.
+    optional_permissions: ['nativeMessaging'],
     ...(e2e ? { host_permissions: ['<all_urls>'] } : {}),
     commands: {
       'toggle-chrome-design': {

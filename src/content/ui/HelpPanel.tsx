@@ -17,6 +17,16 @@ const SECTIONS: { title: string; rows: [string, string][] }[] = [
       [`⇧${mod}K`, 'Place an image (or drop / paste one)'],
       ['E', 'Eraser'],
       ['⇧E', 'Send to AI'],
+      ['W', 'Record a walkthrough'],
+    ],
+  },
+  {
+    title: 'While recording',
+    rows: [
+      ['⇧ move', 'Laser pointer'],
+      ['⇧ drag', 'Ink (circle, underline, arrow)'],
+      ['⇧ click', 'Numbered pin'],
+      ['⌥⇧W', 'Stop'],
     ],
   },
   {

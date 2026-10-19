@@ -1,12 +1,25 @@
 # Build progress (resumable notes)
 
-## Status (2026-10-12)
-Round 3 done: Figma-like, plain-language UI for non-technical designers and a mobile pass. All checks
-pass: typecheck, Oxlint, Biome, 67 unit tests, 8 Playwright e2e tests against the real unpacked
-extension (including a phone-width bottom-sheet test). Verified on the demo page in desktop Chromium
-(DevTools motion measurements) and the iPhone 15 WebKit emulator (touch).
+## Status (2026-10-19)
+R12 done: walkthroughs and the voice link. All checks pass: typecheck, Oxlint, Biome, 126 unit
+tests, 12 Playwright e2e tests against the real unpacked extension (a walkthrough with laser, ink,
+a pin, clicks and a transcript; the voice link through the real bridge with a stand-in
+recorder). Verified on the demo page in desktop Chromium and the iPhone 15 WebKit emulator
+(finger ink, a tap pin, the bottom-sheet review panel).
 
 ## Rounds
+- R12: walkthroughs and the voice link (after Scrawl). `src/walkthrough/` is pure and runs in
+  Node too (`allowImportingTsExtensions`; its files import each other with `.ts`). Recorder
+  (`content/walkthrough/recorder.ts`): page stays in `browse`; window capture-phase listeners do
+  everything; the `.wt-surface` only takes the pointer while ⇧ is held (not in a text field) or
+  Draw is on. Pictures through a keyed queue (560 ms apart, a mark's picture is retaken as it
+  grows, laser pictured at once with the live trail hidden and redrawn), ≤ 60 taken, ≤ 20 kept
+  (`pickFrames`). Fields are named by label/placeholder/name, never value (`fieldName`). Voice
+  link: optional `nativeMessaging`; SW `background/voiceLink.ts` holds the port (keeps the SW
+  alive), routes sessions to tabs (kept after delivery for the transcript); `bridge/host.mjs`
+  relays to `~/.chrome-design/voice.sock` and writes bundles to `~/.chrome-design/walkthroughs/`.
+  Chromium finds hosts in `<profile>/NativeMessagingHosts`, which the e2e test uses. Spec for
+  the voice recorder: docs/WALKTHROUGH.md.
 - R1: the extension, capture/sanitize, one-file AI handoff export.
 - R2: Remote Desktop look (Liquid Glass toolbar), Spark motion (morphing tooltip, spring sheets),
   one-click toggle, welcome/settings page, host integration (top layer, modal dialogs, CSP, SPA).
@@ -87,6 +100,9 @@ extension (including a phone-width bottom-sheet test). Verified on the demo page
 - Sheets never blank: the panel that arrived by a swap keeps its swap-in animation (switching back to the opening reveal restarted it from blank); a sheet closed mid-reveal or mid-swap drops all content animations.
 
 ## Ideas / not done
+- Walkthroughs across full page loads (the content script goes with the page; hand the
+  recording to the service worker on `pagehide`).
+- Walkthrough auto-crop to the activity (Scrawl's autocrop; here the marked elements' boxes).
 - Export fidelity leftovers from R2: open the viewer at the captured viewport with an outline, `image-set()` URLs, recursive capture of same-origin iframes.
 - Live style/text “edit” proposals applied to the page (recorded as structured edits).
 - Dragging a phone sheet from its list when scrolled to the top (only the handle and title row drag today).

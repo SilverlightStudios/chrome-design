@@ -29,6 +29,8 @@
   --danger: light-dark(hsl(352 70% 47%), hsl(352 86% 70%));
   --danger-soft: color-mix(in oklab, var(--danger), transparent 87%);
   --success: light-dark(hsl(146 62% 37%), hsl(146 56% 40%));
+  /* Walkthrough ink, laser and pins: Scrawl's marker red. */
+  --rec: #ff3b30;
   --warn: hsl(40 92% 50%);
   --change: var(--accent);
   --decision: light-dark(hsl(262 60% 50%), hsl(262 80% 72%));
@@ -188,6 +190,11 @@ svg {
 :host([data-capturing]) .region-drag,
 :host([data-capturing]) .target-outline.draft,
 :host([data-capturing]) .inspect-layer,
+:host([data-capturing]) .rec-edge,
+:host([data-capturing]) .wt-laser-tip,
+:host([data-capturing]) .wt-laser,
+:host([data-capturing]) .wt-laser-glow,
+:host([data-capturing]) .wt-ripple,
 :host([data-capturing]) .grid-overlay {
   /* biome-ignore lint/complexity/noImportantStyles: must win while taking the screenshot */
   visibility: hidden !important;
@@ -221,6 +228,177 @@ svg {
   opacity: 1;
   @starting-style {
     opacity: 0;
+  }
+}
+
+/* ---------- walkthrough: what shows while it records ---------- */
+.rec-edge {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    inset 0 0 0 2px color-mix(in oklab, var(--rec), transparent 40%),
+    inset 0 0 26px 2px color-mix(in oklab, var(--rec), transparent 80%);
+  transition: opacity 0.32s var(--ease);
+}
+.rec-edge[data-on] {
+  opacity: 1;
+  @starting-style {
+    opacity: 0;
+  }
+}
+.wt-surface {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  touch-action: none;
+}
+.wt-surface[data-on] {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+.wt-ink {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.wt-stroke {
+  fill: none;
+  stroke: var(--rec);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: opacity 0.3s ease-out;
+}
+.wt-stroke[data-fading] {
+  opacity: 0;
+}
+.wt-laser,
+.wt-laser-glow {
+  stroke: var(--rec);
+  stroke-linecap: round;
+}
+.wt-laser-tip .halo {
+  fill: color-mix(in oklab, var(--rec), transparent 70%);
+}
+.wt-laser-tip .core {
+  fill: #fff;
+  stroke: var(--rec);
+  stroke-width: 1.5;
+}
+.wt-ripple {
+  fill: color-mix(in oklab, #0088ff, transparent 75%);
+  stroke: #0088ff;
+  stroke-width: 1.75;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: wt-ripple 0.55s ease-out forwards;
+}
+@keyframes wt-ripple {
+  from {
+    scale: 0.4;
+    opacity: 1;
+  }
+  to {
+    scale: 1.25;
+    opacity: 0;
+  }
+}
+.wt-pin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tile-pop 0.32s var(--ease-bounce);
+}
+.wt-pin .ring {
+  fill: #fff;
+}
+.wt-pin .dot {
+  fill: var(--rec);
+}
+.wt-pin text {
+  fill: #fff;
+  font: 700 15px var(--font);
+}
+.rec-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px 0 8px;
+  font: 600 13px var(--font);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  min-width: 64px;
+}
+.rec-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--rec);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--rec), transparent 80%);
+  animation: rec-pulse 1.6s var(--ease) infinite;
+}
+.rec-time[data-finishing] .rec-dot {
+  animation: none;
+  opacity: 0.4;
+}
+@keyframes rec-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+.tb-btn.rec-stop {
+  color: var(--rec);
+}
+.walkthrough-panel {
+  position: relative;
+}
+.walkthrough-panel[data-dropping]::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 2px dashed var(--accent);
+  border-radius: 16px;
+  pointer-events: none;
+}
+.wt-preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  background: var(--chip);
+}
+.wt-preview.placeholder {
+  max-height: 180px;
+}
+.wt-voice {
+  display: grid;
+  gap: 6px;
+}
+.summary-row .grow {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.summary-row .icon-btn {
+  margin: -6px -6px -6px 0;
+}
+.wt-sent svg {
+  color: var(--success);
+}
+.ghost-action[data-armed] {
+  color: var(--danger);
+  border-color: color-mix(in oklab, var(--danger), transparent 50%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rec-dot,
+  .wt-ripple,
+  .wt-pin {
+    animation: none;
   }
 }
 
@@ -2046,6 +2224,8 @@ p.muted {
   background: transparent;
   color: var(--ink);
   font: 600 13.5px var(--font);
+  /* WebKit measures a grid row with the label wrapped (a 72px row for a 44px button). */
+  white-space: nowrap;
   transition:
     background-color var(--duration) var(--ease),
     scale 0.16s var(--ease);

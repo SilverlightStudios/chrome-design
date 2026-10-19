@@ -377,6 +377,30 @@ export const Icon = {
       </g>
     </Svg>
   ),
+  // Lucide circle-dot: the dot pulses once.
+  record: () => (
+    <Svg name="record">
+      <circle cx="12" cy="12" r="10" />
+      <circle className="d" cx="12" cy="12" r="3.5" fill="currentColor" stroke="none" />
+    </Svg>
+  ),
+  // Lucide square, rounded: stop.
+  stop: () => (
+    <Svg name="stop">
+      <rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor" stroke="none" />
+    </Svg>
+  ),
+  // Lucide audio-lines: what was said.
+  voice: () => (
+    <Svg name="voice">
+      <path d="M2 10v3" />
+      <path d="M6 6v11" />
+      <path d="M10 3v18" />
+      <path d="M14 8v7" />
+      <path d="M18 5v13" />
+      <path d="M22 10v3" />
+    </Svg>
+  ),
   // Lucide Animated chevron-down: a nudge in the direction it points.
   chevron: () => (
     <Svg name="chevron">

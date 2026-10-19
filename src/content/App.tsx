@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type EditorEnv, EnvProvider, type ToastAction, useEditor } from './context';
+import { isTypingEvent } from './dom';
 import { installIconMotion } from './iconMotion';
 import { handleShortcut } from './keyboard';
 import { AnnotationLayer } from './overlay/AnnotationLayer';
@@ -8,8 +9,11 @@ import { InspectOverlay } from './overlay/InspectOverlay';
 import { InteractionLayer } from './overlay/InteractionLayer';
 import { GridOverlay, RulersAndGuides } from './overlay/Rulers';
 import { DetailsCard, SelectionBar } from './overlay/SelectionBar';
+import { WalkthroughLayer } from './overlay/WalkthroughLayer';
 import { StatusChip } from './ui/StatusChip';
 import { Toolbar } from './ui/Toolbar';
+import { recorder } from './walkthrough/recorder';
+import { startWalkthrough } from './walkthrough/voice';
 
 interface ToastItem {
   id: number;
@@ -63,6 +67,7 @@ function Root({ toast, onToastDone }: { toast: ToastItem | null; onToastDone: ()
       <GridOverlay />
       <InteractionLayer />
       <AnnotationLayer />
+      <WalkthroughLayer />
       <InspectOverlay />
       <RulersAndGuides />
       <SelectionBar />
@@ -99,6 +104,25 @@ export function App({ env }: { env: Omit<EditorEnv, 'toast'> }) {
     const swallowed = new Set<string>();
     const onKeyDown = (e: KeyboardEvent) => {
       const undoable = (msg: string) => showToast(msg, { label: 'Undo', run: env.store.undo });
+      // W records a walkthrough (with the tools on, not while typing).
+      if (
+        (e.key === 'w' || e.key === 'W') &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.shiftKey &&
+        !isTypingEvent(e) &&
+        env.store.getState().tool !== 'browse' &&
+        !recorder.recording &&
+        recorder.getState().phase !== 'finishing'
+      ) {
+        recorder.discard();
+        startWalkthrough({ host: env.host, store: env.store });
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        swallowed.add(e.code);
+        return;
+      }
       if (handleShortcut(e, env.store, env.close, undoable)) {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -119,7 +143,7 @@ export function App({ env }: { env: Omit<EditorEnv, 'toast'> }) {
       window.removeEventListener('keypress', onKeyUpOrPress, true);
       window.clearTimeout(timer.current);
     };
-  }, [env.store, env.close, showToast]);
+  }, [env.store, env.close, env.host, showToast]);
 
   return (
     <EnvProvider value={full}>

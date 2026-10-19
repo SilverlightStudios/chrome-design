@@ -37,12 +37,24 @@ const SPA = `<!doctype html><html><head><title>SPA</title></head><body>
   <button id="go" onclick="history.pushState({}, '', '/spa/other'); document.getElementById('title').textContent = 'Other'">Other page</button>
 </body></html>`;
 
+const WALK = `<!doctype html><html><head><title>Pricing</title><style>
+  body { margin: 0; font: 16px system-ui; } h1 { font-size: 48px; margin: 40px; } .tall { height: 2400px; }
+  button { font-size: 20px; margin: 0 40px; padding: 12px 20px; }
+</style></head><body>
+  <h1 id="title">Simple pricing</h1>
+  <button id="cta" onclick="document.getElementById('msg').textContent = 'Thanks!'">Start free</button>
+  <p id="msg"></p>
+  <label style="margin: 40px">Email <input id="email"></label>
+  <div class="tall"></div>
+</body></html>`;
+
 const CSP_PAGE = `<!doctype html><html><head><title>CSP</title></head><body><h1 id="title">Strict CSP</h1></body></html>`;
 
 const FILES: Record<string, [string, string]> = {
   '/hostile': ['text/html', HOSTILE],
   '/spa': ['text/html', SPA],
   '/csp': ['text/html', CSP_PAGE],
+  '/walk': ['text/html', WALK],
   '/': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
   '/phone': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
   '/sizes': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
@@ -150,6 +162,8 @@ test('manifest requests only minimal permissions (production build)', () => {
   expect(manifest.host_permissions).toBeUndefined();
   expect(manifest.content_scripts).toBeUndefined();
   expect(manifest.optional_host_permissions).toEqual(['<all_urls>']);
+  // The voice link asks for native messaging only when it's turned on.
+  expect(manifest.optional_permissions).toEqual(['nativeMessaging']);
 });
 
 test('comment, draw and export a self-contained handoff from a live page', async () => {
@@ -638,4 +652,87 @@ test('phones: panels are bottom sheets that keep their content while they move',
   expect(closing.text).toContain('Comments');
   await expect(ui.locator('.bsheet-root')).toHaveCount(0);
   await expect(ui.locator('.dock')).not.toHaveAttribute('data-covered', '');
+});
+
+test('walkthrough: laser, ink and clicks become numbered pictures and a summary', async () => {
+  const page = await context.newPage();
+  await page.goto(`${baseUrl}/walk`);
+  await toggleToolbar(page);
+  const ui = page.locator('chrome-design-root');
+  await page.keyboard.press('w');
+  await expect(ui.locator('.rec-time')).toBeVisible();
+  await expect(ui.locator('.rec-edge[data-on]')).toHaveCount(1);
+  // The page works while recording: the button still answers clicks.
+  const title = (await page.locator('#title').boundingBox())!;
+  // ⇧ + move: the laser across the heading.
+  await page.mouse.move(title.x + 10, title.y + title.height / 2);
+  await page.keyboard.down('Shift');
+  for (let i = 0; i <= 12; i++)
+    await page.mouse.move(title.x + 10 + i * 20, title.y + title.height / 2, { steps: 2 });
+  await page.waitForTimeout(400);
+  // ⇧ + drag: a circle round the heading.
+  const cx = title.x + Math.min(title.width, 420) / 2;
+  const cy = title.y + title.height / 2;
+  await page.mouse.move(cx + 220, cy);
+  await page.mouse.down();
+  for (let i = 1; i <= 36; i++) {
+    const a = (i / 36) * Math.PI * 2;
+    await page.mouse.move(cx + 220 * Math.cos(a), cy + 50 * Math.sin(a));
+  }
+  await page.mouse.up();
+  await expect(ui.locator('.wt-stroke')).toHaveCount(1);
+  // ⇧ + click: pin 1 on the button.
+  const cta = (await page.locator('#cta').boundingBox())!;
+  await page.mouse.click(cta.x + cta.width - 8, cta.y + 8);
+  await expect(ui.locator('.wt-pin')).toHaveCount(1);
+  await page.keyboard.up('Shift');
+  await page.waitForTimeout(700);
+  // A plain click goes to the page.
+  await page.locator('#cta').click();
+  await expect(page.locator('#msg')).toHaveText('Thanks!');
+  await page.locator('#email').fill('nobody@example.com');
+  await page.waitForTimeout(1200);
+  await ui.locator('.tb-btn[aria-label^="Stop"]').click();
+
+  const panel = ui.locator('.walkthrough-panel');
+  await expect(panel).toBeVisible({ timeout: 15_000 });
+  await expect(panel.locator('.wt-preview')).toBeVisible();
+  await expect(panel.locator('.summary-row').first()).toContainText('picture');
+
+  const downloading = page.waitForEvent('download');
+  await ui.locator('[data-testid="cd-wt-download"]').click();
+  const download = await downloading;
+  expect(download.suggestedFilename()).toMatch(/^walkthrough-127\.0\.0\.1-.*\.zip$/);
+  const zip = readFileSync((await download.path())!);
+  const summary = zipEntry(zip, 'summary.md');
+  expect(summary).toContain('circled Heading “Simple pricing”');
+  expect(summary).toContain('pin 1 on Button “Start free”');
+  expect(summary).toContain('pointed at Heading “Simple pricing”');
+  expect(summary).toContain('[clicked Button “Start free”]');
+  expect(summary).toContain('typed in Field “Email”');
+  expect(summary).not.toContain('nobody@example.com');
+  const wt = JSON.parse(zipEntry(zip, 'walkthrough.json'));
+  expect(wt.kind).toBe('chrome-design.walkthrough');
+  expect(wt.frames.length).toBeGreaterThanOrEqual(4);
+  expect(wt.frames[0].reason).toBe('start');
+  expect(zip.includes(Buffer.from('contact-sheet.jpg'))).toBe(true);
+  expect(zip.includes(Buffer.from('frames/frame-01.jpg'))).toBe(true);
+
+  // A transcript from any tool lines up with the pictures.
+  const said = '1\n00:00:00,300 --> 00:00:01,000\nThis heading is too big.\n';
+  const picking = page.waitForEvent('filechooser');
+  await ui.locator('[data-testid="cd-wt-transcript"]').click();
+  await (await picking).setFiles({
+    name: 'said.srt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from(said),
+  });
+  await expect(panel.locator('.wt-voice')).toContainText('said.srt');
+  await expect(panel.locator('.dial')).toBeVisible();
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseUrl });
+  await ui.locator('[data-testid="cd-wt-copy"]').click();
+  await expect(ui.locator('[data-testid="cd-wt-copy"][data-done]')).toHaveCount(1);
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toContain('“This heading is too big.”');
+  await page.close();
 });

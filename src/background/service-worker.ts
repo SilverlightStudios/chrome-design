@@ -8,6 +8,7 @@ import {
   type ToBackgroundMessage,
 } from '../shared/messages';
 import { activeTab, sendToTab } from './inject';
+import { fromTab, initVoiceLink, voiceSetting, voiceStatus } from './voiceLink';
 
 /**
  * Service worker: keyboard command, screenshots and (optional) cross-origin asset fetches.
@@ -118,9 +119,10 @@ chrome.runtime.onMessage.addListener((message: ToBackgroundMessage, sender, send
     void Promise.all([
       chrome.permissions.contains({ origins: ['<all_urls>'] }),
       chrome.commands.getAll(),
-    ]).then(([allSites, commands]) => {
+      voiceSetting(),
+    ]).then(([allSites, commands, voice]) => {
       const shortcut = commands.find((c) => c.name === 'toggle-chrome-design')?.shortcut ?? '';
-      sendResponse({ allSites, shortcut } satisfies SettingsResponse);
+      sendResponse({ allSites, shortcut, voice } satisfies SettingsResponse);
     });
     return true;
   }
@@ -151,6 +153,14 @@ chrome.runtime.onMessage.addListener((message: ToBackgroundMessage, sender, send
     })();
     return true;
   }
+  if (message?.type === 'cd:voice-send') {
+    sendResponse({ ok: fromTab(message.message, sender.tab.id) });
+    return false;
+  }
+  if (message?.type === 'cd:voice-status') {
+    sendResponse(voiceStatus());
+    return false;
+  }
   if (message?.type === 'cd:get-runtime') {
     // The content script's own source, built into exported files so they open with the toolbar.
     void fetch(chrome.runtime.getURL(CONTENT_SCRIPT_FILE))
@@ -173,3 +183,5 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
     void chrome.action.setTitle({ tabId, title: 'Chrome Design (⌥⇧D)' }).catch(() => undefined);
   }
 });
+
+initVoiceLink();
