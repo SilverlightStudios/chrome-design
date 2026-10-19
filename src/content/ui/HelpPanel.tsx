@@ -43,6 +43,7 @@ const SECTIONS: { title: string; rows: [string, string][] }[] = [
       [`⇧ click · ${mod}A`, 'Select several · all drawings'],
       ['⇧ drag', 'Straight lines and perfect squares'],
       ['⌥ hover', 'Show spacing between things'],
+      ['↑ ↓', 'Select the element around · back inside'],
       ['↵', 'Post a comment · ⇧↵ new line'],
       ['Esc', 'Step back · pause so the page works normally'],
     ],

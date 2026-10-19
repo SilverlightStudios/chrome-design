@@ -217,6 +217,14 @@ test('the voice recorder starts and stops a walkthrough, and gets it back as fil
   await expect(panel.locator('.wt-sent')).toContainText('Sent to Test recorder');
   await expect(panel.locator('.wt-voice')).toContainText('Test recorder');
   await expect(panel.locator('.dial')).toHaveCount(0);
+  // …and the picture and summary, redrawn with the words, go back to the recorder.
+  const updated = (await heardType(
+    'walkthrough.saved',
+    (m) => m.session === session && m.update === true,
+  )) as { dir: string };
+  expect(readFileSync(join(updated.dir, 'summary.md'), 'utf8')).toContain(
+    '“This heading is wrong.”',
+  );
 
   // Started in Chrome instead: the recorder hears about it (and could start recording).
   await page.keyboard.press('w');

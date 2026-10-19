@@ -158,43 +158,30 @@ function localStamp(ms: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-export function buildSummary(wt: Walkthrough): string {
+/** One line of the walkthrough: a picture (or mark / click), what happened, what was said. */
+export interface TimelineEntry {
+  t: number;
+  frame?: WtFrame;
+  /** What happened, e.g. `circled Heading “Pricing”` or `[clicked Button “Buy”]`. */
+  what: string;
+  /** What was said while it was on (empty without a timed transcript). */
+  said: string;
+  /** Everything else that happened then (other marks, scrolls, typing, page changes). */
+  extras: { t: number; text: string }[];
+}
+
+/** The walkthrough as entries, shared by summary.md and the contact sheet. */
+export function timeline(wt: Walkthrough): TimelineEntry[] {
   const list = moments(wt);
   const said = speechByMoment(
     wt.transcript,
     list.map((m) => m.t),
   );
-  const lines: string[] = [];
-  lines.push(
-    `[walkthrough ${formatClock(wt.durationMs)} · ${wt.page.title || 'Untitled page'} · ${wt.page.url}]`,
-  );
-  lines.push(
-    `Recorded ${localStamp(wt.startedAtMs)} · window ${wt.viewport.width}×${wt.viewport.height}`,
-  );
-  if (wt.frames.length)
-    lines.push(
-      `Pictures: contact-sheet.jpg (numbered #1–#${wt.frames.length}), full size in frames/. Red ink, numbered red pins and the red laser trail are the reviewer’s marks; blue rings are clicks.`,
-    );
-  if (wt.transcript) {
-    const how = wt.transcript.untimed
-      ? 'no times'
-      : wt.transcript.alignment === 'clock'
-        ? 'lined up by clock'
-        : `lined up by hand (${wt.transcript.offsetMs >= 0 ? '+' : ''}${(wt.transcript.offsetMs / 1000).toFixed(1)} s)`;
-    lines.push(`Voice: ${wt.transcript.source} · ${how}. Quotes are what was said at that moment.`);
-  }
-  if (wt.transcript?.untimed) {
-    const text = wt.transcript.segments.map((s) => s.text).join(' ');
-    if (text) lines.push('', `Said: “${text}”`);
-  }
-  lines.push('');
-
   const listed = new Set<object>();
   for (const m of list) {
     if (m.mark) listed.add(m.mark);
     if (m.event) listed.add(m.event);
   }
-  // Everything else (other marks and events) nests under the moment it happened in.
   const extras: { t: number; text: string }[] = [
     ...wt.marks.filter((mk) => !listed.has(mk)).map((mk) => ({ t: mk.t0, text: mk.description })),
     ...wt.events
@@ -203,13 +190,55 @@ export function buildSummary(wt: Walkthrough): string {
   ].toSorted((a, b) => a.t - b.t);
   const nested = list.map(() => [] as { t: number; text: string }[]);
   for (const x of extras) nested[momentAt(list, x.t)]!.push(x);
+  return list.map((m, i) => ({
+    t: m.t,
+    ...(m.frame ? { frame: m.frame } : {}),
+    what: whatHappened(m),
+    said: said[i] ?? '',
+    extras: nested[i]!,
+  }));
+}
 
-  list.forEach((m, i) => {
-    const head = m.frame ? `- #${m.frame.index} (${formatClock(m.t)})` : `- ${formatClock(m.t)}`;
-    const what = whatHappened(m);
-    const quote = said[i] ? ` “${said[i]}”` : '';
-    lines.push(`${head}${what ? ` ${what}` : ''}${quote}`);
-    for (const x of nested[i]!) lines.push(`  · ${formatClock(x.t)} ${x.text}`);
-  });
+/** How the voice was lined up, in words. */
+export function voiceLine(wt: Walkthrough): string | null {
+  const tr = wt.transcript;
+  if (!tr) return null;
+  const how = tr.untimed
+    ? 'no times'
+    : tr.alignment === 'clock'
+      ? 'lined up by clock'
+      : `lined up by hand (${tr.offsetMs >= 0 ? '+' : ''}${(tr.offsetMs / 1000).toFixed(1)} s)`;
+  return `Voice: ${tr.source} · ${how}`;
+}
+
+/** Everything said, for a transcript without times (shown whole, not per picture). */
+export function untimedSpeech(wt: Walkthrough): string {
+  return wt.transcript?.untimed ? wt.transcript.segments.map((s) => s.text).join(' ') : '';
+}
+
+export function recordedLine(wt: Walkthrough): string {
+  return `Recorded ${localStamp(wt.startedAtMs)} · window ${wt.viewport.width}×${wt.viewport.height}`;
+}
+
+export function buildSummary(wt: Walkthrough): string {
+  const lines: string[] = [];
+  lines.push(
+    `[walkthrough ${formatClock(wt.durationMs)} · ${wt.page.title || 'Untitled page'} · ${wt.page.url}]`,
+  );
+  lines.push(recordedLine(wt));
+  if (wt.frames.length)
+    lines.push(
+      `Pictures: contact-sheet.jpg (every picture, numbered #1–#${wt.frames.length}, with what happened and what was said), full size in frames/. Red ink, numbered red pins and the red laser trail are the reviewer’s marks; blue rings are clicks.`,
+    );
+  const voice = voiceLine(wt);
+  if (voice) lines.push(`${voice}. Quotes are what was said at that moment.`);
+  const untimed = untimedSpeech(wt);
+  if (untimed) lines.push('', `Said: “${untimed}”`);
+  lines.push('');
+  for (const e of timeline(wt)) {
+    const head = e.frame ? `- #${e.frame.index} (${formatClock(e.t)})` : `- ${formatClock(e.t)}`;
+    lines.push(`${head}${e.what ? ` ${e.what}` : ''}${e.said ? ` “${e.said}”` : ''}`);
+    for (const x of e.extras) lines.push(`  · ${formatClock(x.t)} ${x.text}`);
+  }
   return `${lines.join('\n')}\n`;
 }

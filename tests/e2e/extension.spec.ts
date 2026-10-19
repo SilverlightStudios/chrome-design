@@ -191,7 +191,13 @@ test('comment, draw and export a self-contained handoff from a live page', async
   const cta = await page.locator('#cta').boundingBox();
   await page.mouse.click(cta!.x + 10, cta!.y + 10);
   await expect(ui.locator('.selection-bar .sel-label')).toHaveText('Button “Buy now”');
-  await ui.locator('.selection-bar .chip-btn').click();
+  // The bar is Liquid Glass, like the toolbar; up and back down return to the button.
+  await expect(ui.locator('.selection-bar')).toHaveAttribute('data-glass', /svg|css/);
+  await ui.locator('.selection-bar [aria-label="Select the surrounding element"]').click();
+  await expect(ui.locator('.selection-bar .sel-label')).not.toHaveText('Button “Buy now”');
+  await ui.locator('.selection-bar [aria-label="Select inside"]').click();
+  await expect(ui.locator('.selection-bar .sel-label')).toHaveText('Button “Buy now”');
+  await ui.locator('.selection-bar .chip-btn[aria-label="Comment"]').click();
   await ui.locator('.seg button[data-intent="decision"]').click();
   await ui.locator('.popover textarea').fill('Keep the button copy.');
   await ui.locator('.popover .send').click();
@@ -659,7 +665,8 @@ test('walkthrough: laser, ink and clicks become numbered pictures and a summary'
   await page.goto(`${baseUrl}/walk`);
   await toggleToolbar(page);
   const ui = page.locator('chrome-design-root');
-  await page.keyboard.press('w');
+  // Walkthrough is on the toolbar itself (W does the same).
+  await ui.locator('.toolbar .tb-btn[aria-label^="Walkthrough"]').click();
   await expect(ui.locator('.rec-time')).toBeVisible();
   await expect(ui.locator('.rec-edge[data-on]')).toHaveCount(1);
   // The page works while recording: the button still answers clicks.
@@ -717,6 +724,11 @@ test('walkthrough: laser, ink and clicks become numbered pictures and a summary'
   expect(wt.frames[0].reason).toBe('start');
   expect(zip.includes(Buffer.from('contact-sheet.jpg'))).toBe(true);
   expect(zip.includes(Buffer.from('frames/frame-01.jpg'))).toBe(true);
+
+  // The whole walkthrough as one picture.
+  const saving = page.waitForEvent('download');
+  await ui.locator('[data-testid="cd-wt-image"]').click();
+  expect((await saving).suggestedFilename()).toMatch(/^walkthrough-.*\.jpg$/);
 
   // A transcript from any tool lines up with the pictures.
   const said = '1\n00:00:00,300 --> 00:00:01,000\nThis heading is too big.\n';

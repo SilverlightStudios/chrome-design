@@ -40,7 +40,11 @@ export function startWalkthrough(
 }
 
 /** Send a finished walkthrough to the recorder: the bundle, then each file, then done. */
-export async function deliver(result: WalkthroughResult, session: string): Promise<boolean> {
+export async function deliver(
+  result: WalkthroughResult,
+  session: string,
+  update = false,
+): Promise<boolean> {
   const status = await voiceStatus();
   if (!status?.connected) return false;
   const bundle = await bundleForVoice(result);
@@ -51,6 +55,7 @@ export async function deliver(result: WalkthroughResult, session: string): Promi
     walkthrough: bundle.walkthrough,
     summary: bundle.summary,
     files: bundle.files.map((f) => f.name),
+    ...(update ? { update: true } : {}),
   });
   if (!sent?.ok) return false;
   for (const f of bundle.files) await sendToRecorder({ type: 'walkthrough.file', session, ...f });
@@ -98,6 +103,9 @@ export function applyRecorderTranscript(
   const text = typeof transcript === 'string' ? transcript : JSON.stringify(transcript);
   const parsed = parseTranscript(text);
   if (!parsed) return false;
-  recorder.update(withTranscript(result, parsed, app ? { source: app } : {}));
+  const next = withTranscript(result, parsed, app ? { source: app } : {});
+  recorder.update(next);
+  // The picture and summary now carry the words: send them back to the recorder too.
+  void deliver(next, session, true);
   return true;
 }

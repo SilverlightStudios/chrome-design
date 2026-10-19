@@ -19,7 +19,7 @@ import {
   useGlassMap,
 } from '../motion/glass';
 import { BottomSheet, FloatingSheet, useCompact, useSheetPresence } from '../motion/MorphSheet';
-import { MorphTooltipGroup } from '../motion/MorphTooltip';
+import { TooltipGroup } from '../motion/Tooltip';
 import { commentOnShape } from '../overlay/InteractionLayer';
 import { textFontSize } from '../overlay/TextEditor';
 import { loadUiPrefs, saveUiPrefs, type UiPrefs } from '../persistence';
@@ -31,6 +31,7 @@ import {
   SHAPE_TOOLS,
   type ShapeToolId,
 } from '../store';
+import { startWalkthrough } from '../walkthrough/voice';
 import { ExportPanel } from './ExportPanel';
 import { FeedbackPanel } from './FeedbackPanel';
 import { GridPanel } from './GridPanel';
@@ -345,7 +346,7 @@ function StyleBar({ placement }: { placement: 'up' | 'down' }) {
 
   return (
     <div ref={ref}>
-      <MorphTooltipGroup placement={placement} className="subbar" ariaLabel="Style" menu={menu}>
+      <TooltipGroup placement={placement} className="subbar" ariaLabel="Style" menu={menu}>
         {styled ? (
           <>
             <button
@@ -434,7 +435,7 @@ function StyleBar({ placement }: { placement: 'up' | 'down' }) {
         <Divider />
         <ToolButton icon="undo" label="Undo" kbd="⌘Z" disabled={!canUndo} onClick={store.undo} />
         <ToolButton icon="redo" label="Redo" kbd="⇧⌘Z" disabled={!canRedo} onClick={store.redo} />
-      </MorphTooltipGroup>
+      </TooltipGroup>
     </div>
   );
 }
@@ -765,7 +766,7 @@ export function Toolbar() {
           onPointerCancel={onBarPointerUp}
           onDoubleClick={resetPosition}
         >
-          <MorphTooltipGroup
+          <TooltipGroup
             placement={placement}
             className="toolbar-row"
             ariaLabel="Chrome Design"
@@ -840,6 +841,13 @@ export function Toolbar() {
                 />
                 <Divider />
                 <ToolButton
+                  icon="record"
+                  label="Walkthrough"
+                  kbd="W"
+                  className="rec-start"
+                  onClick={() => startWalkthrough({ host: env.host, store })}
+                />
+                <ToolButton
                   icon="more"
                   label="More"
                   hideTip
@@ -858,7 +866,7 @@ export function Toolbar() {
                 />
               </>
             )}
-          </MorphTooltipGroup>
+          </TooltipGroup>
         </div>
       </div>
       {compact && sheet.shown && (

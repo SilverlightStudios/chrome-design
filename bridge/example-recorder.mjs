@@ -161,7 +161,9 @@ function onMessage(message) {
       if (message.origin === 'extension' && recording?.session === message.session) stop();
       return;
     case 'walkthrough.saved':
-      merge(message);
+      // An update is the same walkthrough redrawn with the words: nothing to merge again.
+      if (message.update) say(`✓ picture and summary updated with what was said: ${message.dir}`);
+      else merge(message);
       return;
     default:
       return;

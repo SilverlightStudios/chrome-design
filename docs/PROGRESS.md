@@ -8,6 +8,16 @@ recorder). Verified on the demo page in desktop Chromium and the iPhone 15 WebKi
 (finger ink, a tap pin, the bottom-sheet review panel).
 
 ## Rounds
+- R13: owner's pass on R12. Walkthrough is a toolbar button (◉, `W`); a new recording keeps the
+  last result until it finishes (More → Walkthrough reopens it). Tooltips are Spark's fluid
+  tooltips everywhere (`motion/Tooltip.tsx`, `TooltipGroup`, replacing the gooey
+  MorphTooltip): `data-tip` / `data-kbd` on any control; touch = hold then slide (`touch-action:
+  none` on groups, `elementFromPoint` on the shadow root). Native `title` tooltips are gone.
+  `<LiquidGlass>` (motion/glass.tsx) gives any bar the toolbar's glass (own filter id + map); the
+  selection bar uses it, with an icon-only Comment and ↓ (`pickNav.ts` remembers where ↑ came
+  from). Glass tone is dark whenever the system is in dark mode. The contact sheet is the whole
+  walkthrough as one picture (`timeline()` in summary.ts feeds both it and summary.md); Save
+  image in the panel; after a recorder's transcript the bundle is re-sent with `update: true`.
 - R12: walkthroughs and the voice link (after Scrawl). `src/walkthrough/` is pure and runs in
   Node too (`allowImportingTsExtensions`; its files import each other with `.ts`). Recorder
   (`content/walkthrough/recorder.ts`): page stays in `browse`; window capture-phase listeners do

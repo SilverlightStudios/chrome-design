@@ -4,6 +4,7 @@ import { gridColumns } from '../../shared/measure';
 import type { Guide } from '../../shared/model';
 import { useEditor, useEnv, useViewport, type Viewport } from '../context';
 import { capturePointer, pickElement } from '../dom';
+import { TooltipGroup } from '../motion/Tooltip';
 
 export const RULER = 20;
 const SNAP = 5;
@@ -246,15 +247,17 @@ export function RulersAndGuides() {
         }
         {...handlers}
       />
-      <button
-        type="button"
-        className="ruler-corner"
-        aria-label="Clear guides"
-        title="Clear guides"
-        onClick={() => store.clearGuides()}
-      >
-        ⟲
-      </button>
+      <TooltipGroup placement="down" className="ruler-corner-tip" ariaLabel="Guides">
+        <button
+          type="button"
+          className="ruler-corner"
+          aria-label="Clear guides"
+          data-tip="Clear guides"
+          onClick={() => store.clearGuides()}
+        >
+          ⟲
+        </button>
+      </TooltipGroup>
     </div>
   );
 }

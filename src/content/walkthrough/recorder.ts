@@ -377,7 +377,7 @@ export class WalkthroughRecorder {
     this.set({ drawing: on });
   }
 
-  /** Start following along. Replaces a finished walkthrough that hasn't been kept. */
+  /** Start following along. */
   start(env: Env, session?: Partial<WalkthroughSession>): WalkthroughSession | null {
     if (this.state.phase === 'recording' || this.state.phase === 'finishing') return null;
     this.reset();
@@ -392,11 +392,11 @@ export class WalkthroughRecorder {
     };
     this.href = location.href;
     this.lastFrameScroll = { x: window.scrollX, y: window.scrollY };
+    // The last walkthrough stays until this one is finished (or this one is cancelled).
     this.set({
       phase: 'recording',
       startedAtMs: Date.now(),
       session: full,
-      result: null,
       pictures: hasExtensionRuntime(),
       drawing: false,
       shift: false,
@@ -415,12 +415,12 @@ export class WalkthroughRecorder {
     return full;
   }
 
-  /** Stop and keep nothing. */
+  /** Stop and keep nothing (the last finished walkthrough stays). */
   cancel(): void {
-    if (this.state.phase === 'idle') return;
+    if (this.state.phase !== 'recording') return;
     this.unlisten();
     this.reset();
-    this.set({ phase: 'idle', session: null, result: null });
+    this.set({ phase: this.state.result ? 'ready' : 'idle', session: null });
   }
 
   /** Forget a finished walkthrough. */

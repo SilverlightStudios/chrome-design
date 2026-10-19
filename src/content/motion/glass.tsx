@@ -1,4 +1,13 @@
-import { type RefObject, useEffect, useState } from 'react';
+import {
+  type CSSProperties,
+  type HTMLAttributes,
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import { HOST_TAG } from '../dom';
 
 /*
  * Liquid Glass for the floating toolbar, rendered from the live page behind it.
@@ -18,7 +27,6 @@ import { type RefObject, useEffect, useState } from 'react';
  */
 
 export const GLASS_FILTER_ID = 'cd-liquid-glass';
-export const GOO_ID = 'cd-goo';
 const TRAVEL = 30;
 
 /** Capsule displacement map (R = x, G = y, 128 = none) as a PNG data URL. */
@@ -58,20 +66,19 @@ export function displacementMap(width: number, height: number, travel = TRAVEL):
   return canvas.toDataURL('image/png');
 }
 
-/** SVG filter definitions; rendered once inside the shadow root. */
-export function GlassFilters({ map }: { map: { url: string; w: number; h: number } | null }) {
+/** The refraction filter for one glass surface (each has its own size, so its own map). */
+export function GlassFilters({
+  map,
+  id = GLASS_FILTER_ID,
+}: {
+  map: { url: string; w: number; h: number } | null;
+  id?: string;
+}) {
   return (
     <svg className="filters" width="0" height="0" aria-hidden="true" focusable="false">
       <title>Chrome Design filters</title>
       {map ? (
-        <filter
-          id={GLASS_FILTER_ID}
-          x="0"
-          y="0"
-          width="100%"
-          height="100%"
-          colorInterpolationFilters="sRGB"
-        >
+        <filter id={id} x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
           <feImage
             href={map.url}
             x="0"
@@ -90,14 +97,6 @@ export function GlassFilters({ map }: { map: { url: string; w: number; h: number
           />
         </filter>
       ) : null}
-      <filter id={GOO_ID} x="-75%" y="-150%" width="250%" height="400%">
-        <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="spread" />
-        <feColorMatrix
-          in="spread"
-          type="matrix"
-          values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -11"
-        />
-      </filter>
     </svg>
   );
 }
@@ -196,6 +195,8 @@ export function useBackdropTone(
 ): 'light' | 'dark' {
   const [tone, setTone] = useState<'light' | 'dark'>('light');
   useEffect(() => {
+    // In dark mode the glass is dark, like the panels; in light mode it follows the page.
+    const darkMode = matchMedia('(prefers-color-scheme: dark)');
     let frame = 0;
     let last = 0;
     const sample = () => {
@@ -208,7 +209,7 @@ export function useBackdropTone(
       const y = r.top + r.height / 2;
       const xs = [r.left + 12, r.left + r.width / 2, r.right - 12];
       const lum = xs.reduce((sum, x) => sum + backdropLuminance(x, y, skip), 0) / xs.length;
-      setTone(lum < 0.36 ? 'dark' : 'light');
+      setTone(darkMode.matches || lum < 0.36 ? 'dark' : 'light');
     };
     const schedule = () => {
       if (frame) return;
@@ -216,6 +217,7 @@ export function useBackdropTone(
       frame = window.setTimeout(() => requestAnimationFrame(sample), wait);
     };
     sample();
+    darkMode.addEventListener('change', schedule);
     window.addEventListener('scroll', schedule, { passive: true, capture: true });
     window.addEventListener('resize', schedule);
     const ro = new ResizeObserver(schedule);
@@ -224,6 +226,7 @@ export function useBackdropTone(
     if (ref.current) mo.observe(ref.current, { attributes: true, attributeFilter: ['style'] });
     return () => {
       window.clearTimeout(frame);
+      darkMode.removeEventListener('change', schedule);
       window.removeEventListener('scroll', schedule, { capture: true });
       window.removeEventListener('resize', schedule);
       ro.disconnect();
@@ -231,4 +234,50 @@ export function useBackdropTone(
     };
   }, [ref, skip]);
   return tone;
+}
+
+const skipOwnUi = (el: Element) => el.localName === HOST_TAG;
+
+/**
+ * A bar made of the toolbar's Liquid Glass (refraction where Chromium allows it, the CSS glass
+ * elsewhere), tinted to what's behind it and dark in dark mode. `filterId` must be unique.
+ */
+export function LiquidGlass({
+  filterId,
+  className,
+  style,
+  elRef,
+  children,
+  ...rest
+}: HTMLAttributes<HTMLDivElement> & {
+  filterId: string;
+  /** Also receives the element (may return a cleanup, like a React 19 callback ref). */
+  elRef?: (el: HTMLDivElement) => (() => void) | undefined;
+  children?: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const map = useGlassMap(ref);
+  const blocked = useCspGlassFallback();
+  const tone = useBackdropTone(ref, skipOwnUi);
+  const mode = blocked || !map || !supportsSvgBackdrop() ? 'css' : 'svg';
+  return (
+    <div
+      {...rest}
+      ref={(el) => {
+        ref.current = el;
+        return el ? elRef?.(el) : undefined;
+      }}
+      className={`glass-bar ${className ?? ''}`}
+      data-glass={mode}
+      data-tone={tone}
+      style={
+        mode === 'svg'
+          ? ({ ...style, '--glass-filter': `url(#${filterId})` } as CSSProperties)
+          : style
+      }
+    >
+      <GlassFilters id={filterId} map={mode === 'svg' ? map : null} />
+      {children}
+    </div>
+  );
 }

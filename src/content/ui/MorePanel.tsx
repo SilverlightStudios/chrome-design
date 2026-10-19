@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { isComment } from '../../shared/model';
 import { useEditor, useEnv } from '../context';
 import { hasExtensionRuntime } from '../ext';
 import { importHandoffFiles, pickHandoffFiles } from '../importHandoff';
 import { useCompact } from '../motion/MorphSheet';
 import { recorder } from '../walkthrough/recorder';
-import { startWalkthrough } from '../walkthrough/voice';
 import { Icon, type IconName } from './icons';
 
 /** Touch screens have no keyboard, so no Shortcuts tile. */
@@ -58,7 +57,8 @@ function Tile({ icon, label, on, badge, danger, onClick, options }: TileProps) {
 
 /** The ⋯ sheet: everything that isn't a drawing tool, as Remote Desktop-style tiles. */
 export function MorePanel() {
-  const { store, toast, host } = useEnv();
+  const { store, toast } = useEnv();
+  const walkthrough = useSyncExternalStore(recorder.subscribe, () => !!recorder.getState().result);
   const rulers = useEditor((s) => s.rulers);
   const grid = useEditor((s) => s.grid.visible);
   const tool = useEditor((s) => s.tool);
@@ -78,14 +78,13 @@ export function MorePanel() {
           badge={open}
           onClick={() => store.set({ panel: 'list', panelBack: 'more' })}
         />
-        <Tile
-          icon="record"
-          label="Walkthrough"
-          onClick={() => {
-            if (recorder.getState().result) store.set({ panel: 'walkthrough', panelBack: 'more' });
-            else startWalkthrough({ host, store });
-          }}
-        />
+        {walkthrough ? (
+          <Tile
+            icon="record"
+            label="Walkthrough"
+            onClick={() => store.set({ panel: 'walkthrough', panelBack: 'more' })}
+          />
+        ) : null}
         <Tile
           icon="hand"
           label={tool === 'browse' ? 'Paused' : 'Use the page'}

@@ -116,7 +116,6 @@ export function App({ env }: { env: Omit<EditorEnv, 'toast'> }) {
         !recorder.recording &&
         recorder.getState().phase !== 'finishing'
       ) {
-        recorder.discard();
         startWalkthrough({ host: env.host, store: env.store });
         e.preventDefault();
         e.stopImmediatePropagation();

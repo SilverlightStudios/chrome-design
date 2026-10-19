@@ -138,7 +138,11 @@ function fromChrome(message) {
         `${JSON.stringify(message.walkthrough, null, 2)}\n`,
       );
       writeFileSync(join(dir, 'summary.md'), String(message.summary ?? ''));
-      bundles.set(message.session, { dir, files: ['summary.md', 'walkthrough.json'] });
+      bundles.set(message.session, {
+        dir,
+        files: ['summary.md', 'walkthrough.json'],
+        update: message.update === true,
+      });
       toRecorder({
         type: 'walkthrough.bundle',
         session: message.session,
@@ -166,6 +170,7 @@ function fromChrome(message) {
         session: message.session,
         dir: bundle.dir,
         files: bundle.files,
+        ...(bundle.update ? { update: true } : {}),
       });
       return;
     }

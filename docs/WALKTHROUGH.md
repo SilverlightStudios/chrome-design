@@ -96,6 +96,8 @@ sequenceDiagram
   R->>You: paste / send to the agent (summary.md + contact-sheet.jpg)
   opt show the words in Chrome too
     R->>C: transcript {session, transcript}
+    C->>B: the picture and summary again, now with the words (update)
+    B-->>R: walkthrough.saved {session, dir, files, update: true}
   end
 ```
 
@@ -171,8 +173,11 @@ Checklist:
    contact sheet as an image) or straight into an agent session with both attached.
 8. Optional: **cues.** If transcription streams, send `cue` when you hear "here", "look",
    "this" or "watch" (Scrawl's cue words): Chrome takes a picture at that moment.
-9. Optional: **send the transcript back** (`transcript`), so Chrome's review panel and its Copy
-   for AI show the words too.
+9. Optional: **send the transcript back** (`transcript`). Chrome's review panel and Copy for AI
+   then show the words, and Chrome redraws `contact-sheet.jpg` (the whole walkthrough as one
+   picture) with each quote under its picture and saves it into the same folder
+   (`walkthrough.saved` with `update: true`). Wait for that if you'd rather deliver the picture
+   with the words on it than draw them yourself.
 
 `bridge/example-recorder.mjs` does all of this except audio, in ~200 lines of Node (type a line
 while "recording" to fake speech). Use it to try the loop before touching the real recorder.
@@ -202,7 +207,7 @@ Chrome Design → recorder:
 | `walkthrough.unavailable` | `session`, `reason` | can't follow along (not in front, restricted page, tab gone…) |
 | `walkthrough.stopped` | `session`, `stoppedAt`, `origin` | |
 | `walkthrough.bundle` | `session`, `folder`, `dir`, `files` | the bridge has started writing `dir` |
-| `walkthrough.saved` | `session`, `dir`, `files` | **the one to act on**: everything is on disk |
+| `walkthrough.saved` | `session`, `dir`, `files`, `update?` | **the one to act on**: everything is on disk. `update: true` = the same folder redrawn with your transcript (the picture now has the words); don't merge it again |
 | `walkthrough.discarded` | `session` | after `recording.cancel` |
 
 (Between Chrome and the bridge the bundle travels as `walkthrough.bundle` with the JSON inside,
@@ -226,6 +231,17 @@ started (so nothing needs lining up by hand):
 ```
 
 `t0` / `t1` are ms from the start of the audio; `words` is optional.
+
+## One picture or JSON?
+
+Both, for different readers. `contact-sheet.jpg` is the whole walkthrough as one picture: a
+header (page, length, how the voice lines up), then every numbered picture with what happened,
+what was said and what else happened then. It's what a person, or an agent pasting one image
+into a chat, reads at a glance. `summary.md` is the same thing as text, which agents read more
+reliably than words inside a picture, so Copy for AI puts both on the clipboard (the picture and
+the text), the way Scrawl pastes `contact-sheet.png` + `summary.md`. `walkthrough.json` is for
+programs: exact times, positions, selectors and the raw strokes, for tools (like your recorder)
+that rearrange or reformat.
 
 ## Formatting (what the agent reads)
 

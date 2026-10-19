@@ -5,8 +5,11 @@ import type { Rect, RedactShape } from '../../shared/model';
 import { useEditor, useEnv, useViewport } from '../context';
 import { friendlyLabel, friendlyName } from '../describe';
 import { copyText, rgbToHex, toPage } from '../dom';
+import { LiquidGlass } from '../motion/glass';
 import { BottomSheet, useCompact, useSheetPresence } from '../motion/MorphSheet';
 import { usePresence } from '../motion/presence';
+import { TooltipGroup } from '../motion/Tooltip';
+import { childOf, parentOf, selectChild, selectParent } from '../pickNav';
 import { Icon } from '../ui/icons';
 import { draftForRegion } from './InteractionLayer';
 import { guideClearance, spacingFor } from './spacing';
@@ -47,8 +50,7 @@ export function SelectionBar() {
   const presence = usePresence(key, key === 'region' ? pickedRegion : pickedEl, 140);
   const [width, setWidth] = useState(0);
   // Measured width, so the bar centres on the selection and stays on screen.
-  const barRef = useCallback((bar: HTMLDivElement | null) => {
-    if (!bar) return;
+  const barRef = useCallback((bar: HTMLDivElement) => {
     const ro = new ResizeObserver(() => setWidth(bar.offsetWidth));
     ro.observe(bar);
     return () => ro.disconnect();
@@ -86,8 +88,8 @@ export function SelectionBar() {
     const point = toPage(b.left + Math.min(16, b.width / 2), b.top + Math.min(16, b.height / 2));
     store.set({ draft: { target: { type: 'element', point, anchor: buildAnchor(el) } } });
   };
-  const parent =
-    el?.parentElement && el.parentElement !== document.documentElement ? el.parentElement : null;
+  const parent = el ? parentOf(el) : null;
+  const child = el ? childOf(el) : null;
   // Cover it with a blurred box: hidden in screenshots, its text and pictures left out of the
   // handoff. The box is selected so it can be adjusted or deleted.
   const hide = () => {
@@ -105,68 +107,97 @@ export function SelectionBar() {
   };
 
   return (
-    <div
-      className="selection-bar glass-css ui"
+    <LiquidGlass
+      filterId="cd-glass-selection"
+      className="selection-bar ui"
       data-exiting={presence.exiting ? '' : undefined}
       inert={presence.exiting}
       data-below={pos.below ? '' : undefined}
-      ref={barRef}
+      elRef={barRef}
       style={{ left: pos.left, top: pos.top }}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <span className="sel-label" title={label}>
-        {label}
-      </span>
-      <button type="button" className="chip-btn" onClick={comment}>
-        <Icon.comment /> Comment
-      </button>
-      <button
-        type="button"
-        className="icon-btn"
-        aria-label="Hide"
-        title="Hide (blur)"
-        onClick={hide}
+      <TooltipGroup
+        placement={pos.below ? 'down' : 'up'}
+        className="sel-actions"
+        ariaLabel="Selection"
       >
-        <Icon.eyeOff />
-      </button>
-      {el ? (
-        <>
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label="Details"
-            title="Details"
-            data-on={showDetails ? '' : undefined}
-            onClick={() => store.set({ showDetails: !showDetails })}
-          >
-            <Icon.info />
-          </button>
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label="Select the surrounding element"
-            title={
-              parent
-                ? `Select ${friendlyName(parent).toLowerCase()} around it (↑)`
-                : 'Nothing around it'
-            }
-            disabled={!parent}
-            onClick={() => parent && store.set({ pickedEl: parent })}
-          >
-            <Icon.parent />
-          </button>
-        </>
-      ) : (
+        <span className="sel-label" data-tip={label}>
+          {label}
+        </span>
+        <button
+          type="button"
+          className="chip-btn icon-only"
+          aria-label="Comment"
+          data-tip="Comment"
+          data-kbd="↵"
+          onClick={comment}
+        >
+          <Icon.comment />
+        </button>
         <button
           type="button"
           className="icon-btn"
-          aria-label="Clear selection"
-          onClick={() => store.set({ pickedRegion: null })}
+          aria-label="Hide"
+          data-tip="Hide (blur)"
+          onClick={hide}
         >
-          <Icon.close />
+          <Icon.eyeOff />
         </button>
-      )}
-    </div>
+        {el ? (
+          <>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="Details"
+              data-tip="Details"
+              data-on={showDetails ? '' : undefined}
+              onClick={() => store.set({ showDetails: !showDetails })}
+            >
+              <Icon.info />
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="Select the surrounding element"
+              data-tip={
+                parent
+                  ? `Select ${friendlyName(parent).toLowerCase()} around it`
+                  : 'Nothing around it'
+              }
+              data-kbd="↑"
+              disabled={!parent}
+              onClick={() => selectParent(store)}
+            >
+              <Icon.parent />
+            </button>
+            <button
+              type="button"
+              className="icon-btn flip"
+              aria-label="Select inside"
+              data-tip={
+                child ? `Select ${friendlyName(child).toLowerCase()} inside` : 'Nothing inside'
+              }
+              data-kbd="↓"
+              disabled={!child}
+              onClick={() => selectChild(store)}
+            >
+              <Icon.parent />
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Clear selection"
+            data-tip="Clear selection"
+            onClick={() => store.set({ pickedRegion: null })}
+          >
+            <Icon.close />
+          </button>
+        )}
+      </TooltipGroup>
+    </LiquidGlass>
   );
 }
 
@@ -192,15 +223,17 @@ function Swatch({ color }: { color: string }) {
     return () => window.clearTimeout(t);
   }, [copied]);
   return (
-    <button
-      type="button"
-      className="color-value"
-      title="Copy colour"
-      onClick={() => void copyText(hex).then((ok) => ok && setCopied(true))}
-    >
-      <span className="dot" style={{ background: color }} />
-      {copied ? 'Copied' : hex}
-    </button>
+    <TooltipGroup placement="up" className="swatch-tip" ariaLabel="Colour">
+      <button
+        type="button"
+        className="color-value"
+        data-tip={copied ? 'Copied' : 'Copy colour'}
+        onClick={() => void copyText(hex).then((ok) => ok && setCopied(true))}
+      >
+        <span className="dot" style={{ background: color }} />
+        {copied ? 'Copied' : hex}
+      </button>
+    </TooltipGroup>
   );
 }
 
@@ -270,12 +303,18 @@ function DetailsContent({ el, onClose }: { el: Element; onClose: () => void }) {
 
   return (
     <div className="details">
-      <header className="panel-head">
-        <b title={friendlyLabel(el)}>{friendlyLabel(el)}</b>
-        <button type="button" className="icon-btn" aria-label="Close details" onClick={onClose}>
+      <TooltipGroup placement="down" className="panel-head" ariaLabel="Details">
+        <b data-tip={friendlyLabel(el)}>{friendlyLabel(el)}</b>
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="Close details"
+          data-tip="Close"
+          onClick={onClose}
+        >
           <Icon.close />
         </button>
-      </header>
+      </TooltipGroup>
       <dl>
         <dt>Size</dt>
         <dd>

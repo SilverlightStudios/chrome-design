@@ -32,6 +32,7 @@ import {
   pickImageFiles,
   toAttachment,
 } from '../images';
+import { TooltipGroup } from '../motion/Tooltip';
 import { type DraftComment, nextCommentNumber } from '../store';
 import { Icon } from '../ui/icons';
 
@@ -106,29 +107,31 @@ function IntentChips({
 }) {
   const index = INTENTS.indexOf(value);
   return (
-    <div
-      className="seg small"
-      role="radiogroup"
-      aria-label="Kind of comment"
-      data-value={value}
-      style={{ ['--n' as string]: INTENTS.length, ['--i' as string]: index }}
-    >
-      <span className="seg-loz" aria-hidden="true" />
-      {INTENTS.map((intent) => (
-        <button
-          key={intent}
-          type="button"
-          role="radio"
-          aria-checked={value === intent}
-          title={INTENT_LABEL[intent]}
-          data-intent={intent}
-          data-active={value === intent ? '' : undefined}
-          onClick={() => onChange(intent)}
-        >
-          {SHORT_LABEL[intent]}
-        </button>
-      ))}
-    </div>
+    <TooltipGroup placement="up" className="seg-tips" ariaLabel="Kind">
+      <div
+        className="seg small"
+        role="radiogroup"
+        aria-label="Kind of comment"
+        data-value={value}
+        style={{ ['--n' as string]: INTENTS.length, ['--i' as string]: index }}
+      >
+        <span className="seg-loz" aria-hidden="true" />
+        {INTENTS.map((intent) => (
+          <button
+            key={intent}
+            type="button"
+            role="radio"
+            aria-checked={value === intent}
+            data-tip={INTENT_LABEL[intent]}
+            data-intent={intent}
+            data-active={value === intent ? '' : undefined}
+            onClick={() => onChange(intent)}
+          >
+            {SHORT_LABEL[intent]}
+          </button>
+        ))}
+      </div>
+    </TooltipGroup>
   );
 }
 
@@ -314,7 +317,7 @@ export function CommentPopover({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      <div className="popover-head">
+      <TooltipGroup placement="up" className="popover-head" ariaLabel="Comment">
         {thread ? (
           <span className="pin-num" data-intent={thread.intent} data-status={thread.status}>
             {thread.number}
@@ -325,7 +328,7 @@ export function CommentPopover({
           type="button"
           className="scope-chip"
           data-on={scope ? '' : undefined}
-          title="Which screen sizes this is for"
+          data-tip="Which screen sizes it's for"
           aria-label={`Screen sizes: ${scope ? BREAKPOINTS[scope].label : 'All sizes'}`}
           onClick={cycleScope}
         >
@@ -347,7 +350,7 @@ export function CommentPopover({
               className="icon-btn"
               data-on={thread.status === 'resolved' ? '' : undefined}
               aria-label={thread.status === 'open' ? 'Mark as resolved' : 'Reopen'}
-              title={thread.status === 'open' ? 'Mark as resolved' : 'Reopen'}
+              data-tip={thread.status === 'open' ? 'Mark as resolved' : 'Reopen'}
               onClick={() =>
                 store.updateAnnotation(thread.id, (a) =>
                   isComment(a)
@@ -366,7 +369,7 @@ export function CommentPopover({
               type="button"
               className="icon-btn"
               aria-label="Delete comment"
-              title="Delete"
+              data-tip="Delete"
               onClick={() => {
                 store.removeAnnotations([thread.id]);
                 toast(`Comment ${thread.number} deleted`, { label: 'Undo', run: store.undo });
@@ -376,10 +379,17 @@ export function CommentPopover({
             </button>
           </>
         )}
-        <button type="button" className="icon-btn" aria-label="Close" onClick={close}>
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="Close"
+          data-tip="Close"
+          data-kbd="Esc"
+          onClick={close}
+        >
           <Icon.close />
         </button>
-      </div>
+      </TooltipGroup>
 
       {thread ? (
         <div className="messages" ref={listRef}>
@@ -468,25 +478,29 @@ export function CommentPopover({
             attach(files);
           }}
         />
-        <button
-          type="button"
-          className="attach-btn"
-          aria-label="Attach image"
-          title="Attach image"
-          disabled={attachments.length >= MAX_ATTACHMENTS}
-          onClick={() => void pickImageFiles().then(attach)}
-        >
-          <Icon.image />
-        </button>
-        <button
-          type="button"
-          className="send"
-          aria-label={draft ? 'Post comment' : 'Send reply'}
-          disabled={!text.trim() && attachments.length === 0}
-          onClick={submit}
-        >
-          <Icon.send />
-        </button>
+        <TooltipGroup placement="up" className="field-actions" ariaLabel="Send">
+          <button
+            type="button"
+            className="attach-btn"
+            aria-label="Attach image"
+            data-tip="Attach image"
+            disabled={attachments.length >= MAX_ATTACHMENTS}
+            onClick={() => void pickImageFiles().then(attach)}
+          >
+            <Icon.image />
+          </button>
+          <button
+            type="button"
+            className="send"
+            aria-label={draft ? 'Post comment' : 'Send reply'}
+            data-tip={draft ? 'Post' : 'Reply'}
+            data-kbd="↵"
+            disabled={!text.trim() && attachments.length === 0}
+            onClick={submit}
+          >
+            <Icon.send />
+          </button>
+        </TooltipGroup>
       </div>
 
       <IntentChips

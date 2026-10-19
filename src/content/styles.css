@@ -29,6 +29,8 @@
   --danger: light-dark(hsl(352 70% 47%), hsl(352 86% 70%));
   --danger-soft: color-mix(in oklab, var(--danger), transparent 87%);
   --success: light-dark(hsl(146 62% 37%), hsl(146 56% 40%));
+  /* Spark's fluid tooltip curve. */
+  --fluid: cubic-bezier(0.22, 1, 0.36, 1);
   /* Walkthrough ink, laser and pins: Scrawl's marker red. */
   --rec: #ff3b30;
   --warn: hsl(40 92% 50%);
@@ -1112,17 +1114,20 @@ svg {
 }
 
 .toolbar {
+  position: relative;
+  border-radius: 999px;
+  cursor: grab;
+  touch-action: none;
+}
+/* Liquid Glass: the toolbar and every bar made with <LiquidGlass> (the selection bar). */
+:is(.toolbar, .glass-bar) {
   --tb-ink: hsl(0 0% 12%);
   --tb-ink-muted: hsl(0 0% 12% / 0.66);
   --tb-on: var(--deep-blue);
   --tb-on-bg: hsl(226 74% 40% / 0.13);
   --tb-press: hsl(0 0% 0% / 0.08);
   --tb-sep: hsl(0 0% 0% / 0.12);
-  position: relative;
-  border-radius: 999px;
   color: var(--tb-ink);
-  cursor: grab;
-  touch-action: none;
   background: hsl(0 0% 100% / 0.22);
   -webkit-backdrop-filter: var(--glass-filter, blur(9px)) blur(2px) saturate(1.9) brightness(1.06);
   backdrop-filter: var(--glass-filter, blur(9px)) blur(2px) saturate(1.9) brightness(1.06);
@@ -1137,7 +1142,7 @@ svg {
     color 0.35s var(--ease),
     background-color 0.35s var(--ease);
 }
-.toolbar[data-tone="dark"] {
+:is(.toolbar, .glass-bar)[data-tone="dark"] {
   --tb-ink: hsl(0 0% 97%);
   --tb-ink-muted: hsl(0 0% 97% / 0.7);
   --tb-on: var(--deep-blue-bright);
@@ -1154,13 +1159,27 @@ svg {
     0 2px 6px -2px hsl(0 0% 0% / 0.2);
 }
 /* CSS fallback (CSP blocks the displacement map): a little more frost and fill */
-.toolbar[data-glass="css"] {
+:is(.toolbar, .glass-bar)[data-glass="css"] {
   background: hsl(0 0% 100% / 0.72);
   -webkit-backdrop-filter: blur(12px) saturate(1.9) brightness(1.06);
   backdrop-filter: blur(12px) saturate(1.9) brightness(1.06);
 }
-.toolbar[data-glass="css"][data-tone="dark"] {
+:is(.toolbar, .glass-bar)[data-glass="css"][data-tone="dark"] {
   background: hsl(0 0% 12% / 0.66);
+}
+/* Dark mode: dark glass even over a light page, so it matches the panels. */
+@media (prefers-color-scheme: dark) {
+  :is(.toolbar, .glass-bar)[data-tone="dark"] {
+    background: hsl(0 0% 10% / 0.58);
+  }
+  :is(.toolbar, .glass-bar)[data-glass="css"][data-tone="dark"] {
+    background: hsl(0 0% 10% / 0.8);
+  }
+}
+/* Text and icons inside a glass bar follow its tone. */
+.glass-bar {
+  --ink: var(--tb-ink);
+  --ink-muted: var(--tb-ink-muted);
 }
 .dock[data-dragging] .toolbar {
   cursor: grabbing;
@@ -1393,143 +1412,61 @@ svg {
 }
 
 /* ---------- morphing tooltip (Spark examples/morphing-tooltip) ---------- */
+/* ---------- tooltips: Spark's fluid tooltip (motion/Tooltip.tsx) ---------- */
 .tip-group {
   position: relative;
   isolation: isolate;
+  /* Press, hold and slide along the controls on touch screens. */
+  touch-action: none;
 }
-.tip-goo {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-}
-.tip-group[data-morph="opening"] .tip-goo,
-.tip-group[data-morph="moving"] .tip-goo,
-.tip-group[data-morph="closing"] .tip-goo {
-  filter: url(#cd-goo);
-}
-.tip-goo-set {
-  position: absolute;
-  inset: 0;
-}
-.tip-goo-plate,
-.tip-goo-surface,
-.tip-goo-neck,
-.tip-goo-trail {
-  position: absolute;
-  display: block;
-  background: var(--ink);
-  opacity: 0;
-}
-.tip-goo-plate {
-  top: var(--trigger-top);
-  left: var(--trigger-left);
-  width: var(--trigger-width);
-  height: var(--trigger-height);
-  border-radius: 999px;
-}
-.tip-goo-surface,
-.tip-goo-trail {
-  top: var(--tip-top);
-  height: var(--tip-height);
-  border-radius: 999px;
-}
-.tip-goo-surface {
-  left: var(--tip-left);
-  width: var(--tip-width);
-}
-.tip-goo-trail {
-  left: var(--trail-left);
-  width: var(--trail-width);
-}
-.tip-goo-neck {
-  left: calc(var(--trigger-left) + (var(--trigger-width) - 2px) / 2);
-  width: 2px;
-  border-radius: 999px;
-  transform: scale(0.2, 0.08);
-}
-.tip-group[data-placement="up"] .tip-goo-neck {
-  top: calc(var(--trigger-top) - var(--tip-height));
-  height: calc(var(--tip-height) + 14px);
-  transform-origin: center bottom;
-}
-.tip-group[data-placement="down"] .tip-goo-neck {
-  top: calc(var(--trigger-top) + var(--trigger-height) - 4px);
-  height: calc(var(--tip-height) + 14px);
-  transform-origin: center top;
-}
-.tip-group[data-morph="opening"] .tip-goo-plate {
-  animation: tip-plate-open var(--morph-duration) var(--ease) both;
-}
-.tip-group[data-morph="opening"] .tip-goo-surface {
-  animation: tip-goo-open var(--morph-duration) var(--ease-settle) both;
-}
-.tip-group[data-morph="opening"] .tip-goo-neck {
-  animation: tip-neck-open var(--morph-duration) var(--ease) both;
-}
-.tip-group[data-morph="moving"] .tip-goo-surface {
-  animation: tip-goo-travel var(--morph-travel) var(--ease-settle) both;
-}
-.tip-group[data-morph="moving"] .tip-goo-trail {
-  animation: tip-trail-stretch var(--morph-travel) var(--ease) both;
-}
-.tip-group[data-morph="closing"] .tip-goo-plate {
-  animation: tip-plate-close var(--morph-close) var(--ease) both;
-}
-.tip-group[data-morph="closing"] .tip-goo-surface {
-  animation: tip-goo-close var(--morph-close) var(--ease-settle) both;
-}
-.tip-group[data-morph="closing"] .tip-goo-neck {
-  animation: tip-neck-close var(--morph-close) var(--ease) both;
-}
-
 .tip-surface {
   position: absolute;
-  z-index: 0;
+  z-index: 3;
   top: var(--tip-top);
   left: var(--tip-left);
   width: var(--tip-width);
   height: var(--tip-height);
-  display: grid;
-  place-items: center;
-  overflow: clip;
   pointer-events: none;
-  border-radius: 13px;
+  border-radius: 8px;
   background: var(--ink);
+  color: var(--page);
+  box-shadow: 0 8px 24px -8px hsl(0 0% 0% / 0.28);
   opacity: 0;
+  transform: translateY(4px) scale(0.96);
+  transform-origin: var(--tip-arrow) bottom;
   transition:
-    border-radius var(--morph-duration) var(--ease-settle),
-    height var(--morph-duration) var(--ease-settle),
-    left var(--morph-duration) var(--ease-settle),
-    opacity 80ms ease-out,
-    top var(--morph-duration) var(--ease-settle),
-    width var(--morph-duration) var(--ease-settle);
+    left 200ms var(--fluid),
+    top 200ms var(--fluid),
+    width 200ms var(--fluid),
+    height 200ms var(--fluid),
+    border-radius 200ms var(--fluid),
+    opacity 120ms ease-out,
+    transform 200ms var(--fluid);
+}
+.tip-group[data-placement="down"] .tip-surface {
+  transform: translateY(-4px) scale(0.96);
+  transform-origin: var(--tip-arrow) top;
 }
 .tip-group[data-visible="true"] .tip-surface {
   opacity: 1;
+  transform: none;
+}
+/* Placed without sliding: shown fresh, keyboard focus, reduced motion. */
+.tip-group[data-snap] .tip-surface {
   transition:
-    height var(--morph-duration) var(--ease-settle),
-    left var(--morph-duration) var(--ease-settle),
-    opacity 80ms ease-out 40ms,
-    top var(--morph-duration) var(--ease-settle),
-    width var(--morph-duration) var(--ease-settle);
+    opacity 120ms ease-out,
+    transform 200ms var(--fluid);
 }
-.tip-group[data-morph="moving"] .tip-surface {
-  opacity: 1;
-  transition:
-    height var(--morph-travel) var(--ease-settle),
-    left var(--morph-travel) var(--ease-settle),
-    opacity 80ms ease-out,
-    top var(--morph-travel) var(--ease-settle),
-    width var(--morph-travel) var(--ease-settle);
+.tip-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  border-radius: inherit;
 }
-.tip-group[data-morph="opening"] .tip-surface {
-  animation: tip-surface-open var(--morph-duration) var(--ease-settle) both;
-  transition: none;
-}
-.tip-group[data-morph="closing"] .tip-surface {
-  animation: tip-surface-close var(--morph-close) var(--ease-settle) both;
-  transition: none;
+.tip-label {
+  position: absolute;
+  inset: 0;
+  justify-content: center;
 }
 .tip-label,
 .tip-measure {
@@ -1538,8 +1475,8 @@ svg {
   gap: 6px;
   padding-inline: 10px;
   color: var(--page);
-  font: 600 11.5px / 1 var(--font);
-  letter-spacing: -0.015em;
+  font: 600 12px / 1 var(--font);
+  letter-spacing: -0.01em;
   white-space: nowrap;
 }
 .tip-label kbd,
@@ -1559,31 +1496,55 @@ svg {
   visibility: hidden;
   pointer-events: none;
 }
-.tip-group[data-morph="opening"][data-visible="true"] .tip-label {
-  animation: tip-label-in calc(var(--morph-duration) * 0.55) var(--ease) 100ms both;
+.tip-viewport:not([data-direction="0"]) .tip-label.current {
+  animation: tip-label-in 200ms cubic-bezier(0.4, 0, 0.2, 1) both;
 }
-.tip-group[data-morph="moving"] .tip-label {
-  animation: tip-label-in calc(var(--morph-travel) * 0.5) var(--ease)
-    calc(var(--morph-travel) * 0.3) both;
+.tip-viewport:not([data-direction="0"]) .tip-label.previous {
+  animation: tip-label-out 200ms cubic-bezier(0.4, 0, 0.2, 1) both;
 }
-.tip-group[data-morph="closing"] .tip-label {
-  animation: tip-label-out calc(var(--morph-close) * 0.45) var(--ease) both;
+@keyframes tip-label-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--tip-travel));
+  }
 }
-.tip-group[data-keyboard="true"]
-  :is(.tip-goo-plate, .tip-goo-surface, .tip-goo-neck, .tip-goo-trail, .tip-surface, .tip-label) {
-  animation: none;
+@keyframes tip-label-out {
+  to {
+    opacity: 0;
+    transform: translateX(calc(var(--tip-travel) * -1));
+  }
+}
+.tip-arrow {
+  position: absolute;
+  bottom: -3px;
+  left: var(--tip-arrow);
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  background: var(--ink);
+  rotate: 45deg;
+  transition: left 200ms var(--fluid);
+}
+.tip-group[data-placement="down"] .tip-arrow {
+  top: -3px;
+  bottom: auto;
+}
+.tip-group[data-snap] .tip-arrow {
   transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tip-viewport:not([data-direction="0"]) .tip-label.current,
+  .tip-viewport:not([data-direction="0"]) .tip-label.previous {
+    animation: none;
+  }
 }
 
 /* A menu grown out of the tooltip: the same dark surface, sized to its content. */
 .tip-group[data-menu] .tip-surface {
-  z-index: 2;
+  z-index: 3;
   pointer-events: auto;
   border-radius: 16px;
   box-shadow: 0 12px 32px -10px hsl(0 0% 0% / 0.45);
-}
-.tip-group[data-menu] .tip-goo-surface {
-  border-radius: 16px;
 }
 .tip-menu {
   position: absolute;
@@ -1655,188 +1616,6 @@ svg {
 }
 .tip-menu .width-btn[data-active] .line-sample[data-dashed] {
   background: repeating-linear-gradient(90deg, var(--deep-blue-bright) 0 6px, transparent 6px 10px);
-}
-
-@keyframes tip-label-in {
-  from {
-    opacity: 0;
-    transform: translateY(0.2rem);
-  }
-}
-@keyframes tip-label-out {
-  to {
-    opacity: 0;
-    transform: translateY(0.15rem);
-  }
-}
-@keyframes tip-goo-travel {
-  0% {
-    left: var(--trail-left);
-    width: var(--trail-width);
-    opacity: 1;
-  }
-  68% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-@keyframes tip-trail-stretch {
-  0% {
-    left: var(--trail-left);
-    width: var(--trail-width);
-    opacity: 1;
-    transform: scaleY(1);
-  }
-  42% {
-    left: min(var(--trail-left), var(--tip-left));
-    width: calc(
-      max(var(--trail-left) + var(--trail-width), var(--tip-left) + var(--tip-width)) -
-      min(var(--trail-left), var(--tip-left))
-    );
-    opacity: 1;
-    transform: scaleY(0.6);
-  }
-  74% {
-    opacity: 1;
-  }
-  100% {
-    left: var(--tip-left);
-    width: var(--tip-width);
-    opacity: 0;
-    transform: scaleY(0.46);
-  }
-}
-@keyframes tip-surface-open {
-  0% {
-    top: var(--trigger-top);
-    left: var(--trigger-left);
-    width: var(--trigger-width);
-    height: var(--trigger-height);
-    opacity: 0;
-  }
-  10% {
-    opacity: 0;
-  }
-  28% {
-    opacity: 1;
-  }
-  100% {
-    top: var(--tip-top);
-    left: var(--tip-left);
-    width: var(--tip-width);
-    height: var(--tip-height);
-    opacity: 1;
-  }
-}
-@keyframes tip-surface-close {
-  0% {
-    top: var(--tip-top);
-    left: var(--tip-left);
-    width: var(--tip-width);
-    height: var(--tip-height);
-    opacity: 1;
-  }
-  72% {
-    opacity: 1;
-  }
-  100% {
-    top: var(--trigger-top);
-    left: var(--trigger-left);
-    width: var(--trigger-width);
-    height: var(--trigger-height);
-    opacity: 0;
-  }
-}
-@keyframes tip-plate-open {
-  0%,
-  58% {
-    opacity: 1;
-  }
-  82%,
-  100% {
-    opacity: 0;
-  }
-}
-@keyframes tip-goo-open {
-  0% {
-    top: var(--trigger-top);
-    left: var(--trigger-left);
-    width: var(--trigger-width);
-    height: var(--trigger-height);
-    opacity: 1;
-  }
-  56% {
-    opacity: 1;
-  }
-  84%,
-  100% {
-    top: var(--tip-top);
-    left: var(--tip-left);
-    width: var(--tip-width);
-    height: var(--tip-height);
-    opacity: 0;
-  }
-}
-@keyframes tip-neck-open {
-  0% {
-    opacity: 0;
-    transform: scale(0.2, 0.08);
-  }
-  18%,
-  60% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(0.5, 0.7);
-  }
-}
-@keyframes tip-plate-close {
-  0%,
-  70% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-@keyframes tip-goo-close {
-  0% {
-    top: var(--tip-top);
-    left: var(--tip-left);
-    width: var(--tip-width);
-    height: var(--tip-height);
-    opacity: 0;
-  }
-  14%,
-  74% {
-    opacity: 1;
-  }
-  100% {
-    top: var(--trigger-top);
-    left: var(--trigger-left);
-    width: var(--trigger-width);
-    height: var(--trigger-height);
-    opacity: 0;
-  }
-}
-@keyframes tip-neck-close {
-  0% {
-    opacity: 0;
-    transform: scale(0.5, 0.7);
-  }
-  18%,
-  72% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(0.2, 0.08);
-  }
 }
 
 /* ---------- spring-sized sheets (Spark StackableDrawer) ---------- */
@@ -1942,7 +1721,8 @@ svg {
 .subbar-shell {
   border-radius: 999px;
 }
-.sheet-slot:not([data-phase="closing"]) .subbar-shell:has(.tip-group:not([data-morph="closed"])) {
+.sheet-slot:not([data-phase="closing"])
+  .subbar-shell:has(.tip-group:is([data-visible="true"], [data-menu])) {
   overflow: visible;
   contain: none;
 }
@@ -3255,6 +3035,23 @@ kbd {
   scale: 0.92;
   pointer-events: none;
 }
+/* The selection bar's contents share one morphing tooltip. */
+.sel-actions {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.field-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  flex: none;
+}
+.swatch-tip {
+  display: inline-flex;
+}
 .sel-label {
   flex: 1;
   min-width: 0;
@@ -3276,6 +3073,11 @@ kbd {
 .selection-bar .chip-btn {
   height: 30px;
   padding: 0 12px 0 10px;
+}
+.selection-bar .chip-btn.icon-only {
+  width: 30px;
+  padding: 0;
+  justify-content: center;
 }
 .icon-btn[data-on] {
   color: var(--accent);
@@ -4083,7 +3885,7 @@ details.options .checks {
   background: light-dark(hsl(0 0% 100% / 0.88), hsl(0 0% 11% / 0.88));
 }
 @media (prefers-reduced-transparency: reduce) {
-  .root :is(.glass-css, .sheet-shell, .toolbar[data-glass]) {
+  .root :is(.glass-css, .sheet-shell, .toolbar[data-glass], .glass-bar) {
     background: var(--raised);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;

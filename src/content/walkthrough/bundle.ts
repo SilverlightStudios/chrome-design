@@ -1,7 +1,15 @@
 import { type ZipEntry, zipEntries } from '../../export/zip';
 import { escapeHtml } from '../../shared/escape';
 import { formatClock, type Walkthrough, type WtFrame } from '../../walkthrough/model';
-import { alignTranscript, buildSummary, describeEvent } from '../../walkthrough/summary';
+import {
+  alignTranscript,
+  buildSummary,
+  recordedLine,
+  type TimelineEntry,
+  timeline,
+  untimedSpeech,
+  voiceLine,
+} from '../../walkthrough/summary';
 import type { ParsedTranscript } from '../../walkthrough/transcript';
 import type { Candidate, WalkthroughResult } from './recorder';
 
@@ -38,27 +46,6 @@ const toBlob = (canvas: HTMLCanvasElement, type: string, quality?: number) =>
   new Promise<Blob>((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('encode failed'))), type, quality),
   );
-
-/** What a picture shows, in a few words (contact sheet captions). */
-export function frameCaption(wt: Walkthrough, frame: WtFrame): string {
-  const mark = frame.mark ? wt.marks.find((m) => m.id === frame.mark) : undefined;
-  if (mark) return mark.description;
-  if (frame.reason === 'click' || frame.reason === 'navigate') {
-    const event = wt.events.find(
-      (e) => (e.kind === 'click' || e.kind === 'navigate') && Math.abs(e.t - frame.t) < 50,
-    );
-    if (event) return describeEvent(event);
-  }
-  const words: Partial<Record<WtFrame['reason'], string>> = {
-    start: 'start',
-    end: 'end',
-    result: 'after the click',
-    scroll: 'after scrolling',
-    navigate: 'new page',
-    cue: 'here',
-  };
-  return words[frame.reason] ?? '';
-}
 
 function badge(ctx: CanvasRenderingContext2D, text: string, k: number): void {
   const size = Math.round(15 * k);
@@ -151,69 +138,177 @@ async function annotate(
   return canvas;
 }
 
-function fitText(ctx: CanvasRenderingContext2D, text: string, width: number): string {
-  if (ctx.measureText(text).width <= width) return text;
-  let t = text;
-  while (t.length > 1 && ctx.measureText(`${t}…`).width > width) t = t.slice(0, -1);
-  return `${t.trimEnd()}…`;
+const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+
+/** Words wrapped to `width`, at most `max` lines (the last ends in … when cut). */
+function wrap(ctx: CanvasRenderingContext2D, text: string, width: number, max: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = '';
+  for (let i = 0; i < words.length; i++) {
+    const next = line ? `${line} ${words[i]}` : words[i]!;
+    if (ctx.measureText(next).width <= width || !line) {
+      line = next;
+      continue;
+    }
+    lines.push(line);
+    line = words[i]!;
+    if (lines.length === max) {
+      let last = lines[max - 1]!;
+      while (last && ctx.measureText(`${last}…`).width > width) last = last.slice(0, -1);
+      lines[max - 1] = `${last.trimEnd()}…`;
+      return lines;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
 }
 
-/** Every picture in a grid, each with its number, time and what it shows. */
+interface Run {
+  text: string;
+  font: string;
+  color: string;
+  lead: number;
+}
+
+/** Caption lines for one entry: number and time + what happened, the quote, the rest. */
+function captionFor(ctx: CanvasRenderingContext2D, entry: TimelineEntry, width: number): Run[] {
+  const runs: Run[] = [];
+  const add = (text: string, font: string, color: string, lead: number, max: number) => {
+    ctx.font = font;
+    for (const line of wrap(ctx, text, width, max)) runs.push({ text: line, font, color, lead });
+  };
+  const head = `${entry.frame ? `#${entry.frame.index} ` : ''}${formatClock(entry.t)}`;
+  add(`${head}  ${entry.what || ''}`.trim(), `600 16px ${FONT}`, '#111114', 22, 2);
+  if (entry.said) add(`“${entry.said}”`, `italic 15px ${FONT}`, '#2B2F38', 21, 4);
+  const more = entry.extras.length - 3;
+  for (const x of entry.extras.slice(0, 3))
+    add(`· ${formatClock(x.t)} ${x.text}`, `13px ${FONT}`, '#5D6270', 18, 1);
+  if (more > 0) add(`· and ${more} more`, `13px ${FONT}`, '#5D6270', 18, 1);
+  return runs;
+}
+
+function drawRuns(ctx: CanvasRenderingContext2D, runs: Run[], x: number, y: number): number {
+  let at = y;
+  ctx.textBaseline = 'alphabetic';
+  for (const r of runs) {
+    at += r.lead;
+    ctx.font = r.font;
+    ctx.fillStyle = r.color;
+    ctx.fillText(r.text, x, at - 5);
+  }
+  return at;
+}
+
+const height = (runs: Run[]) => runs.reduce((n, r) => n + r.lead, 0);
+
+/**
+ * The walkthrough as one picture: a header (page, length, when, how the voice lines up), then
+ * every picture with its number, what happened, what was said and what else happened then.
+ * Without pictures (demo page, shared file) it's the same as a list.
+ */
 async function contactSheet(
   wt: Walkthrough,
   pictures: { frame: WtFrame; canvas: HTMLCanvasElement }[],
-): Promise<HTMLCanvasElement | null> {
-  if (pictures.length === 0) return null;
+): Promise<HTMLCanvasElement> {
+  const entries = timeline(wt);
   const n = pictures.length;
-  const cols = n === 1 ? 1 : n <= 4 ? 2 : 3;
-  const cellW = cols === 1 ? 1200 : cols === 2 ? 720 : 560;
-  const gap = 16;
-  const pad = 20;
-  const captionH = 34;
-  const first = pictures[0]!.canvas;
-  const cellH = Math.round((cellW * first.height) / first.width);
-  const rows = Math.ceil(n / cols);
-  const [canvas, ctx] = canvasOf(
-    pad * 2 + cols * cellW + (cols - 1) * gap,
-    pad * 2 + rows * (cellH + captionH) + (rows - 1) * gap,
+  const cols = n === 0 ? 1 : n === 1 ? 1 : n <= 4 ? 2 : 3;
+  const cellW = n === 0 ? 1100 : cols === 1 ? 1200 : cols === 2 ? 720 : 560;
+  const gap = 20;
+  const pad = 28;
+  const width = pad * 2 + cols * cellW + (cols - 1) * gap;
+  const probe = canvasOf(1, 1)[1];
+
+  // Header.
+  const inner = width - pad * 2;
+  const header: Run[] = [];
+  const addHeader = (text: string, font: string, color: string, lead: number, max: number) => {
+    probe.font = font;
+    for (const line of wrap(probe, text, inner, max))
+      header.push({ text: line, font, color, lead });
+  };
+  addHeader(
+    `Walkthrough · ${wt.page.title || 'Untitled page'}`,
+    `700 22px ${FONT}`,
+    '#111114',
+    30,
+    2,
   );
-  ctx.fillStyle = '#F2F2F4';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  pictures.forEach(({ frame, canvas: pic }, i) => {
-    const x = pad + (i % cols) * (cellW + gap);
-    const y = pad + Math.floor(i / cols) * (cellH + captionH + gap);
-    const scale = Math.min(cellW / pic.width, cellH / pic.height);
-    const w = pic.width * scale;
-    const h = pic.height * scale;
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(x, y, cellW, cellH, 8);
-    ctx.clip();
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(x, y, cellW, cellH);
-    ctx.drawImage(pic, x + (cellW - w) / 2, y + (cellH - h) / 2, w, h);
-    ctx.restore();
-    ctx.font = '600 15px system-ui, -apple-system, "Segoe UI", sans-serif';
-    ctx.fillStyle = '#111';
-    ctx.textBaseline = 'middle';
-    const head = `#${frame.index} ${formatClock(frame.t)}`;
-    ctx.fillText(head, x + 2, y + cellH + captionH / 2);
-    const headW = ctx.measureText(head).width + 10;
-    ctx.font = '15px system-ui, -apple-system, "Segoe UI", sans-serif';
-    ctx.fillStyle = '#444';
-    ctx.fillText(
-      fitText(ctx, frameCaption(wt, frame), cellW - headW - 4),
-      x + 2 + headW,
-      y + cellH + captionH / 2,
+  addHeader(`${wt.page.url} · ${formatClock(wt.durationMs)}`, `14px ${FONT}`, '#5D6270', 20, 2);
+  addHeader(recordedLine(wt), `14px ${FONT}`, '#5D6270', 20, 1);
+  const voice = voiceLine(wt);
+  if (voice) addHeader(voice, `14px ${FONT}`, '#5D6270', 20, 1);
+  if (n)
+    addHeader(
+      'Red ink, numbered red pins and the red laser trail are the reviewer’s marks; blue rings are clicks.',
+      `14px ${FONT}`,
+      '#5D6270',
+      20,
+      2,
     );
+  const untimed = untimedSpeech(wt);
+  if (untimed) addHeader(`“${untimed}”`, `italic 15px ${FONT}`, '#2B2F38', 21, 8);
+  const headerH = height(header) + 18;
+
+  // Cells: each picture (or, without pictures, each entry) with its caption under it.
+  const byFrame = new Map(entries.filter((e) => e.frame).map((e) => [e.frame!.index, e]));
+  const first = pictures[0]?.canvas;
+  const picH = first ? Math.round((cellW * first.height) / first.width) : 0;
+  const cells = (n ? pictures.map((p) => byFrame.get(p.frame.index)) : entries).map((entry) =>
+    entry ? captionFor(probe, entry, cellW - 4) : [],
+  );
+  const rows: number[] = [];
+  for (let i = 0; i < cells.length; i += cols) {
+    const caption = Math.max(...cells.slice(i, i + cols).map(height));
+    rows.push((n ? picH + 10 : 0) + caption);
+  }
+  const rowGap = n ? gap : 12;
+  const total =
+    pad * 2 + headerH + rows.reduce((a, b) => a + b, 0) + Math.max(0, rows.length - 1) * rowGap;
+  const [canvas, ctx] = canvasOf(width, Math.max(total, pad * 2 + headerH));
+  ctx.fillStyle = '#F4F4F6';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  drawRuns(ctx, header, pad, pad);
+
+  let y = pad + headerH;
+  rows.forEach((rowH, r) => {
+    for (let c = 0; c < cols; c++) {
+      const i = r * cols + c;
+      if (i >= cells.length) break;
+      const x = pad + c * (cellW + gap);
+      let top = y;
+      const pic = pictures[i]?.canvas;
+      if (n && pic) {
+        const scale = Math.min(cellW / pic.width, picH / pic.height);
+        const w = pic.width * scale;
+        const h = pic.height * scale;
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(x, top, cellW, picH, 10);
+        ctx.clip();
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x, top, cellW, picH);
+        ctx.drawImage(pic, x + (cellW - w) / 2, top + (picH - h) / 2, w, h);
+        ctx.restore();
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(x + 0.5, top + 0.5, cellW - 1, picH - 1, 10);
+        ctx.stroke();
+        top += picH + 10;
+      }
+      drawRuns(ctx, cells[i]!, x + 2, top);
+    }
+    y += rowH + rowGap;
   });
   return canvas;
 }
 
 export interface BuiltBundle {
   files: ZipEntry[];
-  /** The contact sheet, for previews and the clipboard. */
-  sheet: { jpeg: Blob; png: Blob; url: string; width: number; height: number } | null;
+  /** The contact sheet: the whole walkthrough as one picture (previews, clipboard, Save image). */
+  sheet: { jpeg: Blob; png: Blob; url: string; width: number; height: number };
 }
 
 const built = new WeakMap<WalkthroughResult, Promise<BuiltBundle>>();
@@ -237,23 +332,20 @@ export function buildBundle(result: WalkthroughResult): Promise<BuiltBundle> {
           data: new Uint8Array(await (await toBlob(p.canvas, 'image/jpeg', 0.86)).arrayBuffer()),
         });
       const sheetCanvas = await contactSheet(wt, pictures);
-      let sheet: BuiltBundle['sheet'] = null;
+      const jpeg = await toBlob(sheetCanvas, 'image/jpeg', 0.88);
+      const png = await toBlob(sheetCanvas, 'image/png');
+      const sheet = {
+        jpeg,
+        png,
+        url: URL.createObjectURL(jpeg),
+        width: sheetCanvas.width,
+        height: sheetCanvas.height,
+      };
       const files: ZipEntry[] = [
         { name: 'summary.md', data: text(result.summary) },
         { name: 'walkthrough.json', data: text(JSON.stringify(wt, null, 2)) },
+        { name: 'contact-sheet.jpg', data: new Uint8Array(await jpeg.arrayBuffer()) },
       ];
-      if (sheetCanvas) {
-        const jpeg = await toBlob(sheetCanvas, 'image/jpeg', 0.86);
-        const png = await toBlob(sheetCanvas, 'image/png');
-        sheet = {
-          jpeg,
-          png,
-          url: URL.createObjectURL(jpeg),
-          width: sheetCanvas.width,
-          height: sheetCanvas.height,
-        };
-        files.push({ name: 'contact-sheet.jpg', data: new Uint8Array(await jpeg.arrayBuffer()) });
-      }
       return { files: [...files, ...frames], sheet };
     })();
     built.set(result, job);
@@ -273,7 +365,7 @@ export async function copyWalkthrough(result: WalkthroughResult): Promise<boolea
   const plain = new Blob([result.summary], { type: 'text/plain' });
   try {
     const items: Record<string, Blob> = { 'text/plain': plain };
-    if (sheet) {
+    {
       const dataUrl = await new Promise<string>((resolve) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result));

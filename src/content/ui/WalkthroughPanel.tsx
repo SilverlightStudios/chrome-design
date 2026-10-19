@@ -1,4 +1,4 @@
-import { type DragEvent, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { type DragEvent, useEffect, useState, useSyncExternalStore } from 'react';
 import { formatClock } from '../../walkthrough/model';
 import { type ParsedTranscript, parseTranscript } from '../../walkthrough/transcript';
 import { useEnv } from '../context';
@@ -48,9 +48,8 @@ export function WalkthroughPanel() {
   const [bundle, setBundle] = useState<BuiltBundle | null>(null);
   const [phase, setPhase] = useState<'idle' | 'working' | 'done' | 'error'>('idle');
   const [copied, setCopied] = useState(false);
-  const [armed, setArmed] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [dropping, setDropping] = useState(false);
-  const armTimer = useRef(0);
 
   useEffect(() => {
     if (!result) return;
@@ -60,7 +59,6 @@ export function WalkthroughPanel() {
       live = false;
     };
   }, [result]);
-  useEffect(() => () => window.clearTimeout(armTimer.current), []);
 
   if (!result) {
     return (
@@ -126,7 +124,7 @@ export function WalkthroughPanel() {
       onDrop={onDrop}
     >
       <PanelHead title="Walkthrough" />
-      {bundle?.sheet ? (
+      {bundle ? (
         <img
           className="wt-preview"
           src={bundle.sheet.url}
@@ -250,19 +248,17 @@ export function WalkthroughPanel() {
         <button
           type="button"
           className="ghost-action"
-          data-armed={armed ? '' : undefined}
+          data-testid="cd-wt-image"
+          data-done={saved ? '' : undefined}
+          disabled={!bundle}
           onClick={() => {
-            if (!armed) {
-              setArmed(true);
-              armTimer.current = window.setTimeout(() => setArmed(false), 3000);
-              return;
-            }
-            setArmed(false);
-            recorder.discard();
-            startWalkthrough({ host: env.host, store: env.store });
+            if (!bundle) return;
+            downloadBlob(`${result.folder}.jpg`, bundle.sheet.jpeg);
+            setSaved(true);
+            window.setTimeout(() => setSaved(false), 1600);
           }}
         >
-          <Icon.record /> {armed ? 'Tap again' : 'Record again'}
+          {saved ? <Icon.check /> : <Icon.image />} Save image
         </button>
       </div>
     </div>

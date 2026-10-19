@@ -60,6 +60,8 @@ export type ToRecorder =
       walkthrough: unknown;
       summary: string;
       files: string[];
+      /** Sent again after the recorder's transcript: the picture now carries the words. */
+      update?: boolean;
     }
   | { type: 'walkthrough.file'; session: string; name: string; mime: string; base64: string }
   | { type: 'walkthrough.done'; session: string }
@@ -72,4 +74,6 @@ export interface BridgeSaved {
   session: string;
   dir: string;
   files: string[];
+  /** The same walkthrough again, redrawn with the transcript (don't merge it twice). */
+  update?: boolean;
 }

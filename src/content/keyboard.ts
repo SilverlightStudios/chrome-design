@@ -5,6 +5,7 @@ import { duplicateSelection } from './clipboard';
 import { isTypingEvent, toPage } from './dom';
 import { placeImagesFromPicker } from './images';
 import { commentOnShape, draftForRegion } from './overlay/InteractionLayer';
+import { selectChild, selectParent } from './pickNav';
 import {
   type DrawToolId,
   type EditorState,
@@ -156,18 +157,8 @@ export function handleShortcut(
       return true;
     }
     if (s.pickedEl && s.tool === 'select') {
-      if (
-        key === 'ArrowUp' &&
-        s.pickedEl.parentElement &&
-        s.pickedEl.parentElement !== document.documentElement
-      ) {
-        store.set({ pickedEl: s.pickedEl.parentElement });
-        return true;
-      }
-      if (key === 'ArrowDown' && s.pickedEl.firstElementChild) {
-        store.set({ pickedEl: s.pickedEl.firstElementChild });
-        return true;
-      }
+      if (key === 'ArrowUp') return selectParent(store);
+      if (key === 'ArrowDown') return selectChild(store);
     }
     return false;
   }
