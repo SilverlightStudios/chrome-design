@@ -4,6 +4,7 @@ import { formatClock, type Walkthrough, type WtFrame } from '../../walkthrough/m
 import {
   alignTranscript,
   buildSummary,
+  contextLine,
   recordedLine,
   type TimelineEntry,
   timeline,
@@ -63,21 +64,31 @@ function badge(ctx: CanvasRenderingContext2D, text: string, k: number): void {
   ctx.fillText(text, x + size * 0.6, y + h / 2 + 0.5);
 }
 
-/** One picture with the click that took it and any laser drawn on, and its number. */
+/**
+ * One picture with the click that took it and any laser drawn on, and its number; cut to
+ * `crop` (CSS px of the viewport) when given, the marks redrawn at the crop's place.
+ */
 async function annotate(
   wt: Walkthrough,
   frame: WtFrame,
   shot: Candidate,
+  crop?: { x: number; y: number; width: number; height: number },
 ): Promise<HTMLCanvasElement> {
   const img = await loadImage(shot.dataUrl);
-  const [canvas, ctx] = canvasOf(img.naturalWidth, img.naturalHeight);
-  ctx.drawImage(img, 0, 0);
   const s = shot.scale;
+  const sx = crop ? Math.max(0, Math.round(crop.x * s)) : 0;
+  const sy = crop ? Math.max(0, Math.round(crop.y * s)) : 0;
+  const w = crop ? Math.min(img.naturalWidth - sx, Math.round(crop.width * s)) : img.naturalWidth;
+  const h = crop
+    ? Math.min(img.naturalHeight - sy, Math.round(crop.height * s))
+    : img.naturalHeight;
+  const [canvas, ctx] = canvasOf(w, h);
+  ctx.drawImage(img, sx, sy, w, h, 0, 0, w, h);
   // Marks and the number stay legible when the picture is shrunk onto the contact sheet.
   const k = Math.max(1, canvas.width / 900);
   const at = (x: number, y: number): [number, number] => [
-    (x - shot.scroll.x) * s,
-    (y - shot.scroll.y) * s,
+    (x - shot.scroll.x) * s - sx,
+    (y - shot.scroll.y) * s - sy,
   ];
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -138,6 +149,17 @@ async function annotate(
   return canvas;
 }
 
+/** Full pictures are kept at most this wide (crops keep the captured resolution). */
+const FULL_EDGE = 1600;
+
+function downscale(canvas: HTMLCanvasElement, max: number): HTMLCanvasElement {
+  if (canvas.width <= max) return canvas;
+  const [out, ctx] = canvasOf(max, (canvas.height * max) / canvas.width);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(canvas, 0, 0, out.width, out.height);
+  return out;
+}
+
 const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 
 /** Words wrapped to `width`, at most `max` lines (the last ends in … when cut). */
@@ -178,6 +200,7 @@ function captionFor(ctx: CanvasRenderingContext2D, entry: TimelineEntry, width: 
     ctx.font = font;
     for (const line of wrap(ctx, text, width, max)) runs.push({ text: line, font, color, lead });
   };
+  if (entry.screen) add(`⟨${entry.screen}⟩`, `600 13px ${FONT}`, '#2D5BD8', 18, 1);
   const head = `${entry.frame ? `#${entry.frame.index} ` : ''}${formatClock(entry.t)}`;
   add(`${head}  ${entry.what || ''}`.trim(), `600 16px ${FONT}`, '#111114', 22, 2);
   if (entry.said) add(`“${entry.said}”`, `italic 15px ${FONT}`, '#2B2F38', 21, 4);
@@ -237,6 +260,8 @@ async function contactSheet(
   );
   addHeader(`${wt.page.url} · ${formatClock(wt.durationMs)}`, `14px ${FONT}`, '#5D6270', 20, 2);
   addHeader(recordedLine(wt), `14px ${FONT}`, '#5D6270', 20, 1);
+  const details = contextLine(wt);
+  if (details) addHeader(details, `14px ${FONT}`, '#5D6270', 20, 2);
   const voice = voiceLine(wt);
   if (voice) addHeader(voice, `14px ${FONT}`, '#5D6270', 20, 1);
   if (n)
@@ -253,14 +278,18 @@ async function contactSheet(
 
   // Cells: each picture (or, without pictures, each entry) with its caption under it.
   const byFrame = new Map(entries.filter((e) => e.frame).map((e) => [e.frame!.index, e]));
-  const first = pictures[0]?.canvas;
-  const picH = first ? Math.round((cellW * first.height) / first.width) : 0;
+  // Each row's pictures are as tall as its tallest (cropped pictures differ in shape).
+  const picHeight = (pic: HTMLCanvasElement) =>
+    Math.round(Math.min((cellW * pic.height) / pic.width, cellW * 1.25));
   const cells = (n ? pictures.map((p) => byFrame.get(p.frame.index)) : entries).map((entry) =>
     entry ? captionFor(probe, entry, cellW - 4) : [],
   );
   const rows: number[] = [];
+  const picRows: number[] = [];
   for (let i = 0; i < cells.length; i += cols) {
     const caption = Math.max(...cells.slice(i, i + cols).map(height));
+    const picH = n ? Math.max(...pictures.slice(i, i + cols).map((p) => picHeight(p.canvas))) : 0;
+    picRows.push(picH);
     rows.push((n ? picH + 10 : 0) + caption);
   }
   const rowGap = n ? gap : 12;
@@ -273,6 +302,7 @@ async function contactSheet(
 
   let y = pad + headerH;
   rows.forEach((rowH, r) => {
+    const picH = picRows[r]!;
     for (let c = 0; c < cols; c++) {
       const i = r * cols + c;
       if (i >= cells.length) break;
@@ -320,16 +350,31 @@ export function buildBundle(result: WalkthroughResult): Promise<BuiltBundle> {
   if (!job) {
     job = (async () => {
       const wt = result.walkthrough;
+      const cropped = !!wt.autocrop;
       const pictures: { frame: WtFrame; canvas: HTMLCanvasElement }[] = [];
+      const fulls: { frame: WtFrame; canvas: HTMLCanvasElement }[] = [];
       for (const frame of wt.frames) {
         const shot = result.shots.get(frame.file);
-        if (shot) pictures.push({ frame, canvas: await annotate(wt, frame, shot) });
+        if (!shot) continue;
+        const full = downscale(await annotate(wt, frame, shot), FULL_EDGE);
+        const crop = frame.crop && frame.crop.kind !== 'full' ? frame.crop : undefined;
+        pictures.push({ frame, canvas: crop ? await annotate(wt, frame, shot, crop) : full });
+        if (cropped) fulls.push({ frame, canvas: full });
       }
+      const jpegOf = async (canvas: HTMLCanvasElement) =>
+        new Uint8Array(await (await toBlob(canvas, 'image/jpeg', 0.86)).arrayBuffer());
       const frames: ZipEntry[] = [];
-      for (const p of pictures)
+      for (const p of pictures) frames.push({ name: p.frame.file, data: await jpegOf(p.canvas) });
+      // Scrawl's layout: the cropped pictures, and the full ones beside them.
+      for (const p of fulls)
         frames.push({
-          name: p.frame.file,
-          data: new Uint8Array(await (await toBlob(p.canvas, 'image/jpeg', 0.86)).arrayBuffer()),
+          name: p.frame.file.replace(/^frames\//, `${wt.autocrop!.fullFrames}/`),
+          data: await jpegOf(p.canvas),
+        });
+      if (cropped)
+        frames.push({
+          name: wt.autocrop!.fullContactSheet,
+          data: await jpegOf(await contactSheet(wt, fulls)),
         });
       const sheetCanvas = await contactSheet(wt, pictures);
       const jpeg = await toBlob(sheetCanvas, 'image/jpeg', 0.88);

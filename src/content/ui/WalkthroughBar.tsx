@@ -52,6 +52,13 @@ export function RecordingButtons() {
         onClick={() => recorder.setDrawing(!drawing)}
       />
       <ToolButton
+        icon="flag"
+        label="Flag this moment"
+        kbd="⌥⇧F"
+        disabled={finishing}
+        onClick={() => recorder.flag()}
+      />
+      <ToolButton
         icon="stop"
         label="Stop"
         kbd="⌥⇧W"

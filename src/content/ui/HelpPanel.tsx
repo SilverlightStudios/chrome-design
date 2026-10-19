@@ -26,6 +26,7 @@ const SECTIONS: { title: string; rows: [string, string][] }[] = [
       ['⇧ move', 'Laser pointer'],
       ['⇧ drag', 'Ink (circle, underline, arrow)'],
       ['⇧ click', 'Numbered pin'],
+      ['⌥⇧F', 'Flag this moment (a picture and a comment)'],
       ['⌥⇧W', 'Stop'],
     ],
   },

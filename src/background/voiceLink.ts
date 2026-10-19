@@ -7,6 +7,7 @@ import {
   VOICE_PROTOCOL,
 } from '../walkthrough/protocol';
 import { restrictedReason, sendToTab } from './inject';
+import { stopAfterResume } from './walkthroughs';
 
 /**
  * The voice link: a native messaging port to the bridge (bridge/host.mjs), which relays to the
@@ -222,6 +223,8 @@ async function onRecorderMessage(message: FromRecorder): Promise<void> {
                   ...(message.app ? { app: message.app } : {}),
                 } as const);
       await chrome.tabs.sendMessage(tabId, forward).catch(() => {
+        // Between pages of a walkthrough: stop once the next page has it.
+        if (message.type === 'recording.stop' && stopAfterResume(tabId)) return;
         postToRecorder({
           type: 'walkthrough.unavailable',
           session: message.session,

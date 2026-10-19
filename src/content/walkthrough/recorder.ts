@@ -1,6 +1,9 @@
-import { uniqueSelector } from '../../capture/anchor';
-import { APP_NAME, APP_VERSION } from '../../shared/model';
+import { buildAnchor, uniqueSelector } from '../../capture/anchor';
+import { createId, nowIso } from '../../shared/ids';
+import type { WtPageData, WtSessionInfo, WtSyncedPicture } from '../../shared/messages';
+import { APP_NAME, APP_VERSION, type CommentThread, isComment } from '../../shared/model';
 import {
+  formatClock,
   INK_HOLD_MS,
   LASER_MS,
   MARK_GAP_MS,
@@ -15,13 +18,16 @@ import {
   type WtStroke,
   type WtTarget,
 } from '../../walkthrough/model';
+import { type Look, look, regionDiff, SCENE_CHANGE, sceneDiff } from '../../walkthrough/scene';
 import { marksOf, shapeOf, strokeBounds } from '../../walkthrough/shapes';
-import { buildSummary } from '../../walkthrough/summary';
+import { buildSummary, timeline } from '../../walkthrough/summary';
 import type { ParsedTranscript } from '../../walkthrough/transcript';
 import { friendlyLabel } from '../describe';
 import { elementsInRect, isExtensionNode, isTypingEvent, pickElement } from '../dom';
-import { captureVisibleTab, hasExtensionRuntime } from '../ext';
-import type { EditorStore } from '../store';
+import { captureVisibleTab, hasExtensionRuntime, sendToBackground } from '../ext';
+import { type EditorStore, nextCommentNumber } from '../store';
+import { applyAutocrop } from './crop';
+import { appearedLabel, pageDetails, screenName } from './pageContext';
 
 /**
  * Walkthrough recording: while the reviewer talks (to a voice recorder, or not), the page
@@ -78,6 +84,10 @@ export interface Candidate {
   width: number;
   height: number;
   scale: number;
+  /** For "is this new?" (scene.ts). */
+  look?: Look;
+  /** What screen the page was on. */
+  screen?: string;
 }
 
 export interface WalkthroughResult {
@@ -122,6 +132,9 @@ interface Pending {
   t: number;
   due: number;
   strokeIndex?: number;
+  /** A page change: where it happened, and its event (dropped with the picture if not new). */
+  region?: [number, number, number, number];
+  event?: WtEvent;
 }
 
 /** Chrome allows two tab pictures a second. */
@@ -133,6 +146,8 @@ const MAX_CURSOR = 30_000;
 const PIN_MOVE_PX = 6;
 
 const PRIORITY: Record<WtFrameReason, number> = {
+  // A flag is a deliberate "picture this": never dropped.
+  flag: 10,
   start: 9,
   mark: 8,
   pin: 8,
@@ -143,6 +158,7 @@ const PRIORITY: Record<WtFrameReason, number> = {
   cue: 5,
   scroll: 4,
   end: 4,
+  change: 5,
   idle: 1,
 };
 
@@ -215,22 +231,40 @@ const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()
 
 async function shrink(
   dataUrl: string,
-  maxWidth = 1600,
-): Promise<{ dataUrl: string; width: number; height: number }> {
+  // Full resolution up to 2560 px (Scrawl decodes Screen keyframes at 2560): crops stay sharp.
+  maxWidth = 2560,
+): Promise<{ dataUrl: string; width: number; height: number; look?: Look }> {
   const img = new Image();
   img.src = dataUrl;
   await img.decode();
+  // A small copy for telling whether the screen changed (Scrawl's thumbnail and grid).
+  let seen: Look | undefined;
+  const small = document.createElement('canvas');
+  small.width = 256;
+  small.height = Math.max(1, Math.round((256 * img.naturalHeight) / img.naturalWidth));
+  const sctx = small.getContext('2d', { willReadFrequently: true });
+  if (sctx) {
+    sctx.drawImage(img, 0, 0, small.width, small.height);
+    seen = look(sctx.getImageData(0, 0, small.width, small.height).data, small.width, small.height);
+  }
   const scale = Math.min(1, maxWidth / img.naturalWidth);
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(img.naturalWidth * scale);
   canvas.height = Math.round(img.naturalHeight * scale);
   const ctx = canvas.getContext('2d');
-  if (!ctx) return { dataUrl, width: img.naturalWidth, height: img.naturalHeight };
+  if (!ctx)
+    return {
+      dataUrl,
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+      ...(seen ? { look: seen } : {}),
+    };
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
   return {
     dataUrl: canvas.toDataURL('image/jpeg', 0.86),
     width: canvas.width,
     height: canvas.height,
+    ...(seen ? { look: seen } : {}),
   };
 }
 
@@ -295,6 +329,16 @@ export class WalkthroughRecorder {
   private strokes: WtStroke[] = [];
   private events: WtEvent[] = [];
   private cursor: [number, number, number][] = [];
+  private scrolls: [number, number, number][] = [];
+  private context: Record<string, string> = {};
+  private contextChanges: { t: number; key: string; value: string }[] = [];
+  private appeared: { first: number; timer: number; els: Set<Element> } | null = null;
+  /** Across page loads: where it began, and what's been handed to the service worker. */
+  private startPage: { url: string; title: string } | null = null;
+  private syncTimer = 0;
+  private syncedCursor = 0;
+  private syncedPictures = new Map<string, number>();
+  private lastScrollSample = -Infinity;
   private candidates: Candidate[] = [];
   private pending = new Map<string, Pending>();
   private busy = false;
@@ -392,6 +436,8 @@ export class WalkthroughRecorder {
     };
     this.href = location.href;
     this.lastFrameScroll = { x: window.scrollX, y: window.scrollY };
+    this.scrolls.push([0, Math.round(window.scrollX), Math.round(window.scrollY)]);
+    this.context = pageDetails();
     // The last walkthrough stays until this one is finished (or this one is cancelled).
     this.set({
       phase: 'recording',
@@ -412,12 +458,156 @@ export class WalkthroughRecorder {
     });
     this.listen();
     this.requestFrame('start', { t: 0 });
+    this.startPage = { url: location.href, title: document.title };
+    if (hasExtensionRuntime()) {
+      void sendToBackground({ type: 'cd:wt-begin', info: this.info() });
+      this.startSync();
+    }
     return full;
+  }
+
+  /** What the service worker needs to carry the walkthrough onto the next page. */
+  private info(): WtSessionInfo {
+    const s = this.state.session!;
+    return {
+      session: {
+        id: s.id,
+        origin: s.origin,
+        ...(s.app ? { app: s.app } : {}),
+        ...(s.audioStartedAtMs !== undefined ? { audioStartedAtMs: s.audioStartedAtMs } : {}),
+      },
+      startedAtMs: this.state.startedAtMs,
+      pinCount: this.pinCount,
+      context: this.context,
+      startPage: this.startPage ?? { url: location.href, title: document.title },
+    };
+  }
+
+  /**
+   * The tab loaded another page during a walkthrough: carry on here, on the same clock (the
+   * earlier pages wait in the service worker until Stop).
+   */
+  resume(env: Env, info: WtSessionInfo): void {
+    if (this.state.phase === 'recording' || this.state.phase === 'finishing') return;
+    this.reset();
+    this.env = env;
+    this.pinCount = info.pinCount;
+    this.context = info.context;
+    this.startPage = info.startPage;
+    this.href = location.href;
+    this.lastFrameScroll = { x: window.scrollX, y: window.scrollY };
+    this.set({
+      phase: 'recording',
+      startedAtMs: info.startedAtMs,
+      session: info.session,
+      pictures: hasExtensionRuntime(),
+      drawing: false,
+      shift: false,
+    });
+    const t = this.now();
+    this.scrolls.push([t, Math.round(window.scrollX), Math.round(window.scrollY)]);
+    env.store.set({
+      tool: 'browse',
+      panel: 'none',
+      selectedIds: [],
+      draft: null,
+      hoverEl: null,
+      openThreadId: null,
+    });
+    this.listen();
+    this.events.push({ kind: 'navigate', t, url: location.href, title: document.title });
+    this.contextChanges.push({
+      t,
+      key: 'route',
+      value: `${location.pathname}${location.search.length < 80 ? location.search : ''}`,
+    });
+    this.requestFrame('navigate', { key: `nav-${t}`, t, delay: 600 });
+    this.startSync();
+  }
+
+  private startSync(): void {
+    window.clearInterval(this.syncTimer);
+    this.syncTimer = window.setInterval(() => this.sync(), 1000);
+  }
+
+  /** Hand what's new to the service worker (pictures and pointer only once; the rest whole). */
+  private sync(): void {
+    if (!hasExtensionRuntime() || !this.recording) return;
+    const pictures: WtSyncedPicture[] = [];
+    for (const c of this.candidates) {
+      if (this.syncedPictures.get(c.key) === c.takenAt) continue;
+      const { look: _look, ...picture } = c;
+      pictures.push(picture);
+      this.syncedPictures.set(c.key, c.takenAt);
+    }
+    const cursorFrom = this.syncedCursor;
+    this.syncedCursor = this.cursor.length;
+    void sendToBackground({
+      type: 'cd:wt-sync',
+      pinCount: this.pinCount,
+      page: {
+        pageId: PAGE_ID,
+        strokes: this.strokes,
+        events: this.events,
+        scrolls: this.scrolls,
+        contextChanges: this.contextChanges,
+        cursorFrom,
+        cursor: this.cursor.slice(cursorFrom),
+        pictures,
+      },
+    });
+  }
+
+  /** Put the earlier pages (from the service worker) in front of this one's. */
+  private async withEarlierPages(): Promise<void> {
+    if (!hasExtensionRuntime()) return;
+    const answer = await sendToBackground<{ pages: WtPageData[] }>({
+      type: 'cd:wt-collect',
+      pageId: PAGE_ID,
+    });
+    const pages = answer?.pages ?? [];
+    if (pages.length === 0) return;
+    const strokes: WtStroke[] = [];
+    const candidates: Candidate[] = [];
+    const events: WtEvent[] = [];
+    const cursor: [number, number, number][] = [];
+    const scrolls: [number, number, number][] = [];
+    const changes: { t: number; key: string; value: string }[] = [];
+    const add = (p: Omit<WtPageData, 'pageId' | 'pictures'>, pictures: Candidate[]) => {
+      const offset = strokes.length;
+      strokes.push(...p.strokes);
+      for (const c of pictures)
+        candidates.push(
+          c.strokeIndex === undefined ? c : { ...c, strokeIndex: c.strokeIndex + offset },
+        );
+      events.push(...p.events);
+      cursor.push(...p.cursor);
+      scrolls.push(...p.scrolls);
+      changes.push(...p.contextChanges);
+    };
+    for (const p of pages) add(p, p.pictures);
+    add(
+      {
+        strokes: this.strokes,
+        events: this.events,
+        cursor: this.cursor,
+        scrolls: this.scrolls,
+        contextChanges: this.contextChanges,
+      },
+      this.candidates,
+    );
+    this.strokes = strokes;
+    this.candidates = candidates;
+    this.events = events.toSorted((a, b) => a.t - b.t);
+    this.cursor = cursor.toSorted((a, b) => a[0] - b[0]);
+    this.scrolls = scrolls.toSorted((a, b) => a[0] - b[0]);
+    this.contextChanges = changes.toSorted((a, b) => a.t - b.t);
   }
 
   /** Stop and keep nothing (the last finished walkthrough stays). */
   cancel(): void {
     if (this.state.phase !== 'recording') return;
+    if (hasExtensionRuntime()) void sendToBackground({ type: 'cd:wt-end' });
     this.unlisten();
     this.reset();
     this.set({ phase: this.state.result ? 'ready' : 'idle', session: null });
@@ -450,7 +640,11 @@ export class WalkthroughRecorder {
     const lastTaken = this.candidates.reduce((n, c) => Math.max(n, c.takenAt), -Infinity);
     if (durationMs - lastTaken > 2500) this.requestFrame('end', { t: durationMs });
     await this.drain();
-    const result = this.build(durationMs);
+    window.clearInterval(this.syncTimer);
+    await this.withEarlierPages();
+    if (hasExtensionRuntime()) void sendToBackground({ type: 'cd:wt-end' });
+    // Each picture cropped to where its moment happened (Scrawl's auto-crop).
+    const result = await applyAutocrop(this.build(durationMs));
     this.set({
       phase: 'ready',
       result,
@@ -469,6 +663,7 @@ export class WalkthroughRecorder {
   /** Replace the result (a transcript was added, or it was sent). */
   update(result: WalkthroughResult): void {
     this.set({ result });
+    this.syncFlags(result);
   }
 
   private reset(): void {
@@ -480,6 +675,16 @@ export class WalkthroughRecorder {
     this.strokes = [];
     this.events = [];
     this.cursor = [];
+    this.scrolls = [];
+    this.lastScrollSample = -Infinity;
+    this.context = {};
+    this.contextChanges = [];
+    window.clearInterval(this.syncTimer);
+    this.syncedCursor = 0;
+    this.syncedPictures.clear();
+    this.startPage = null;
+    if (this.appeared) window.clearTimeout(this.appeared.timer);
+    this.appeared = null;
     this.candidates = [];
     this.pending.clear();
     this.busy = false;
@@ -515,6 +720,8 @@ export class WalkthroughRecorder {
     on('pointercancel', (e) => this.onPointerUp(e));
     on('keydown', (e) => this.onKey(e, true));
     on('keyup', (e) => this.onKey(e, false));
+    // Leaving the page (a link, a reload): hand over the last second too.
+    on('pagehide', () => this.sync());
     on('blur', () => {
       this.setShift(false);
       this.endInk();
@@ -533,11 +740,15 @@ export class WalkthroughRecorder {
       }, 400);
     });
     // Did the page change after a click? (Its own changes only, not this UI.)
-    this.observer = new MutationObserver((records) => {
-      for (const r of records) if (!isExtensionNode(r.target)) this.mutations++;
-    });
+    this.observer = new MutationObserver((records) => this.onMutations(records));
     if (document.body)
-      this.observer.observe(document.body, { subtree: true, childList: true, characterData: true });
+      this.observer.observe(document.body, {
+        subtree: true,
+        childList: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ['open', 'hidden', 'aria-hidden'],
+      });
     this.navTimer = window.setInterval(() => this.checkNavigation(), 500);
     this.idleTimer = window.setInterval(() => {
       const lastTaken = this.candidates.reduce((n, c) => Math.max(n, c.takenAt), 0);
@@ -569,6 +780,12 @@ export class WalkthroughRecorder {
       e.preventDefault();
       e.stopImmediatePropagation();
       void this.stop();
+      return;
+    }
+    if (down && e.altKey && e.shiftKey && e.code === 'KeyF') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      this.flag();
       return;
     }
     if (e.key !== 'Shift') return;
@@ -828,6 +1045,14 @@ export class WalkthroughRecorder {
           ? target
           : null;
     if (!el || isExtensionNode(el)) return;
+    const t = this.now();
+    if (
+      (el === document.scrollingElement || el === document.documentElement) &&
+      t - this.lastScrollSample >= 100
+    ) {
+      this.scrolls.push([t, Math.round(window.scrollX), Math.round(window.scrollY)]);
+      this.lastScrollSample = t;
+    }
     if (this.scrollRun && this.scrollRun.el !== el) this.flushScroll();
     if (!this.scrollRun) this.scrollRun = { el, t: this.now(), from: this.scrollPos(el), timer: 0 };
     window.clearTimeout(this.scrollRun.timer);
@@ -842,6 +1067,7 @@ export class WalkthroughRecorder {
     const to = this.scrollPos(run.el);
     if (Math.hypot(to.x - run.from.x, to.y - run.from.y) < 40) return;
     const page = run.el === document.scrollingElement || run.el === document.documentElement;
+    if (page) this.scrolls.push([this.now(), Math.round(to.x), Math.round(to.y)]);
     const target = page ? undefined : targetOf(run.el);
     this.events.push({
       kind: 'scroll',
@@ -885,6 +1111,11 @@ export class WalkthroughRecorder {
       title: document.title,
     };
     this.events.push(event);
+    this.contextChanges.push({
+      t: event.t,
+      key: 'route',
+      value: `${location.pathname}${location.search.length < 80 ? location.search : ''}`,
+    });
     this.requestFrame('navigate', { key: `nav-${event.t}`, delay: 800 });
     // Single-page apps often set the title a moment later.
     window.setTimeout(() => {
@@ -892,11 +1123,203 @@ export class WalkthroughRecorder {
     }, 800);
   }
 
+  // ---- the page changing by itself ---------------------------------------------------------
+
+  private onMutations(records: MutationRecord[]): void {
+    let seen = false;
+    for (const r of records) {
+      if (isExtensionNode(r.target)) continue;
+      this.mutations++;
+      const add = (node: Node | null) => {
+        const el = node instanceof Element ? node : node?.parentElement;
+        if (
+          !el ||
+          isExtensionNode(el) ||
+          /^(script|style|link|meta|template|noscript)$/.test(el.localName)
+        )
+          return;
+        // A live region's words changing counts as the region appearing again.
+        const live = el.closest('[role="alert"], [role="status"], [aria-live]');
+        if (!this.appeared) this.appeared = { first: Date.now(), timer: 0, els: new Set() };
+        this.appeared.els.add(live ?? el);
+        seen = true;
+      };
+      if (r.type === 'childList') for (const n of Array.from(r.addedNodes)) add(n);
+      else if (r.type === 'attributes') add(r.target);
+      else if (
+        r.type === 'characterData' &&
+        r.target.parentElement?.closest('[role="alert"], [role="status"], [aria-live]')
+      )
+        add(r.target);
+    }
+    if (!seen || !this.appeared) return;
+    // Wait for it to settle (400 ms quiet, at most 1.5 s from the first change).
+    const a = this.appeared;
+    window.clearTimeout(a.timer);
+    a.timer = window.setTimeout(
+      () => this.pageChanged(),
+      Math.max(0, Math.min(400, 1500 - (Date.now() - a.first))),
+    );
+  }
+
+  private pageChanged(): void {
+    const a = this.appeared;
+    this.appeared = null;
+    if (!a || !this.recording) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const shown = [...a.els].filter((el) => {
+      if (!el.isConnected) return false;
+      const r = el.getBoundingClientRect();
+      if (
+        r.width < 8 ||
+        r.height < 8 ||
+        r.bottom <= 0 ||
+        r.top >= vh ||
+        r.right <= 0 ||
+        r.left >= vw
+      )
+        return false;
+      const cs = getComputedStyle(el);
+      return cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.05;
+    });
+    // Outermost only: a toast and its text are one thing.
+    const outer = shown.filter((el) => !shown.some((o) => o !== el && o.contains(el)));
+    if (outer.length === 0) return;
+    let region: [number, number, number, number] | null = null;
+    for (const el of outer) {
+      const r = el.getBoundingClientRect();
+      const b: [number, number, number, number] = [
+        Math.max(0, r.left / vw),
+        Math.max(0, r.top / vh),
+        Math.min(1, r.right / vw),
+        Math.min(1, r.bottom / vh),
+      ];
+      region = region
+        ? [
+            Math.min(region[0], b[0]),
+            Math.min(region[1], b[1]),
+            Math.max(region[2], b[2]),
+            Math.max(region[3], b[3]),
+          ]
+        : b;
+    }
+    const main = outer.toSorted((x, y) => {
+      const rx = x.getBoundingClientRect();
+      const ry = y.getBoundingClientRect();
+      return ry.width * ry.height - rx.width * rx.height;
+    })[0]!;
+    const target = targetOf(main);
+    const t = this.now();
+    const box = main.getBoundingClientRect();
+    const event: WtEvent | undefined = target
+      ? {
+          kind: 'appear',
+          t,
+          target: { ...target, label: appearedLabel(main) },
+          rect: {
+            x: Math.round(box.left + window.scrollX),
+            y: Math.round(box.top + window.scrollY),
+            width: Math.round(box.width),
+            height: Math.round(box.height),
+          },
+        }
+      : undefined;
+    if (event) this.events.push(event);
+    this.requestFrame('change', {
+      key: `change-${t}`,
+      t,
+      ...(region ? { region } : {}),
+      ...(event ? { event } : {}),
+    });
+  }
+
+  // ---- flags --------------------------------------------------------------------------------
+
+  /** "Look here": a picture now, and a comment on the page where the pointer is. */
+  flag(): void {
+    if (!this.recording) return;
+    const t = this.now();
+    const last = this.cursor.at(-1);
+    const point = last
+      ? { x: last[1], y: last[2] }
+      : { x: window.scrollX + window.innerWidth / 2, y: window.scrollY + window.innerHeight / 2 };
+    const el = pickElement(point.x - window.scrollX, point.y - window.scrollY);
+    const target = el ? targetOf(el) : undefined;
+    let number: number | undefined;
+    const store = this.env?.store;
+    if (store) {
+      const doc = store.getState().doc;
+      number = nextCommentNumber(doc.annotations);
+      const at = nowIso();
+      const anchor =
+        el && el !== document.body && el !== document.documentElement ? buildAnchor(el) : null;
+      const thread: CommentThread = {
+        id: createId('c'),
+        type: 'comment',
+        number,
+        intent: 'note',
+        status: 'open',
+        target: anchor ? { type: 'element', point, anchor } : { type: 'point', point },
+        messages: [{ id: createId('m'), body: flagBody(t), createdAt: at }],
+        createdAt: at,
+        updatedAt: at,
+        viewport: {
+          width: document.documentElement.clientWidth || window.innerWidth,
+          height: window.innerHeight,
+        },
+      };
+      store.addAnnotation(thread);
+    }
+    this.events.push({
+      kind: 'flag',
+      t,
+      point: { x: Math.round(point.x), y: Math.round(point.y) },
+      ...(target ? { target } : {}),
+      ...(number !== undefined ? { comment: number } : {}),
+    });
+    this.requestFrame('flag', { key: `flag-${t}`, t });
+  }
+
+  /** Flag comments say what was said then, once there's a transcript (their text untouched). */
+  private syncFlags(result: WalkthroughResult): void {
+    const store = this.env?.store;
+    const wt = result.walkthrough;
+    if (!store || !wt.transcript) return;
+    const entries = timeline(wt);
+    for (const e of wt.events) {
+      if (e.kind !== 'flag' || e.comment === undefined) continue;
+      const entry =
+        entries.find((x) => Math.abs(x.t - e.t) < 50) ?? entries.findLast((x) => x.t <= e.t);
+      const said = entry?.said;
+      if (!said) continue;
+      const thread = store
+        .getState()
+        .doc.annotations.find((a): a is CommentThread => isComment(a) && a.number === e.comment);
+      const first = thread?.messages[0];
+      if (!thread || !first?.body.startsWith(flagBody(e.t))) continue;
+      const body = `“${said}”\n\n${flagBody(e.t)}`;
+      if (first.body === body) continue;
+      store.updateAnnotation(thread.id, (a) =>
+        isComment(a)
+          ? { ...a, messages: [{ ...first, body }, ...a.messages.slice(1)], updatedAt: nowIso() }
+          : a,
+      );
+    }
+  }
+
   // ---- pictures ---------------------------------------------------------------------------
 
   private requestFrame(
     reason: WtFrameReason,
-    options: { key?: string; t?: number; delay?: number; strokeIndex?: number } = {},
+    options: {
+      key?: string;
+      t?: number;
+      delay?: number;
+      strokeIndex?: number;
+      region?: [number, number, number, number];
+      event?: WtEvent;
+    } = {},
   ): void {
     if (!this.state.pictures) return;
     const key = options.key ?? `${reason}-${++this.seq}`;
@@ -914,6 +1337,8 @@ export class WalkthroughRecorder {
       t: existing?.t ?? this.candidates.find((c) => c.key === key)?.t ?? options.t ?? this.now(),
       due: Math.max(existing?.due ?? 0, due),
       ...(options.strokeIndex !== undefined ? { strokeIndex: options.strokeIndex } : {}),
+      ...(options.region ? { region: options.region } : {}),
+      ...(options.event ? { event: options.event } : {}),
     });
     this.schedule();
   }
@@ -942,7 +1367,25 @@ export class WalkthroughRecorder {
     this.busy = true;
     try {
       const shot = await this.capture();
-      if (shot) {
+      // A page change is kept only if it shows something new (Scrawl's measures): the screen
+      // moved by more than 8 %, or a quarter of where it happened changed.
+      const before = this.candidates.reduce<Candidate | null>(
+        (best, c) => (!best || c.takenAt > best.takenAt ? c : best),
+        null,
+      );
+      const fresh =
+        due.reason !== 'change' ||
+        !shot?.look ||
+        !before?.look ||
+        sceneDiff(before.look, shot.look) > SCENE_CHANGE ||
+        (due.region ? regionDiff(before.look, shot.look, due.region) > 0.25 : false);
+      if (shot && !fresh && due.event) this.events = this.events.filter((e) => e !== due.event);
+      if (shot && fresh) {
+        const screen = screenName();
+        const last =
+          this.contextChanges.findLast((c) => c.key === 'screen')?.value ?? this.context.screen;
+        if (screen && screen !== last)
+          this.contextChanges.push({ t: this.now(), key: 'screen', value: screen });
         const candidate: Candidate = {
           key: due.key,
           reason: due.reason,
@@ -950,6 +1393,7 @@ export class WalkthroughRecorder {
           takenAt: this.now(),
           ...(due.strokeIndex !== undefined ? { strokeIndex: due.strokeIndex } : {}),
           ...shot,
+          ...(screen ? { screen } : {}),
         };
         const at = this.candidates.findIndex((c) => c.key === due.key);
         if (at >= 0) this.candidates[at] = candidate;
@@ -1036,6 +1480,7 @@ export class WalkthroughRecorder {
         width: c.width,
         height: c.height,
         scale: Math.round(c.scale * 1000) / 1000,
+        ...(c.screen ? { screen: c.screen } : {}),
       };
     });
     const session = this.state.session;
@@ -1046,7 +1491,7 @@ export class WalkthroughRecorder {
       startedAt: new Date(startedAtMs).toISOString(),
       startedAtMs,
       durationMs,
-      page: { url: this.href || location.href, title: document.title },
+      page: this.startPage ?? { url: this.href || location.href, title: document.title },
       viewport: {
         width: document.documentElement.clientWidth || window.innerWidth,
         height: window.innerHeight,
@@ -1071,6 +1516,9 @@ export class WalkthroughRecorder {
         points: s.points.map(([x, y, dt]) => [Math.round(x), Math.round(y), Math.round(dt)]),
       })),
       cursor: this.cursor,
+      scrolls: this.scrolls,
+      context: this.context,
+      ...(this.contextChanges.length ? { contextChanges: this.contextChanges } : {}),
     };
     return {
       walkthrough,
@@ -1081,5 +1529,13 @@ export class WalkthroughRecorder {
   }
 }
 
+/** This page load (a walkthrough can span several). */
+const PAGE_ID = newId();
+
 /** One recorder per page: it outlives the toolbar being closed and opened again. */
 export const recorder = new WalkthroughRecorder();
+
+/** A flag comment's own words (kept at the end when what was said is added). */
+function flagBody(t: number): string {
+  return `⚑ Walkthrough ${formatClock(t)}`;
+}

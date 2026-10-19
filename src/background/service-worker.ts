@@ -9,6 +9,14 @@ import {
 } from '../shared/messages';
 import { activeTab, sendToTab } from './inject';
 import { fromTab, initVoiceLink, voiceSetting, voiceStatus } from './voiceLink';
+import {
+  activeWalkthrough,
+  beginWalkthrough,
+  collectWalkthrough,
+  endWalkthrough,
+  initWalkthroughs,
+  syncWalkthrough,
+} from './walkthroughs';
 
 /**
  * Service worker: keyboard command, screenshots and (optional) cross-origin asset fetches.
@@ -157,6 +165,29 @@ chrome.runtime.onMessage.addListener((message: ToBackgroundMessage, sender, send
     sendResponse({ ok: fromTab(message.message, sender.tab.id) });
     return false;
   }
+  if (message?.type === 'cd:wt-begin' && sender.tab.id !== undefined) {
+    beginWalkthrough(sender.tab.id, message.info);
+    sendResponse({ ok: true });
+    return false;
+  }
+  if (message?.type === 'cd:wt-sync' && sender.tab.id !== undefined) {
+    syncWalkthrough(sender.tab.id, message);
+    sendResponse({ ok: true });
+    return false;
+  }
+  if (message?.type === 'cd:wt-collect' && sender.tab.id !== undefined) {
+    sendResponse({ pages: collectWalkthrough(sender.tab.id, message.pageId) });
+    return false;
+  }
+  if (message?.type === 'cd:wt-end' && sender.tab.id !== undefined) {
+    endWalkthrough(sender.tab.id);
+    sendResponse({ ok: true });
+    return false;
+  }
+  if (message?.type === 'cd:wt-active' && sender.tab.id !== undefined) {
+    sendResponse(activeWalkthrough(sender.tab.id));
+    return false;
+  }
   if (message?.type === 'cd:voice-status') {
     sendResponse(voiceStatus());
     return false;
@@ -185,3 +216,4 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
 });
 
 initVoiceLink();
+initWalkthroughs();

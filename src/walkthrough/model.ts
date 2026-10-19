@@ -86,7 +86,11 @@ export type WtEvent =
   | { kind: 'navigate'; t: number; url: string; title: string }
   | { kind: 'resize'; t: number; width: number; height: number }
   /** A spoken cue ("here", "look") sent live by a voice recorder. */
-  | { kind: 'cue'; t: number; word: string };
+  | { kind: 'cue'; t: number; word: string }
+  /** Something showed up by itself: a toast, a dialog, a popover, a live message. */
+  | { kind: 'appear'; t: number; target: WtTarget; rect?: WtRect }
+  /** "Look here" (the Flag button or ⌥⇧F): always a picture, and a comment on the page. */
+  | { kind: 'flag'; t: number; point: WtPoint; target?: WtTarget; comment?: number };
 
 export type WtFrameReason =
   | 'start'
@@ -98,6 +102,8 @@ export type WtFrameReason =
   | 'scroll'
   | 'navigate'
   | 'cue'
+  | 'flag'
+  | 'change'
   | 'idle'
   | 'end';
 
@@ -120,6 +126,10 @@ export interface WtFrame {
   width: number;
   height: number;
   scale: number;
+  /** What screen the page was on, read from the page (dialog, tab, page heading). */
+  screen?: string;
+  /** Auto-crop: the part of the screen this picture shows (CSS px, from the viewport's top left). */
+  crop?: { x: number; y: number; width: number; height: number; kind: string; reason: string };
 }
 
 export interface WtWord {
@@ -170,8 +180,24 @@ export interface Walkthrough {
   marks: WtMark[];
   events: WtEvent[];
   strokes: WtStroke[];
+  /**
+   * Page details read from Chrome at the start (route, framework route, language, theme,
+   * screen size), and changes to them over time (`screen` included).
+   */
+  context?: Record<string, string>;
+  contextChanges?: { t: number; key: string; value: string }[];
   /** The pointer, `[t, x, y]`, at most 15 times a second while it moved. */
   cursor: [number, number, number][];
+  /** The page's scroll position `[t, x, y]` as it changed (to place things on screen). */
+  scrolls?: [number, number, number][];
+  /** Pictures were cropped to the activity (Scrawl's auto-crop); the full ones are kept too. */
+  autocrop?: {
+    label: string;
+    fullFrames: string;
+    fullContactSheet: string;
+    /** What changed between each picture and the one before it (normalized boxes). */
+    changes: [number, number, number, number][][];
+  };
   transcript?: WtTranscript;
 }
 

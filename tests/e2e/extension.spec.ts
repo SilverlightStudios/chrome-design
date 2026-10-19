@@ -48,6 +48,22 @@ const WALK = `<!doctype html><html><head><title>Pricing</title><style>
   <div class="tall"></div>
 </body></html>`;
 
+const SHOP = `<!doctype html><html lang="en"><head><title>Shop</title><style>
+  body { margin: 0; font: 16px system-ui; } h1 { font-size: 40px; margin: 40px; }
+  button, a { font-size: 18px; margin: 0 40px; }
+  .toast { position: fixed; right: 24px; top: 24px; padding: 14px 18px; background: #111; color: #fff; border-radius: 10px; }
+  p { margin: 24px 40px; max-width: 520px; line-height: 1.5; }
+</style></head><body>
+  <h1 id="title">Shop</h1>
+  <p>Ten things you can buy here, all of them carefully chosen and none of them strictly necessary for anybody.</p>
+  <button id="save" onclick="setTimeout(() => { const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = 'Saved to your list'; document.body.append(t); }, 300)">Save</button>
+  <a id="next" href="/shop-cart">Go to cart</a>
+</body></html>`;
+
+const CART = `<!doctype html><html lang="en"><head><title>Cart</title><style>
+  body { margin: 0; font: 16px system-ui; } h1 { font-size: 40px; margin: 40px; }
+</style></head><body><h1 id="title">Your cart</h1><p style="margin: 40px">Nothing here yet.</p></body></html>`;
+
 const CSP_PAGE = `<!doctype html><html><head><title>CSP</title></head><body><h1 id="title">Strict CSP</h1></body></html>`;
 
 const FILES: Record<string, [string, string]> = {
@@ -55,6 +71,8 @@ const FILES: Record<string, [string, string]> = {
   '/spa': ['text/html', SPA],
   '/csp': ['text/html', CSP_PAGE],
   '/walk': ['text/html', WALK],
+  '/shop': ['text/html', SHOP],
+  '/shop-cart': ['text/html', CART],
   '/': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
   '/phone': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
   '/sizes': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
@@ -746,5 +764,78 @@ test('walkthrough: laser, ink and clicks become numbered pictures and a summary'
   await expect(ui.locator('[data-testid="cd-wt-copy"][data-done]')).toHaveCount(1);
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   expect(copied).toContain('“This heading is too big.”');
+  await page.close();
+});
+
+test('walkthrough: crops, page changes, a flag that leaves a comment, and a second page', async () => {
+  const page = await context.newPage();
+  await page.goto(`${baseUrl}/shop`);
+  await toggleToolbar(page);
+  const ui = page.locator('chrome-design-root');
+  await ui.locator('.toolbar .tb-btn[aria-label^="Walkthrough"]').click();
+  await expect(ui.locator('.rec-time')).toBeVisible();
+  await page.waitForTimeout(700);
+
+  // A toast appears by itself after the click: its own picture.
+  await page.locator('#save').click();
+  await expect(page.locator('.toast')).toBeVisible();
+  await page.waitForTimeout(1500);
+
+  // Flag: a picture, and a comment where the pointer is.
+  const title = (await page.locator('#title').boundingBox())!;
+  await page.mouse.move(title.x + 30, title.y + title.height / 2);
+  await page.keyboard.press('Alt+Shift+KeyF');
+  await page.waitForTimeout(900);
+
+  // Follow a link: the walkthrough carries on on the next page.
+  await page.locator('#next').click();
+  await page.waitForURL(/shop-cart/);
+  await expect(page.locator('chrome-design-root .rec-time')).toBeVisible({ timeout: 10_000 });
+  const cart = (await page.locator('#title').boundingBox())!;
+  const cx = cart.x + 120;
+  const cy = cart.y + cart.height / 2;
+  await page.mouse.move(cx + 150, cy);
+  await page.keyboard.down('Shift');
+  await page.mouse.down();
+  for (let i = 1; i <= 36; i++) {
+    const a = (i / 36) * Math.PI * 2;
+    await page.mouse.move(cx + 150 * Math.cos(a), cy + 40 * Math.sin(a));
+  }
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+  await page.waitForTimeout(800);
+  const ui2 = page.locator('chrome-design-root');
+  await ui2.locator('.tb-btn[aria-label^="Stop"]').click();
+  await expect(ui2.locator('.walkthrough-panel')).toBeVisible({ timeout: 20_000 });
+
+  const downloading = page.waitForEvent('download');
+  await ui2.locator('[data-testid="cd-wt-download"]').click();
+  const zip = readFileSync((await (await downloading).path())!);
+  const summary = zipEntry(zip, 'summary.md');
+  const wt = JSON.parse(zipEntry(zip, 'walkthrough.json'));
+  // One walkthrough over both pages, on one clock.
+  expect(wt.page.title).toBe('Shop');
+  expect(summary).toContain('Message “Saved to your list” appeared');
+  expect(summary).toMatch(/⚑ flagged Heading “Shop” \(comment \d+\)/);
+  expect(summary).toContain('went to “Cart”');
+  expect(summary).toContain('circled Heading “Your cart”');
+  // The toast's own picture keeps the toast (top right) in its crop.
+  const toast = wt.frames.find((f: { reason: string }) => f.reason === 'change');
+  expect(toast).toBeTruthy();
+  expect(toast.crop.kind === 'full' || toast.crop.x + toast.crop.width >= 1200).toBe(true);
+  expect(toast.crop.kind === 'full' || toast.crop.y <= 30).toBe(true);
+  expect(wt.frames.some((f: { reason: string }) => f.reason === 'flag')).toBe(true);
+  // Page details read from Chrome.
+  expect(wt.context).toMatchObject({ screen: 'Shop', route: '/shop', lang: 'en' });
+  expect(summary).toContain('Screen: Shop · route: /shop');
+  expect(summary).toContain('⟨Your cart⟩');
+  // Auto-crop, with the full pictures beside the cropped ones.
+  expect(wt.autocrop).toMatchObject({ label: 'the activity', fullFrames: 'frames-full' });
+  expect(wt.frames.some((f: { crop?: { kind: string } }) => f.crop?.kind === 'activity')).toBe(
+    true,
+  );
+  expect(summary).toContain('Cropped to: the activity');
+  expect(zip.includes(Buffer.from('frames-full/frame-01.jpg'))).toBe(true);
+  expect(zip.includes(Buffer.from('contact-sheet-full.jpg'))).toBe(true);
   await page.close();
 });

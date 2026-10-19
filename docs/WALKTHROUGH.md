@@ -178,8 +178,16 @@ Checklist:
    picture) with each quote under its picture and saves it into the same folder
    (`walkthrough.saved` with `update: true`). Wait for that if you'd rather deliver the picture
    with the words on it than draw them yourself.
+10. **Clean up** old walkthroughs, the way Scrawl does, since neither the bridge nor Chrome
+    deletes anything in `~/.chrome-design/walkthroughs/`. Scrawl's rule, a good default: after
+    **7 days** move the heavy parts (`frames/`, `frames-full/`, `contact-sheet-full.jpg`) to the
+    Trash as one `<folder> media` folder, keeping `summary.md`, `walkthrough.json` and
+    `contact-sheet.jpg` so pasting still works; after **30 days** move the whole folder to the
+    Trash. Never touch a folder under a day old, one still being written (no
+    `walkthrough.saved` for it yet) or one with a `.pinned` file. Run it shortly after launch and
+    then daily, at low priority, and make the two ages settings (or "forever").
 
-`bridge/example-recorder.mjs` does all of this except audio, in ~200 lines of Node (type a line
+`bridge/example-recorder.mjs` does all of this except audio and clean-up, in ~200 lines of Node (type a line
 while "recording" to fake speech). Use it to try the loop before touching the real recorder.
 
 ## Messages
@@ -284,6 +292,24 @@ Three ways for the recorder to produce it:
   `describeEvent` for the nested lines. `walkthrough.json` already has every description
   written out (`marks[].description`), so the port is only arranging lines.
 
+## Files in a walkthrough folder
+
+| file | |
+| --- | --- |
+| `summary.md` | the text for the agent (below) |
+| `contact-sheet.jpg` | the whole walkthrough as one picture, pictures cropped to their moments |
+| `frames/frame-NN.jpg` | each picture, cropped (full resolution of the crop) |
+| `frames-full/frame-NN.jpg`, `contact-sheet-full.jpg` | the same, uncropped (only when something was cropped) |
+| `walkthrough.json` | everything, for programs |
+
+Cropping is Scrawl's auto-crop, ported rule for rule (`src/walkthrough/autocrop.ts`): no AI,
+just weighted activity (ink 1, clicks 0.6, laser 0.4, scrolls 0.3, where the pointer rested,
+what changed), a 15 % margin, at least 320×200 and at most 4× zoom, neighbours that mostly
+overlap merged, edges moved into blank space so they don't cut through text, and a picture
+whose crop would cover 85 % of the screen left whole. In a browser tab the tab is the window,
+so Scrawl's window-snapping step doesn't apply. One addition: a picture taken because something
+appeared keeps that thing in its crop.
+
 ## `walkthrough.json`
 
 Defined in `src/walkthrough/model.ts`. Times are ms since `startedAtMs`; positions are CSS px
@@ -296,7 +322,11 @@ from the top left of the page.
 | `session {id, app?, audioStartedAtMs?}` | when a recorder was involved |
 | `frames[]` | `index`, `file`, `t` (the moment), `takenAt`, `reason` (`start`, `mark`, `pin`, `laser`, `click`, `result`, `scroll`, `navigate`, `cue`, `idle`, `end`), `mark?`, `scroll`, `viewport`, `width`, `height`, `scale` (picture px per CSS px) |
 | `marks[]` | `shape` (`circle`, `underline`, `line`, `arrow`, `pin`, `mark`, `laser`), `t0`, `t1`, `box`, `from?`, `to?`, `pin?`, `on {label, selector}`, `also[]`, `description`, `frame?` |
-| `events[]` | `click`, `scroll`, `type` (the field, never the text), `navigate`, `resize`, `cue` |
+| `events[]` | `click`, `scroll`, `type` (the field, never the text), `navigate`, `resize`, `cue`, `appear` (a toast, dialog or live message showed up; with its box), `flag` (with the comment it made) |
+| `frames[].crop`, `frames[].screen` | the crop (CSS px of the viewport, its kind and reason), and the screen the page was on |
+| `context`, `contextChanges[]` | page details at the start (`screen`, `route`, `next` for a Next.js route pattern, `lang`, `theme`, `size`) and how `screen` and `route` changed |
+| `autocrop` | `label`, `fullFrames`, `fullContactSheet`, and the screen changes between pictures |
+| `scrolls[]` | the page's scroll position over time |
 | `strokes[]` | the raw ink and laser, `[x, y, ms]` points, with what was under them |
 | `cursor[]` | `[t, x, y]`, up to 15 a second while it moved |
 | `transcript?` | `segments` on the walkthrough's clock, `offsetMs`, `alignment` (`clock` or `assumed`) |
@@ -316,10 +346,13 @@ without a click).
 
 ## Limits
 
-- A walkthrough stays on one page. Single-page-app navigation is followed; a full page load ends
-  it (the page's script goes away with it).
+- A walkthrough follows the tab across links and page loads (the service worker keeps the earlier
+  pages until Stop). It skips pages Chrome Design can't run on and carries on on the next one it
+  can; on another site that needs **Images from other websites**. It follows one tab, not new
+  tabs a link opens. Stopping (from the recorder) while a page is loading waits for it.
 - Chrome allows two pictures a second, so pictures are taken at moments (marks, clicks, scrolls,
-  page changes, cues), at most 20 are kept, and the toolbar hides for an instant each time.
+  page loads, things appearing, flags, cues), at most 20 are kept (flags always), and the
+  toolbar hides for an instant each time.
 - Pictures need the extension: on the demo page and in shared files the walkthrough has marks,
   clicks and words, but no pictures.
 - Text typed into fields is never recorded, only which field; it can still show in a picture,

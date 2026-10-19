@@ -8,6 +8,20 @@ recorder). Verified on the demo page in desktop Chromium and the iPhone 15 WebKi
 (finger ink, a tap pin, the bottom-sheet review panel).
 
 ## Rounds
+- R14: Scrawl's auto-crop ported rule for rule (`walkthrough/autocrop.ts` + its tests in
+  tests/autocrop.test.ts; `content/walkthrough/crop.ts` builds its input: positions placed on
+  screen with the `scrolls` timeline, change regions between pictures, `Content` from pixels).
+  Pictures kept at up to 2560 px; cropped ones in frames/, full ones (≤ 1600) in frames-full/
+  and contact-sheet-full.jpg. Pictures when something appears (MutationObserver: added nodes,
+  open/hidden/aria-hidden, live regions; 400 ms settle, ≤ 1.5 s), kept only if new
+  (`walkthrough/scene.ts`: scene diff > 0.08 or ¼ of its region changed); the thing that
+  appeared stays in its crop (`appear` items). Flag (⌥⇧F, recording bar) = a picture that is
+  never dropped + a Note comment where the pointer is, filled with what was said once a
+  transcript arrives (`syncFlags`). Page details (`content/walkthrough/pageContext.ts`): screen
+  (dialog › tab › page), route, Next.js route, lang, theme, size; ⟨screen⟩ in summary and
+  captions. Walkthroughs survive page loads: the page syncs to the SW every second
+  (`background/walkthroughs.ts`), the SW resumes it on `tabs.onUpdated` complete (or when the
+  toolbar opens there), Stop joins the pages (stroke indexes offset).
 - R13: owner's pass on R12. Walkthrough is a toolbar button (◉, `W`); a new recording keeps the
   last result until it finishes (More → Walkthrough reopens it). Tooltips are Spark's fluid
   tooltips everywhere (`motion/Tooltip.tsx`, `TooltipGroup`, replacing the gooey
@@ -110,9 +124,7 @@ recorder). Verified on the demo page in desktop Chromium and the iPhone 15 WebKi
 - Sheets never blank: the panel that arrived by a swap keeps its swap-in animation (switching back to the opening reveal restarted it from blank); a sheet closed mid-reveal or mid-swap drops all content animations.
 
 ## Ideas / not done
-- Walkthroughs across full page loads (the content script goes with the page; hand the
-  recording to the service worker on `pagehide`).
-- Walkthrough auto-crop to the activity (Scrawl's autocrop; here the marked elements' boxes).
+- Walkthroughs into new tabs a link opens (one tab is followed today).
 - Export fidelity leftovers from R2: open the viewer at the captured viewport with an outline, `image-set()` URLs, recursive capture of same-origin iframes.
 - Live style/text “edit” proposals applied to the page (recorded as structured edits).
 - Dragging a phone sheet from its list when scrolled to the top (only the handle and title row drag today).

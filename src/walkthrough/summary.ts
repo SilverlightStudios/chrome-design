@@ -77,6 +77,10 @@ export function describeEvent(event: WtEvent): string {
       return `resized the window to ${event.width}×${event.height}`;
     case 'cue':
       return `said “${event.word}”`;
+    case 'appear':
+      return `${event.target.label} appeared`;
+    case 'flag':
+      return `⚑ flagged ${event.target?.label ?? 'this'}${event.comment ? ` (comment ${event.comment})` : ''}`;
   }
 }
 
@@ -93,21 +97,19 @@ function moments(wt: Walkthrough): Moment[] {
     return wt.frames
       .map((frame): Moment => {
         const mark = frame.mark ? wt.marks.find((m) => m.id === frame.mark) : undefined;
-        const event =
-          frame.reason === 'click' || frame.reason === 'navigate'
-            ? wt.events.find(
-                (e) =>
-                  e.kind === (frame.reason === 'click' ? 'click' : 'navigate') &&
-                  Math.abs(e.t - frame.t) < 50,
-              )
-            : undefined;
+        const kind = (
+          { click: 'click', navigate: 'navigate', flag: 'flag', change: 'appear' } as const
+        )[frame.reason as 'click' | 'navigate' | 'flag' | 'change'];
+        const event = kind
+          ? wt.events.find((e) => e.kind === kind && Math.abs(e.t - frame.t) < 50)
+          : undefined;
         return { t: frame.t, frame, ...(mark ? { mark } : {}), ...(event ? { event } : {}) };
       })
       .toSorted((a, b) => a.t - b.t);
   const out: Moment[] = [
     ...wt.marks.map((mark) => ({ t: mark.t0, mark })),
     ...wt.events
-      .filter((e) => e.kind === 'click' || e.kind === 'navigate')
+      .filter((e) => e.kind === 'click' || e.kind === 'navigate' || e.kind === 'flag')
       .map((event) => ({ t: event.t, event })),
   ].toSorted((a, b) => a.t - b.t);
   return out.length ? out : [{ t: 0 }];
@@ -128,6 +130,8 @@ function whatHappened(m: Moment): string {
       return 'after scrolling';
     case 'navigate':
       return 'new page';
+    case 'change':
+      return 'the page changed';
     default:
       return '';
   }
@@ -162,6 +166,8 @@ function localStamp(ms: number): string {
 export interface TimelineEntry {
   t: number;
   frame?: WtFrame;
+  /** The screen it's on, when that changed since the entry before (Scrawl's ⟨Screen⟩). */
+  screen?: string;
   /** What happened, e.g. `circled Heading “Pricing”` or `[clicked Button “Buy”]`. */
   what: string;
   /** What was said while it was on (empty without a timed transcript). */
@@ -190,13 +196,30 @@ export function timeline(wt: Walkthrough): TimelineEntry[] {
   ].toSorted((a, b) => a.t - b.t);
   const nested = list.map(() => [] as { t: number; text: string }[]);
   for (const x of extras) nested[momentAt(list, x.t)]!.push(x);
-  return list.map((m, i) => ({
-    t: m.t,
-    ...(m.frame ? { frame: m.frame } : {}),
-    what: whatHappened(m),
-    said: said[i] ?? '',
-    extras: nested[i]!,
-  }));
+  let shown = wt.context?.screen;
+  return list.map((m, i) => {
+    const screen = m.frame?.screen;
+    const changed = screen && screen !== shown ? screen : undefined;
+    if (screen) shown = screen;
+    return {
+      t: m.t,
+      ...(m.frame ? { frame: m.frame } : {}),
+      ...(changed ? { screen: changed } : {}),
+      what: whatHappened(m),
+      said: said[i] ?? '',
+      extras: nested[i]!,
+    };
+  });
+}
+
+/** The page details at the start, one line: `Screen: Pricing · route: /pricing · …`. */
+export function contextLine(wt: Walkthrough): string | null {
+  const c = wt.context;
+  if (!c) return null;
+  const parts = Object.entries(c)
+    .filter(([, v]) => v)
+    .map(([k, v]) => (k === 'screen' ? `Screen: ${v}` : `${k}: ${v}`));
+  return parts.length ? parts.join(' · ') : null;
 }
 
 /** How the voice was lined up, in words. */
@@ -226,9 +249,15 @@ export function buildSummary(wt: Walkthrough): string {
     `[walkthrough ${formatClock(wt.durationMs)} · ${wt.page.title || 'Untitled page'} · ${wt.page.url}]`,
   );
   lines.push(recordedLine(wt));
+  const ctx = contextLine(wt);
+  if (ctx) lines.push(ctx);
   if (wt.frames.length)
     lines.push(
       `Pictures: contact-sheet.jpg (every picture, numbered #1–#${wt.frames.length}, with what happened and what was said), full size in frames/. Red ink, numbered red pins and the red laser trail are the reviewer’s marks; blue rings are clicks.`,
+    );
+  if (wt.autocrop)
+    lines.push(
+      `Cropped to: ${wt.autocrop.label} (full pictures in ${wt.autocrop.fullFrames}/ and ${wt.autocrop.fullContactSheet})`,
     );
   const voice = voiceLine(wt);
   if (voice) lines.push(`${voice}. Quotes are what was said at that moment.`);
@@ -237,7 +266,8 @@ export function buildSummary(wt: Walkthrough): string {
   lines.push('');
   for (const e of timeline(wt)) {
     const head = e.frame ? `- #${e.frame.index} (${formatClock(e.t)})` : `- ${formatClock(e.t)}`;
-    lines.push(`${head}${e.what ? ` ${e.what}` : ''}${e.said ? ` “${e.said}”` : ''}`);
+    const screen = e.screen ? ` ⟨${e.screen}⟩` : '';
+    lines.push(`${head}${screen}${e.what ? ` ${e.what}` : ''}${e.said ? ` “${e.said}”` : ''}`);
     for (const x of e.extras) lines.push(`  · ${formatClock(x.t)} ${x.text}`);
   }
   return `${lines.join('\n')}\n`;
