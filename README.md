@@ -4,6 +4,8 @@ A Chrome extension (Manifest V3) for reviewing a live web page the way you would
 
 It is made for designers, so the interface stays quiet and plain: elements are named the way you would say them (“Button “Start free””, “Heading”, “Image”), not as CSS selectors. The selectors and computed styles still go into the file for the AI.
 
+**Live demo:** [silverlightstudios.github.io/chrome-design](https://silverlightstudios.github.io/chrome-design/) — the real toolbar on a sample page (no extension needed; pictures of the screen need the extension). Rebuilt on every push to `main`.
+
 Personal-use prototype. No accounts, no server, no analytics: page content never leaves your machine unless you send the exported file to someone yourself (a walkthrough goes only to your own voice recorder, on the same computer, when you turn the voice link on).
 
 **Walkthroughs** (after [Scrawl](https://github.com/kitlangton/scrawl)): talk a page through while it follows along — laser pointer, ink, numbered pins, clicks — and get numbered pictures plus a summary for the agent, with what you said lined up by time. Audio stays in your own voice recorder; the two connect through a small local bridge ([docs/WALKTHROUGH.md](docs/WALKTHROUGH.md)).
@@ -124,7 +126,7 @@ After changing code, run `pnpm build` again and click the reload icon on the ext
 | `pnpm build` | Production build into `dist/` |
 | `pnpm dev` | Watch build into `dist/` |
 | `pnpm demo` | Runs the real in-page UI on a sample site at http://127.0.0.1:5173 (open it on a phone to test the touch layout). There is no extension runtime there, so screenshots are skipped and annotations go to `localStorage`. It also serves `/chrome-design.js` (the content script, built on request) so files downloaded from the demo open with the toolbar too. |
-| `pnpm demo:build` | Static build of the demo into `demo-dist/` |
+| `pnpm demo:build` | Static build of the demo into `demo-dist/` (`.github/workflows/demo.yml` publishes it to GitHub Pages on every push to `main`) |
 | `pnpm typecheck` | `tsc --noEmit` (TypeScript 7) |
 | `pnpm lint` | Oxlint + Biome check |
 | `pnpm lint:fix` / `pnpm format` | Auto-fix / format |
