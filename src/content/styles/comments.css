@@ -1,0 +1,346 @@
+/* ---------- comment popover (a raised sheet, Remote drawer surface) ---------- */
+.popover {
+  position: absolute;
+  pointer-events: auto;
+  background: var(--raised);
+  color: var(--ink);
+  border: 2px solid var(--line-strong);
+  border-radius: 20px;
+  box-shadow: var(--shadow-shell);
+  padding: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  max-width: calc(100vw - 16px);
+  transform-origin: var(--origin-x, 0) var(--origin-y, 0);
+}
+.popover-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+}
+/* Layers: rows are placed absolutely so a dragged row can slide past the others. */
+.layer-list {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.layer-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 12px;
+  transition:
+    translate var(--duration-settle) var(--ease-settle),
+    background-color var(--duration) var(--ease);
+}
+.layer-row[data-selected] {
+  background: var(--accent-soft);
+}
+.layer-row[data-hidden] .layer-name {
+  opacity: 0.45;
+}
+.layer-row[data-dragging] {
+  z-index: 1;
+  background: var(--raised);
+  box-shadow: 0 10px 24px -10px hsl(0 0% 0% / 0.45);
+  transition: background-color var(--duration) var(--ease);
+}
+.layer-grip {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-faint);
+  cursor: grab;
+  touch-action: none;
+}
+.layer-grip svg {
+  width: 16px;
+  height: 16px;
+}
+.layer-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: 500 13.5px var(--font);
+  text-align: left;
+}
+.layer-name svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--ink-muted);
+}
+.layer-name small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+.screen-readout {
+  margin: 0 0 10px;
+  color: var(--ink-muted);
+  font: 500 13px var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.screen-readout b {
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 650;
+}
+.scope-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--ink-muted);
+  font: 500 11.5px var(--font);
+  transition:
+    background-color var(--duration) var(--ease),
+    color var(--duration) var(--ease),
+    scale 0.16s var(--ease);
+}
+.scope-chip svg {
+  width: 14px;
+  height: 14px;
+}
+.scope-chip[data-on] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.scope-chip:active {
+  scale: 0.95;
+}
+/* A comment meant for another screen size steps back. */
+.pin[data-other-size] {
+  opacity: 0.42;
+}
+.popover-target {
+  flex: 1;
+  min-width: 0;
+  padding-left: 4px;
+  color: var(--ink-muted);
+  font: 500 12px var(--font);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pin-num {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 12px 12px 12px 4px;
+  background: var(--change);
+  color: #fff;
+  font: 650 11px / 1 var(--font);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+[data-intent="decision"] > .pin-num,
+.pin-num[data-intent="decision"] {
+  background: var(--decision);
+}
+[data-intent="question"] > .pin-num,
+.pin-num[data-intent="question"] {
+  background: var(--question);
+}
+[data-intent="note"] > .pin-num,
+.pin-num[data-intent="note"] {
+  background: var(--note);
+}
+[data-status="resolved"] > .pin-num {
+  background: var(--success);
+}
+
+/* segmented control with a moving lozenge (Remote .seg, spring --ease-settle) */
+.seg {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12.5px;
+}
+.seg-loz {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / var(--n));
+  translate: calc(var(--i) * 100%) 0;
+  background: var(--loz, var(--accent-soft));
+  border-radius: 999px;
+  transition:
+    translate var(--duration-settle) var(--ease-settle),
+    background-color var(--duration) var(--ease);
+}
+.seg button {
+  position: relative;
+  border: 0;
+  background: none;
+  padding: 6px 4px;
+  border-radius: 999px;
+  color: var(--ink-faint);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color var(--duration) var(--ease);
+}
+.seg button[data-active] {
+  color: var(--loz-ink, var(--accent));
+  font-weight: 600;
+}
+.seg[data-value="decision"] {
+  --loz: color-mix(in oklab, var(--decision), transparent 86%);
+  --loz-ink: var(--decision);
+}
+.seg[data-value="question"] {
+  --loz: color-mix(in oklab, var(--question), transparent 86%);
+  --loz-ink: var(--question);
+}
+.seg[data-value="note"] {
+  --loz: color-mix(in oklab, var(--note), transparent 86%);
+  --loz-ink: var(--note);
+}
+
+.messages {
+  max-height: 220px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  gap: 8px;
+  padding: 0 4px;
+}
+.message p {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13.5px;
+}
+.message-meta {
+  color: var(--ink-faint);
+  font-size: 11px;
+  display: flex;
+  gap: 8px;
+}
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 11px;
+}
+.link-btn:hover {
+  color: var(--danger);
+}
+.field {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 4px 4px 4px 12px;
+  border-radius: 20px;
+  border: 1.5px solid var(--card-line);
+  background: var(--card);
+  transition:
+    border-color var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
+}
+.field:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.field textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 28px;
+  max-height: 180px;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 14px / 1.35 var(--font);
+  resize: none;
+  outline: none;
+  field-sizing: content;
+}
+.field textarea::placeholder {
+  color: var(--ink-faint);
+}
+.send {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: inset 0 1px 0.5px hsl(0 0% 100% / 0.35);
+  transition:
+    scale 0.2s var(--ease),
+    opacity var(--duration) var(--ease),
+    background-color var(--duration) var(--ease);
+}
+.send svg {
+  width: 16px;
+  height: 16px;
+}
+.send:disabled {
+  background: var(--chip);
+  color: var(--ink-faint);
+  box-shadow: none;
+  cursor: default;
+}
+.send:not(:disabled):active {
+  scale: 0.88;
+}
+.stack textarea {
+  width: 100%;
+  resize: none;
+  min-height: 56px;
+  max-height: 200px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1.5px solid var(--card-line);
+  background: var(--card);
+  color: var(--ink);
+  font: 14px / 1.4 var(--font);
+  outline: none;
+  field-sizing: content;
+  transition:
+    border-color var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
+}
+.stack textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}

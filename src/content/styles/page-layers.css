@@ -1,0 +1,205 @@
+/* ---------- capture layer ---------- */
+.capture {
+  position: fixed;
+  inset: 0;
+  touch-action: manipulation;
+  cursor: default;
+}
+.capture[data-tool="draw"] {
+  touch-action: none;
+  cursor: crosshair;
+}
+.capture[data-draw-tool="text"] {
+  cursor: text;
+}
+.capture[data-draw-tool="eraser"] {
+  cursor: cell;
+}
+.capture[data-hover="shape"] {
+  cursor: move;
+}
+.capture[data-tool="comment"] {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cpath d='M3 23V11a8 8 0 0 1 8-8h4a8 8 0 0 1 8 8v0a8 8 0 0 1-8 8H8z' fill='%231e3fa8' stroke='white' stroke-width='2'/%3E%3C/svg%3E")
+    3 23,
+    crosshair;
+}
+
+/* ---------- page-space layer ---------- */
+.page-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.shape-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.hover-box {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+.hover-box {
+  stroke-opacity: 0.45;
+}
+.sel-frame[data-locked] {
+  pointer-events: none;
+  border-style: dashed;
+}
+/* A blurred box hides private content; in screenshots it's solid so nothing shows through. */
+.redact-box {
+  position: absolute;
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(-45deg, hsl(0 0% 100% / 0.14) 0 6px, transparent 6px 12px),
+    color-mix(in oklab, hsl(220 9% 58%), transparent 40%);
+  -webkit-backdrop-filter: blur(14px) saturate(0.5);
+  backdrop-filter: blur(14px) saturate(0.5);
+  outline: 1px solid hsl(220 9% 46% / 0.5);
+  outline-offset: -1px;
+}
+.redact-box[data-hidden] {
+  display: none;
+}
+/* A hidden blur still covers what it hides in every picture taken. */
+:host([data-capturing]) .redact-box[data-hidden] {
+  display: block;
+}
+:host([data-capturing]) .redact-box {
+  background: hsl(220 9% 62%);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+/* Each drawing in a group selection gets a thin outline inside the group frame. */
+.multi-box {
+  fill: none;
+  stroke: var(--inspect);
+  stroke-width: 1;
+}
+.region-drag {
+  position: absolute;
+  border: 1.5px solid var(--inspect);
+  background: color-mix(in srgb, var(--inspect) 12%, transparent);
+  border-radius: 6px;
+}
+.region-drag span {
+  position: absolute;
+  right: 0;
+  bottom: -26px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font: 600 11px / 18px var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.target-outline {
+  position: absolute;
+  border: 1.5px dashed var(--pin);
+  border-radius: 6px;
+  opacity: 0.85;
+}
+.target-outline.region {
+  background: color-mix(in srgb, var(--pin) 7%, transparent);
+  opacity: 0.65;
+}
+.target-outline[data-active] {
+  opacity: 1;
+  border-style: solid;
+}
+.target-outline.draft {
+  --pin: var(--deep-blue-bright);
+  border-width: 2px;
+}
+
+.pin {
+  position: absolute;
+  margin-top: -30px;
+  transform-origin: 0 100%;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 15px 15px 15px 4px;
+  background: var(--pin, var(--accent));
+  color: #fff;
+  font: 650 12px / 1 var(--font);
+  font-variant-numeric: tabular-nums;
+  box-shadow:
+    0 1px 2px hsl(0 0% 0% / 0.2),
+    0 8px 18px -8px hsl(0 0% 0% / 0.5);
+  display: grid;
+  place-items: center;
+  touch-action: none;
+  transition:
+    scale 0.2s var(--ease),
+    box-shadow var(--duration) var(--ease);
+}
+.pin[data-status="resolved"] {
+  opacity: 0.75;
+}
+.pin[data-active] {
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--pin) 30%, transparent),
+    0 8px 18px -8px hsl(0 0% 0% / 0.5);
+  z-index: 1;
+}
+.pin:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.pin-preview {
+  position: absolute;
+  left: 36px;
+  bottom: 2px;
+  width: max-content;
+  max-width: 240px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: var(--raised);
+  color: var(--ink);
+  font: 500 12px / 1.35 var(--font);
+  text-align: left;
+  box-shadow: var(--shadow-shell);
+  pointer-events: none;
+  opacity: 0;
+  translate: -4px 0;
+  transition:
+    opacity 0.15s var(--ease),
+    translate 0.3s var(--ease-settle);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+@media (hover: hover) {
+  .pin:hover:not([data-active]) .pin-preview {
+    opacity: 1;
+    translate: 0 0;
+    transition-delay: 0.25s;
+  }
+}
+
+.text-editor {
+  position: absolute;
+  pointer-events: auto;
+  min-width: 120px;
+  padding: 0 4px;
+  border: 1.5px solid var(--accent);
+  border-radius: 6px;
+  background: light-dark(hsl(0 0% 100% / 0.9), hsl(0 0% 9% / 0.9));
+  font-family: var(--font);
+  font-weight: 600;
+  line-height: 1.25;
+  resize: none;
+  outline: none;
+  field-sizing: content;
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}

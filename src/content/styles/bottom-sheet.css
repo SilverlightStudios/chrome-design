@@ -1,0 +1,137 @@
+/* ---------- mobile bottom sheet (Remote Desktop drawer) ---------- */
+.bsheet-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+.bsheet-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: hsl(0 0% 0% / 0.18);
+  /* Follows the sheet frame by frame (PullMotion writes --progress on the root). */
+  opacity: var(--progress, 0);
+  pointer-events: auto;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+.bsheet-root[data-phase="closing"] .bsheet-scrim {
+  pointer-events: none;
+}
+/* Spark's scrubbed drawer: a bottom-attached surface shaped by one number (--w/--h/--oy/--rb,
+   written by PullMotion) over a content plane that is always its final size (--fw/--fh). */
+.bsheet-dock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--kb, 0px);
+  margin-inline: auto;
+  width: min(100%, 560px);
+  height: 0;
+}
+.bsheet {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: var(--w, 0px);
+  /* --h already includes the overpull stretch (--rb), which lifts the plane below. */
+  height: var(--h, 0px);
+  translate: -50% var(--oy, 0px);
+  overflow: hidden;
+  contain: layout paint;
+  border-radius: 22px 22px 0 0;
+  /* Swipes on the sheet's chrome never reach the page; its list (a scroll container with its
+     own touch-action) still scrolls. */
+  touch-action: none;
+  overscroll-behavior: contain;
+  /* A solid raised surface, like the Remote Desktop drawer: text stays crisp over any page. */
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  box-shadow: 0 -10px 40px -12px hsl(0 0% 0% / 0.3);
+  pointer-events: auto;
+  color: var(--ink);
+}
+.bsheet-plane {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  translate: -50% 0;
+  width: var(--fw, 100%);
+  /* --fh-live: an open sheet easing to a new height lays its content out inside that height. */
+  height: calc(var(--fh-live, var(--fh, 0px)) + var(--rb, 0px));
+  display: flex;
+  flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom);
+  /* In step with the shape: there almost as soon as the card shows, and kept through the
+     whole shrink and half the card's drop when closing — never a blank shell. */
+  opacity: var(--reveal, 0);
+}
+.bsheet[data-dragging] {
+  cursor: grabbing;
+}
+.bsheet-grab {
+  display: grid;
+  place-items: center;
+  flex: none;
+  height: 22px;
+  touch-action: none;
+  cursor: grab;
+}
+.bsheet-grab span {
+  width: 36px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+.bsheet-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  /* The whole sheet is a drag surface; only a list that really scrolls keeps vertical pans. */
+  touch-action: none;
+}
+.bsheet-body[data-scrolls] {
+  touch-action: pan-y;
+}
+.bsheet .panel-head {
+  touch-action: none;
+}
+.bsheet-frame.leaving {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  pointer-events: none;
+  animation: sheet-leave 0.18s var(--ease) both;
+}
+.bsheet-frame[data-swapped] {
+  animation: sheet-swap-in 0.26s var(--ease) both;
+}
+.bsheet .panel {
+  width: 100%;
+  max-height: none;
+  overflow: visible;
+  padding: 4px 16px 16px;
+}
+/* The toolbar steps aside while a sheet covers the bottom of the screen. */
+.dock {
+  transition:
+    left 0.45s var(--ease-settle),
+    top 0.45s var(--ease-settle),
+    bottom 0.45s var(--ease-settle),
+    opacity 0.3s var(--ease),
+    translate 0.45s var(--ease-settle);
+}
+.dock[data-covered],
+.root:has(> .bsheet-root[data-phase="open"]) .dock {
+  opacity: 0;
+  translate: -50% 24px;
+  pointer-events: none;
+}
+.dock[data-covered] > *,
+.root:has(> .bsheet-root[data-phase="open"]) .dock > * {
+  pointer-events: none;
+}

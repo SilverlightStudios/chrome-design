@@ -8,7 +8,7 @@ import { getSettings, openSettingsPage } from './ext';
 import { type HandoffData, handoffDoc } from './handoff';
 import { debounce, loadDoc, loadGrid, pageKey, saveDoc, saveGrid } from './persistence';
 import { createInitialState, EditorStore, emptyDoc } from './store';
-import css from './styles.css?inline';
+import css from './styles/index.css?inline';
 import { recorder } from './walkthrough/recorder';
 
 export interface Mounted {

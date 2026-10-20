@@ -1,0 +1,102 @@
+/*
+ * Glass: every see-through surface in one place. The CSS glass (chips, toast, cards), the
+ * Liquid Glass of the toolbar and the bars made with <LiquidGlass>, the denser glass of text-
+ * heavy sheets, and what each falls back to (CSP, dark mode, Reduce Transparency).
+ */
+
+/* The Remote's CSS glass (chips, keys, toast): frost + saturation + rim. A little more fill
+   here, because a live website behind can be anything. */
+.glass-css {
+  /* Remote Desktop --glass fill: reads as frosted even where backdrop blur isn't composited. */
+  background: light-dark(hsl(0 0% 100% / 0.74), hsl(0 0% 11% / 0.74));
+  -webkit-backdrop-filter: blur(14px) saturate(1.9) brightness(1.06);
+  backdrop-filter: blur(14px) saturate(1.9) brightness(1.06);
+  box-shadow:
+    var(--rim),
+    0 10px 30px -12px hsl(0 0% 0% / 0.35);
+}
+
+/* Liquid Glass: the toolbar and every bar made with <LiquidGlass> (the selection bar). */
+:is(.toolbar, .glass-bar) {
+  --tb-ink: hsl(0 0% 12%);
+  --tb-ink-muted: hsl(0 0% 12% / 0.66);
+  --tb-on: var(--deep-blue);
+  --tb-on-bg: hsl(226 74% 40% / 0.13);
+  --tb-press: hsl(0 0% 0% / 0.08);
+  --tb-sep: hsl(0 0% 0% / 0.12);
+  color: var(--tb-ink);
+  background: hsl(0 0% 100% / 0.22);
+  -webkit-backdrop-filter: var(--glass-filter, blur(9px)) blur(2px) saturate(1.9) brightness(1.06);
+  backdrop-filter: var(--glass-filter, blur(9px)) blur(2px) saturate(1.9) brightness(1.06);
+  box-shadow:
+    inset 0 1px 0.5px hsl(0 0% 100% / 0.95),
+    inset 0 -0.5px 0.5px hsl(0 0% 100% / 0.55),
+    inset 1px 0 1.5px hsl(0 0% 0% / 0.06),
+    inset -1px 0 1.5px hsl(0 0% 0% / 0.06),
+    0 10px 30px -10px hsl(0 0% 0% / 0.35),
+    0 2px 6px -2px hsl(0 0% 0% / 0.12);
+  transition:
+    color 0.35s var(--ease),
+    background-color 0.35s var(--ease);
+}
+:is(.toolbar, .glass-bar)[data-tone="dark"] {
+  --tb-ink: hsl(0 0% 97%);
+  --tb-ink-muted: hsl(0 0% 97% / 0.7);
+  --tb-on: var(--deep-blue-bright);
+  --tb-on-bg: hsl(222 92% 64% / 0.22);
+  --tb-press: hsl(0 0% 100% / 0.12);
+  --tb-sep: hsl(0 0% 100% / 0.16);
+  background: hsl(0 0% 12% / 0.32);
+  box-shadow:
+    inset 0 1px 0.5px hsl(0 0% 100% / 0.35),
+    inset 0 -0.5px 0.5px hsl(0 0% 100% / 0.12),
+    inset 1px 0 1.5px hsl(0 0% 0% / 0.3),
+    inset -1px 0 1.5px hsl(0 0% 0% / 0.3),
+    0 10px 30px -10px hsl(0 0% 0% / 0.5),
+    0 2px 6px -2px hsl(0 0% 0% / 0.2);
+}
+/* CSS fallback (CSP blocks the displacement map): a little more frost and fill */
+:is(.toolbar, .glass-bar)[data-glass="css"] {
+  background: hsl(0 0% 100% / 0.72);
+  -webkit-backdrop-filter: blur(12px) saturate(1.9) brightness(1.06);
+  backdrop-filter: blur(12px) saturate(1.9) brightness(1.06);
+}
+:is(.toolbar, .glass-bar)[data-glass="css"][data-tone="dark"] {
+  background: hsl(0 0% 12% / 0.66);
+}
+/* Dark mode: dark glass even over a light page, so it matches the panels. */
+@media (prefers-color-scheme: dark) {
+  :is(.toolbar, .glass-bar)[data-tone="dark"] {
+    background: hsl(0 0% 10% / 0.58);
+  }
+  :is(.toolbar, .glass-bar)[data-glass="css"][data-tone="dark"] {
+    background: hsl(0 0% 10% / 0.8);
+  }
+}
+/* Text and icons inside a glass bar follow its tone. */
+.glass-bar {
+  --ink: var(--tb-ink);
+  --ink-muted: var(--tb-ink-muted);
+}
+
+/* Text-heavy floating panels get a denser glass than the small chips. */
+.sheet-shell.panel-shell {
+  background: light-dark(hsl(0 0% 100% / 0.84), hsl(0 0% 11% / 0.84));
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+}
+
+/* Text-heavy surfaces stay legible on busy pages even where backdrop blur is off
+   (Low Power Mode, Reduce Transparency). */
+.selection-bar.glass-css,
+.details-card.glass-css,
+.toast.glass-css {
+  background: light-dark(hsl(0 0% 100% / 0.88), hsl(0 0% 11% / 0.88));
+}
+@media (prefers-reduced-transparency: reduce) {
+  .root :is(.glass-css, .sheet-shell, .toolbar[data-glass], .glass-bar) {
+    background: var(--raised);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

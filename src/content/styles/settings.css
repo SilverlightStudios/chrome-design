@@ -1,0 +1,133 @@
+/* ---------- Settings ---------- */
+.settings-panel {
+  width: min(340px, calc(100vw - 16px));
+}
+.set-list {
+  display: grid;
+  border-radius: 16px;
+  background: var(--chip);
+}
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 12px;
+}
+.set-row + .set-row {
+  border-top: 1px solid var(--line);
+}
+.set-title {
+  font: 500 13.5px / 1.25 var(--font);
+}
+.set-value {
+  font: 500 12.5px / 1 var(--font);
+  color: var(--ink-faint);
+}
+.set-action {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--ink-muted);
+  font: 600 12.5px / 1 var(--font);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.set-action[data-on] {
+  color: var(--success);
+}
+.set-kbd {
+  padding: 3px 7px;
+  border-radius: 7px;
+  background: var(--raised);
+  font: 600 12px / 1 var(--font);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.set-foot {
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  padding: 0 4px;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+.thread-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.thread-item {
+  width: 100%;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 10px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--ink);
+  transition:
+    background-color var(--duration) var(--ease),
+    scale 0.2s var(--ease);
+}
+.thread-item:hover,
+.thread-item[data-active] {
+  background: var(--card-hover);
+}
+.thread-item:active {
+  scale: 0.985;
+}
+.thread-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.thread-meta {
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 600;
+}
+.thread-text {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+  font-size: 13.5px;
+}
+
+.kbd-list {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.kbd-list div {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 8px;
+  align-items: baseline;
+}
+.kbd-list dd {
+  margin: 0;
+  color: var(--ink-muted);
+}
+kbd {
+  display: inline-block;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--chip);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font: 600 11px / 1.5 var(--mono);
+  text-align: center;
+}

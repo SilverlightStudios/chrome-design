@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 /*
  * Animated icons. Geometry is Lucide (ISC, lucide.dev); the motion follows Lucide Animated
  * (MIT, pqoqubbw/icons — the "animated icons" reference in Spark's resources), ported from its
- * motion/react variants to CSS keyframes in styles.css (`.ai-*`), so there's no animation
+ * motion/react variants to CSS keyframes in styles/icons.css (`.ai-*`), so there's no animation
  * library in the content script. Icons Lucide Animated doesn't have (pencil, ruler, columns,
  * list, shapes, text, eraser, ellipsis, info) get motion in the same spirit.
  *

@@ -1,0 +1,113 @@
+/* ---------- entrances (CSS springs) ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .popover {
+    transition:
+      opacity 0.2s var(--ease),
+      scale var(--duration-bounce) var(--ease-bounce);
+    @starting-style {
+      opacity: 0;
+      scale: 0.6;
+    }
+  }
+  .pin {
+    @starting-style {
+      scale: 0.3;
+    }
+  }
+  .pin:active {
+    scale: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: reduced motion wins everywhere */
+    animation-duration: 0.01ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: reduced motion wins everywhere */
+    animation-iteration-count: 1 !important;
+    /* biome-ignore lint/complexity/noImportantStyles: reduced motion wins everywhere */
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (pointer: coarse) {
+  /* No keyboard to hint at on touch screens. */
+  .menu-item kbd,
+  .tip-label kbd,
+  .tip-measure kbd {
+    display: none;
+  }
+  /* iOS zooms into inputs smaller than 16px on focus. */
+  .field textarea,
+  .stack textarea,
+  .text-editor,
+  .dial-input {
+    font-size: 16px;
+  }
+  .dial-wrap,
+  .dial-row {
+    height: 44px;
+  }
+}
+
+/* Phones: keep the whole toolbar on screen. */
+@media (max-width: 480px) {
+  .toolbar-row,
+  .subbar {
+    gap: 0;
+    padding: 3px;
+  }
+  .subbar {
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: calc(100vw - 16px);
+  }
+  .tb-btn {
+    width: 32px;
+    height: 38px;
+  }
+  .tb-btn.close {
+    width: 28px;
+  }
+  .tb-btn.droplet {
+    width: 38px;
+  }
+  .tb-sep {
+    margin: 0 1px;
+  }
+  .inspector {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: 40vh;
+  }
+  .status-chip {
+    font-size: 12px;
+  }
+}
+
+.seg.small {
+  font-size: 11.5px;
+}
+.seg.small button {
+  padding: 4px 2px;
+}
+/* Closing: the bubble shrinks back into its pin as it fades. */
+.popover[data-exiting] {
+  pointer-events: none;
+  opacity: 0;
+  scale: 0.92;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .popover[data-exiting] {
+    transition:
+      opacity 0.14s var(--ease),
+      scale 0.16s var(--ease);
+  }
+}
+.message-meta b {
+  color: var(--ink);
+  font-weight: 600;
+}

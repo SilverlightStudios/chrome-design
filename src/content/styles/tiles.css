@@ -1,0 +1,180 @@
+/* ---------- menus + tiles ---------- */
+.tb-btn.has-menu .menu-mark {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 0;
+  height: 0;
+  /* ◢ tucked into the corner (Figma's "more options here" mark) */
+  border-left: 5px solid transparent;
+  border-bottom: 5px solid currentColor;
+  border-bottom-right-radius: 1px;
+  opacity: 0.55;
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  transition:
+    background-color var(--duration) var(--ease),
+    scale 0.15s var(--ease);
+}
+.menu-item svg {
+  width: 17px;
+  height: 17px;
+  color: var(--ink-muted);
+}
+.menu-item span {
+  flex: 1;
+}
+.menu-item kbd {
+  background: none;
+  border: 0;
+  color: var(--ink-faint);
+}
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--chip);
+  outline: none;
+}
+.menu-item[data-active] {
+  color: var(--accent);
+}
+.menu-item[data-active] svg {
+  color: var(--accent);
+}
+.menu-item:active {
+  scale: 0.98;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.tile {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 12px 4px 10px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--chip);
+  color: var(--ink);
+  transition:
+    scale 0.2s var(--ease),
+    background-color var(--duration) var(--ease),
+    color var(--duration) var(--ease);
+  animation: tile-pop 0.4s var(--elastic) both;
+}
+.tile-wrap:nth-child(2) > .tile {
+  animation-delay: 20ms;
+}
+.tile-wrap:nth-child(3) > .tile {
+  animation-delay: 40ms;
+}
+.tile-wrap:nth-child(4) > .tile {
+  animation-delay: 60ms;
+}
+.tile-wrap:nth-child(5) > .tile {
+  animation-delay: 80ms;
+}
+.tile-wrap:nth-child(6) > .tile {
+  animation-delay: 100ms;
+}
+.tile-wrap:nth-child(7) > .tile {
+  animation-delay: 120ms;
+}
+.tile-wrap:nth-child(8) > .tile {
+  animation-delay: 140ms;
+}
+.tile:active {
+  scale: 0.92;
+}
+.tile-wrap {
+  position: relative;
+  display: grid;
+}
+/* A tile's settings: a small ⋯ that pops into the corner while the tile is on. */
+.tile-more {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--raised);
+  color: var(--accent);
+  box-shadow: 0 1px 3px hsl(0 0% 0% / 0.12);
+  opacity: 0;
+  scale: 0.5;
+  touch-action: manipulation;
+  transition:
+    opacity 0.18s var(--ease),
+    scale 0.3s var(--ease-bounce);
+}
+/* bigger touch target than the dot */
+.tile-more::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+.tile-more svg {
+  width: 16px;
+  height: 16px;
+}
+.tile-more[data-shown] {
+  opacity: 1;
+  scale: 1;
+}
+.tile-more[data-shown]:active {
+  scale: 0.88;
+}
+.tile-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.tile-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.tile-icon .tb-badge {
+  top: -6px;
+  right: -10px;
+}
+.tile-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  text-align: center;
+}
+.tile[data-on] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tile[data-on] .tile-label {
+  color: var(--accent);
+}
+.tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.more-panel {
+  width: min(340px, calc(100vw - 16px));
+}

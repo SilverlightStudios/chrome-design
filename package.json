@@ -11,7 +11,7 @@
     "build": "node scripts/build.mjs",
     "demo": "vite --config vite.demo.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "oxlint && biome check .",
+    "lint": "oxlint && biome check . && node scripts/unused-css.mjs",
     "lint:fix": "biome check --write . && oxlint --fix",
     "format": "biome format --write .",
     "test": "vitest run",

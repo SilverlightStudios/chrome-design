@@ -1,0 +1,154 @@
+/*
+ * Chrome Design in-page UI (lives in a Shadow DOM; nothing here touches the page).
+ *
+ * Visual language from the Studio Hub Remote Desktop viewer (assist/public/desk/desk.css):
+ * its Spark-derived tokens, restrained deep-blue accent, capsule Liquid Glass toolbar, CSS
+ * glass for chips/toast, raised sheets, status pill and toast. Motion curves are Spark's
+ * (src/styles/tokens.css): --ease, --ease-bounce, --ease-settle, --elastic, iOS sheet rise.
+ */
+
+:host {
+  all: initial;
+  color-scheme: light dark;
+  --deep-blue: hsl(226 74% 40%);
+  --deep-blue-bright: hsl(222 92% 64%);
+  --accent: light-dark(var(--deep-blue), var(--deep-blue-bright));
+  --accent-soft: color-mix(in oklab, var(--accent), transparent 88%);
+  --accent-ink: #fff;
+  --page: light-dark(hsl(0 0% 97%), hsl(0 0% 3%));
+  --raised: light-dark(hsl(0 0% 100%), hsl(0 0% 11%));
+  --card: light-dark(hsl(0 0% 100%), hsl(0 0% 6%));
+  --card-line: light-dark(hsl(0 0% 80%), hsl(0 0% 22%));
+  --card-hover: light-dark(hsl(0 0% 94%), hsl(0 0% 13%));
+  --chip: color-mix(in oklab, var(--ink), transparent 93%);
+  --ink: light-dark(hsl(0 0% 12%), hsl(0 0% 96%));
+  --ink-muted: light-dark(hsl(0 0% 46%), hsl(0 0% 58%));
+  --ink-faint: light-dark(hsl(0 0% 62%), hsl(0 0% 40%));
+  --line: light-dark(hsl(0 0% 88%), hsl(0 0% 18%));
+  --line-strong: light-dark(hsl(0 0% 78%), hsl(0 0% 26%));
+  --danger: light-dark(hsl(352 70% 47%), hsl(352 86% 70%));
+  --danger-soft: color-mix(in oklab, var(--danger), transparent 87%);
+  --success: light-dark(hsl(146 62% 37%), hsl(146 56% 40%));
+  /* Spark's fluid tooltip curve. */
+  --fluid: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Walkthrough ink, laser and pins: Scrawl's marker red. */
+  --rec: #ff3b30;
+  --warn: hsl(40 92% 50%);
+  --change: var(--accent);
+  --decision: light-dark(hsl(262 60% 50%), hsl(262 80% 72%));
+  --question: light-dark(hsl(32 90% 44%), hsl(38 92% 58%));
+  --note: light-dark(hsl(215 16% 42%), hsl(215 16% 62%));
+  --inspect: var(--deep-blue-bright);
+  --measure: hsl(346 84% 58%);
+  --guide: hsl(334 90% 58%);
+  --margin-tone: hsl(30 88% 52%);
+  --padding-tone: hsl(146 55% 40%);
+
+  --ease: linear(
+    0,
+    0.2688 9.91%,
+    0.3859 15%,
+    0.4917 20.19%,
+    0.5865 25.5%,
+    0.6705 30.93%,
+    0.7441 36.51%,
+    0.8075 42.26%,
+    0.8593 47.98%,
+    0.9022 53.93%,
+    0.9366 60.13%,
+    0.963 66.67%,
+    0.9812 73.4%,
+    0.9929 80.76%,
+    0.9986 88.89%,
+    1
+  );
+  --duration: 0.26s;
+  --ease-bounce: linear(
+    0,
+    0.138 5%,
+    0.4316 10%,
+    0.7381 15%,
+    0.9748 20%,
+    1.1131 25%,
+    1.1618 30%,
+    1.1482 35%,
+    1.1034 40%,
+    1.0525 45%,
+    1.0109 50%,
+    0.9849 55%,
+    0.9743 60%,
+    0.9748 65%,
+    0.9814 70%,
+    0.9898 75%,
+    0.997 80%,
+    1.0018 85%,
+    1.004 90%,
+    1.0042 95%,
+    1
+  );
+  --duration-bounce: 0.477s;
+  --ease-settle: linear(
+    0,
+    0.0728 5%,
+    0.237 10%,
+    0.431 15%,
+    0.6161 20%,
+    0.7715 25%,
+    0.8895 30%,
+    0.9708 35%,
+    1.0206 40%,
+    1.0459 45%,
+    1.0541 50%,
+    1.0516 55%,
+    1.0433 60%,
+    1.0328 65%,
+    1.0226 70%,
+    1.0138 75%,
+    1.007 80%,
+    1.0023 85%,
+    0.9993 90%,
+    0.9977 95%,
+    1
+  );
+  --duration-settle: 0.444s;
+  --elastic: linear(
+    0,
+    -0.0055 4.83%,
+    -0.0317 15.58%,
+    -0.0351 20.24%,
+    -0.031 23.11%,
+    -0.0216 25.78%,
+    -0.0065 28.32%,
+    0.0143 30.74%,
+    0.0478 33.58%,
+    0.0907 36.32%,
+    0.2048 41.53%,
+    0.3517 46.27%,
+    0.6096 52.68%,
+    0.7371 56.42%,
+    0.8583 61.09%,
+    0.9466 66.02%,
+    0.9811 68.81%,
+    1.0068 71.72%,
+    1.0241 74.79%,
+    1.0334 78.07%,
+    1.0326 83.83%,
+    1.0053 95.23%,
+    1
+  );
+  --sheet-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --shadow-shell:
+    0 0.5px 0.6px hsl(0 0% 0% / 0.04), 0 1.8px 2.3px -0.5px hsl(0 0% 0% / 0.05), 0 4.2px 5.3px -1.1px hsl(
+      0 0% 0% /
+      0.07
+    ),
+    0 9.7px 12.1px -1.6px hsl(0 0% 0% / 0.08), 0 24px 34px -2.2px hsl(0 0% 0% / 0.09);
+  /* Liquid Glass rim (Remote: inset light top/bottom, soft side shade) */
+  --rim:
+    inset 0 1px 0.5px light-dark(hsl(0 0% 100% / 0.95), hsl(0 0% 100% / 0.35)),
+    inset 0 -0.5px 0.5px light-dark(hsl(0 0% 100% / 0.55), hsl(0 0% 100% / 0.12)),
+    inset 1px 0 1.5px light-dark(hsl(0 0% 0% / 0.06), hsl(0 0% 0% / 0.3)),
+    inset -1px 0 1.5px light-dark(hsl(0 0% 0% / 0.06), hsl(0 0% 0% / 0.3));
+  --font: "SF Pro Text", -apple-system, system-ui, "Helvetica Neue", "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}

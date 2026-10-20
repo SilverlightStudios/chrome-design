@@ -1,0 +1,108 @@
+/* ---------- spring-sized sheets (Spark StackableDrawer) ---------- */
+.sheet-slot {
+  position: relative;
+  flex: none;
+}
+.sheet-shell {
+  position: absolute;
+  left: 50%;
+  width: var(--shell-w, 100%);
+  height: var(--shell-h, 100%);
+  translate: -50% var(--shell-y, 0px);
+  overflow: hidden;
+  contain: layout paint;
+  border-radius: 22px;
+  opacity: var(--shell-o, 1);
+}
+.sheet-slot[data-anchor="bottom"] .sheet-shell {
+  bottom: 0;
+}
+.sheet-slot[data-anchor="top"] .sheet-shell {
+  top: 0;
+}
+.sheet-frame {
+  position: absolute;
+  left: 50%;
+  translate: -50% 0;
+  width: max-content;
+  animation: sheet-reveal 0.384s linear both;
+}
+/* Swapping panels: the old content fades out on top while the new one fades in underneath. */
+.sheet-frame.leaving {
+  z-index: 1;
+  pointer-events: none;
+  animation: sheet-leave 0.18s var(--ease) both;
+}
+.sheet-frame[data-swapped] {
+  animation: sheet-swap-in 0.26s var(--ease) both;
+}
+@keyframes sheet-leave {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes sheet-swap-in {
+  0%,
+  20% {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.sheet-slot[data-anchor="bottom"] .sheet-frame {
+  bottom: 0;
+}
+.sheet-slot[data-anchor="top"] .sheet-frame {
+  top: 0;
+}
+/* Closing: the whole sheet, content included, sinks back into the toolbar — never blank. */
+.sheet-slot {
+  /* Spark's drawer close: 180ms. */
+  transition:
+    opacity 0.18s var(--ease),
+    translate 0.18s var(--ease),
+    scale 0.18s var(--ease);
+  transform-origin: 50% 100%;
+}
+.sheet-slot[data-anchor="top"] {
+  transform-origin: 50% 0;
+}
+.sheet-slot[data-phase="closing"] {
+  pointer-events: none;
+  opacity: 0;
+  translate: 0 14px;
+  scale: 0.96;
+}
+.sheet-slot[data-anchor="top"][data-phase="closing"] {
+  translate: 0 -14px;
+}
+/* A sheet closed mid-reveal or mid-swap shows its content in full while it leaves. */
+.sheet-slot[data-phase="closing"] .sheet-frame,
+.bsheet-root[data-phase="closing"] .bsheet-frame {
+  animation: none;
+}
+.sheet-slot[data-phase="closing"] .sheet-frame.leaving,
+.bsheet-root[data-phase="closing"] .bsheet-frame.leaving {
+  visibility: hidden;
+}
+/* Content arrives early so it grows with the surface instead of appearing after it. */
+@keyframes sheet-reveal {
+  0%,
+  14% {
+    opacity: 0;
+  }
+  58%,
+  to {
+    opacity: 1;
+  }
+}
+/* The drawing bar is a capsule; its popovers and tooltips must escape the clip once open. */
+.subbar-shell {
+  border-radius: 999px;
+}
+.sheet-slot:not([data-phase="closing"])
+  .subbar-shell:has(.tip-group:is([data-visible="true"], [data-menu])) {
+  overflow: visible;
+  contain: none;
+}

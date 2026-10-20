@@ -1,0 +1,53 @@
+/*
+ * Chrome Design's in-page UI styles, one file per part, in cascade order (later files win
+ * ties, so the order matters). Inlined into one sheet for the shadow root (mount.tsx).
+ */
+
+/* Colours, type, motion curves and shadows: every value the rest uses. */
+@import "./tokens.css";
+/* Resets, what hides while a picture is taken, the active frame. */
+@import "./base.css";
+/* Every see-through surface and its fallbacks. */
+@import "./glass.css";
+/* Walkthroughs: the recording edge, ink, laser, pins, the recording bar, the card in Send to AI. */
+@import "./walkthrough.css";
+/* The layers over the page: capture, drawings, hidden areas, group selection. */
+@import "./page-layers.css";
+/* The comment popover, layer rows and the segmented control. */
+@import "./comments.css";
+/* Buttons. */
+@import "./buttons.css";
+/* The toolbar: the dock, its buttons, the Send droplet. */
+@import "./toolbar.css";
+/* Tooltips and the menus grown out of them. */
+@import "./tooltips.css";
+/* Floating sheets that size to their panel. */
+@import "./sheets.css";
+/* Panels: layout, fields, the export pill, back buttons. */
+@import "./panels.css";
+/* Columns and the DialKit sliders. */
+@import "./columns.css";
+/* Settings. */
+@import "./settings.css";
+/* The status chip and toasts. */
+@import "./status.css";
+/* Inspecting elements and measurement guides. */
+@import "./inspect.css";
+/* Column grid and rulers. */
+@import "./grid-rulers.css";
+/* Selected drawings and the selection bar. */
+@import "./selection.css";
+/* Menus and the More tiles. */
+@import "./tiles.css";
+/* Small panel parts: summary rows, options. */
+@import "./panel-bits.css";
+/* Phones: panels as bottom sheets. */
+@import "./bottom-sheet.css";
+/* Opening and closing the tool. */
+@import "./open-close.css";
+/* Pictures: attachments, placed images, the drop target, the viewer. */
+@import "./images.css";
+/* Entrances, the toolbar on phones, closing bubbles. */
+@import "./entrances.css";
+/* Animated icons. */
+@import "./icons.css";

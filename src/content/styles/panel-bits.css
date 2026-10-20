@@ -1,0 +1,38 @@
+/* ---------- panel bits ---------- */
+.summary-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--chip);
+  font-size: 13px;
+  font-weight: 500;
+}
+.summary-row svg {
+  width: 17px;
+  height: 17px;
+  color: var(--accent);
+  flex: none;
+}
+details.options summary,
+.export-result details summary {
+  cursor: pointer;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  padding: 2px;
+}
+details.options .checks {
+  margin-top: 6px;
+}
+.welcome-head {
+  display: grid;
+  gap: 2px;
+  padding: 2px;
+}
+.welcome-head h2 {
+  font-size: 17px;
+}
+.welcome-head p {
+  margin: 0;
+}

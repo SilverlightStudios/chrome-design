@@ -1,0 +1,206 @@
+/* ---------- morphing tooltip (Spark examples/morphing-tooltip) ---------- */
+/* ---------- tooltips: Spark's fluid tooltip (motion/Tooltip.tsx) ---------- */
+.tip-group {
+  position: relative;
+  isolation: isolate;
+  /* Press, hold and slide along the controls on touch screens. */
+  touch-action: none;
+}
+.tip-surface {
+  position: absolute;
+  z-index: 3;
+  top: var(--tip-top);
+  left: var(--tip-left);
+  width: var(--tip-width);
+  height: var(--tip-height);
+  pointer-events: none;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--page);
+  box-shadow: 0 8px 24px -8px hsl(0 0% 0% / 0.28);
+  opacity: 0;
+  transform: translateY(4px) scale(0.96);
+  transform-origin: var(--tip-arrow) bottom;
+  transition:
+    left 200ms var(--fluid),
+    top 200ms var(--fluid),
+    width 200ms var(--fluid),
+    height 200ms var(--fluid),
+    border-radius 200ms var(--fluid),
+    opacity 120ms ease-out,
+    transform 200ms var(--fluid);
+}
+.tip-group[data-placement="down"] .tip-surface {
+  transform: translateY(-4px) scale(0.96);
+  transform-origin: var(--tip-arrow) top;
+}
+.tip-group[data-visible="true"] .tip-surface {
+  opacity: 1;
+  transform: none;
+}
+/* Placed without sliding: shown fresh, keyboard focus, reduced motion. */
+.tip-group[data-snap] .tip-surface {
+  transition:
+    opacity 120ms ease-out,
+    transform 200ms var(--fluid);
+}
+.tip-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  border-radius: inherit;
+}
+.tip-label {
+  position: absolute;
+  inset: 0;
+  justify-content: center;
+}
+.tip-label,
+.tip-measure {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 10px;
+  color: var(--page);
+  font: 600 12px / 1 var(--font);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.tip-label kbd,
+.tip-measure kbd {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  opacity: 0.6;
+  font: 600 10.5px / 1 var(--mono);
+}
+.tip-measure {
+  position: absolute;
+  left: 0;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.tip-viewport:not([data-direction="0"]) .tip-label.current {
+  animation: tip-label-in 200ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.tip-viewport:not([data-direction="0"]) .tip-label.previous {
+  animation: tip-label-out 200ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@keyframes tip-label-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--tip-travel));
+  }
+}
+@keyframes tip-label-out {
+  to {
+    opacity: 0;
+    transform: translateX(calc(var(--tip-travel) * -1));
+  }
+}
+.tip-arrow {
+  position: absolute;
+  bottom: -3px;
+  left: var(--tip-arrow);
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  background: var(--ink);
+  rotate: 45deg;
+  transition: left 200ms var(--fluid);
+}
+.tip-group[data-placement="down"] .tip-arrow {
+  top: -3px;
+  bottom: auto;
+}
+.tip-group[data-snap] .tip-arrow {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tip-viewport:not([data-direction="0"]) .tip-label.current,
+  .tip-viewport:not([data-direction="0"]) .tip-label.previous {
+    animation: none;
+  }
+}
+
+/* A menu grown out of the tooltip: the same dark surface, sized to its content. */
+.tip-group[data-menu] .tip-surface {
+  z-index: 3;
+  pointer-events: auto;
+  border-radius: 16px;
+  box-shadow: 0 12px 32px -10px hsl(0 0% 0% / 0.45);
+}
+.tip-menu {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  padding: 8px;
+  color: var(--page);
+  font: 500 13px / 1.2 var(--font);
+  animation: tip-menu-in 0.24s var(--ease) 0.12s both;
+}
+@keyframes tip-menu-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+.tip-menu .shape-menu {
+  display: grid;
+  gap: 2px;
+  min-width: 168px;
+  margin: -2px;
+}
+.tip-menu .menu-item {
+  color: var(--page);
+}
+.tip-menu .menu-item svg,
+.tip-menu .menu-item kbd {
+  color: color-mix(in oklab, var(--page), transparent 40%);
+}
+.tip-menu .menu-item:hover,
+.tip-menu .menu-item:focus-visible {
+  background: color-mix(in oklab, var(--page), transparent 88%);
+}
+.tip-menu .menu-item[data-active],
+.tip-menu .menu-item[data-active] svg {
+  color: var(--deep-blue-bright);
+}
+.tip-menu .swatches {
+  padding: 2px;
+}
+.tip-menu .swatch-btn {
+  box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.16);
+}
+.tip-menu .swatch-btn[data-active] {
+  box-shadow:
+    0 0 0 2px var(--ink),
+    0 0 0 4px var(--page);
+}
+.tip-menu .stroke-menu {
+  display: grid;
+  gap: 6px;
+}
+.tip-menu .width-btn {
+  min-width: 40px;
+  background: color-mix(in oklab, var(--page), transparent 90%);
+}
+.tip-menu .width-btn span {
+  background: var(--page);
+}
+.tip-menu .width-btn[data-active] {
+  background: color-mix(in oklab, var(--deep-blue-bright), transparent 70%);
+}
+.tip-menu .width-btn[data-active] span {
+  background: var(--deep-blue-bright);
+}
+.tip-menu .width-btn .line-sample[data-dashed] {
+  background: repeating-linear-gradient(90deg, var(--page) 0 6px, transparent 6px 10px);
+}
+.tip-menu .width-btn[data-active] .line-sample[data-dashed] {
+  background: repeating-linear-gradient(90deg, var(--deep-blue-bright) 0 6px, transparent 6px 10px);
+}

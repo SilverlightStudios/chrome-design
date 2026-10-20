@@ -1,0 +1,124 @@
+/* ---------- grid + rulers ---------- */
+.grid-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+.grid-col {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.ruler {
+  position: fixed;
+  display: block;
+  touch-action: none;
+  /* read by the canvas for its ticks and numbers */
+  color: var(--ink);
+}
+.ruler-x {
+  top: 0;
+  left: 20px;
+  cursor: row-resize;
+}
+.ruler-y {
+  top: 20px;
+  left: 0;
+  cursor: col-resize;
+}
+.ruler-strip {
+  position: fixed;
+  pointer-events: none;
+  /* Solid, so the numbers read over any page (no reliance on backdrop blur). */
+  background: color-mix(in oklab, var(--raised), transparent 6%);
+}
+.ruler-strip.x {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+}
+.ruler-strip.y {
+  top: 20px;
+  left: 0;
+  bottom: 0;
+  width: 20px;
+}
+.ruler-corner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 12px;
+  display: grid;
+  place-items: center;
+}
+.guide {
+  position: fixed;
+  touch-action: none;
+}
+.guide[data-axis="x"] {
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  margin-left: -4px;
+  cursor: col-resize;
+}
+.guide[data-axis="y"] {
+  left: 0;
+  right: 0;
+  height: 9px;
+  margin-top: -4px;
+  cursor: row-resize;
+}
+.guide::before {
+  content: "";
+  position: absolute;
+  background: var(--guide);
+}
+.guide[data-axis="x"]::before {
+  left: 4px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.guide[data-axis="y"]::before {
+  top: 4px;
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+.guide-label {
+  position: absolute;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--guide);
+  color: #fff;
+  font: 600 10px / 16px var(--font);
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transition: opacity 0.15s var(--ease);
+}
+.guide[data-axis="x"] .guide-label {
+  top: 26px;
+  left: 8px;
+}
+.guide[data-axis="y"] .guide-label {
+  left: 26px;
+  top: 8px;
+}
+.guide:hover .guide-label,
+.guide[data-dragging] .guide-label {
+  opacity: 1;
+}
+/* No hover on touch screens: guide positions are always shown. */
+@media (hover: none) {
+  .guide-label {
+    opacity: 1;
+  }
+}

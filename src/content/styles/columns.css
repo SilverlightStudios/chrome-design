@@ -1,0 +1,325 @@
+/* ---------- Columns ---------- */
+.grid-panel {
+  width: min(320px, calc(100vw - 16px));
+}
+.grid-panel .panel-head {
+  align-items: center;
+}
+.switch-btn {
+  display: grid;
+  place-items: center;
+  margin: -6px -4px -6px auto;
+  padding: 6px 4px;
+  border: 0;
+  background: none;
+  touch-action: manipulation;
+}
+.switch-btn .switch {
+  margin: 0;
+}
+.layout-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.layout-tile {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 8px 2px 6px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--chip);
+  color: var(--ink-muted);
+  font: 500 11.5px / 1.1 var(--font);
+  touch-action: manipulation;
+  transition:
+    background-color var(--duration) var(--ease),
+    color var(--duration) var(--ease),
+    scale 0.14s var(--ease);
+}
+.layout-tile:active {
+  scale: 0.96;
+}
+.layout-tile .lp-frame {
+  fill: none;
+  stroke: currentColor;
+  stroke-opacity: 0.35;
+}
+.layout-tile .lp-col {
+  fill: currentColor;
+  fill-opacity: 0.45;
+}
+.layout-tile[data-active] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.layout-tile[data-active] .lp-col {
+  fill-opacity: 0.9;
+}
+@media (hover: hover) and (pointer: fine) {
+  .layout-tile:not([data-active]):hover {
+    background: var(--card-hover);
+    color: var(--ink);
+  }
+}
+.dials {
+  display: flex;
+  flex-direction: column;
+}
+.dials > :not(.reveal, :first-child) {
+  margin-top: 6px;
+}
+/* Folds a row away when it doesn't apply; its spacing lives inside so it folds too. */
+.dials > .reveal {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows 0.32s var(--ease),
+    opacity 0.2s var(--ease);
+}
+.dials > .reveal > div {
+  /* flow-root keeps the row's top margin inside, so it folds away too */
+  display: flow-root;
+  min-height: 0;
+  overflow: clip;
+  /* room for the bar's end-of-range stretch */
+  margin-inline: -10px;
+  padding-inline: 10px;
+}
+.dials > .reveal > div > * {
+  margin-top: 6px;
+}
+.dials > .reveal[data-hidden] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+/* DialKit-style slider: the whole row is the control. */
+.dial-wrap {
+  position: relative;
+  height: 40px;
+}
+.dial {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(100% + var(--stretch, 0px));
+  translate: var(--shift, 0px) 0;
+  border-radius: 14px;
+  background: var(--chip);
+  overflow: clip;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.dial:not([data-phase="drag"]) {
+  transition:
+    width 0.35s var(--ease-bounce),
+    translate 0.35s var(--ease-bounce);
+}
+.dial-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left;
+  scale: var(--p) 1;
+  background: color-mix(in oklab, var(--ink), transparent 91%);
+  transition: background-color 0.15s var(--ease);
+}
+.dial:not([data-phase="drag"]) .dial-fill {
+  transition:
+    scale 0.4s var(--ease-settle),
+    background-color 0.15s var(--ease);
+}
+.dial-handle {
+  position: absolute;
+  top: 50%;
+  left: max(5px, calc(var(--p) * 100% - 9px));
+  width: 3px;
+  height: 20px;
+  translate: 0 -50%;
+  border-radius: 999px;
+  background: var(--ink);
+  opacity: 0;
+  scale: 0.25 1;
+  transition:
+    opacity 0.15s var(--ease),
+    scale 0.25s var(--ease-bounce);
+}
+.dial:not([data-phase="drag"]) .dial-handle {
+  transition:
+    opacity 0.15s var(--ease),
+    scale 0.25s var(--ease-bounce),
+    left 0.4s var(--ease-settle);
+}
+.dial-ticks i {
+  position: absolute;
+  top: 50%;
+  width: 1px;
+  height: 8px;
+  translate: -50% -50%;
+  border-radius: 999px;
+  background: var(--ink);
+  opacity: 0;
+  transition: opacity 0.2s var(--ease);
+}
+.dial-label,
+.dial-value {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  font: 500 13px / 1 var(--font);
+  color: var(--ink-muted);
+  transition: color 0.15s var(--ease);
+}
+.dial-label {
+  left: 12px;
+  pointer-events: none;
+}
+.dial-value {
+  right: 12px;
+  padding: 6px 0;
+  font-variant-numeric: tabular-nums;
+  cursor: text;
+  border-bottom: 1px solid transparent;
+}
+.dial-value small {
+  margin-left: 1px;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.dial-input {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 7ch;
+  translate: 0 -50%;
+  padding: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--raised);
+  box-shadow: 0 0 0 1.5px var(--accent);
+  color: var(--ink);
+  font: 500 13px / 1 var(--font);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  outline: none;
+}
+.dial-input::selection {
+  background: var(--accent-soft);
+}
+.dial:is([data-phase="press"], [data-phase="drag"], :focus-visible) .dial-fill {
+  background: color-mix(in oklab, var(--ink), transparent 85%);
+}
+.dial:is([data-phase="press"], [data-phase="drag"], :focus-visible) :is(.dial-value, .dial-label) {
+  color: var(--ink);
+}
+.dial:is([data-phase="press"], [data-phase="drag"]) .dial-ticks i {
+  opacity: 0.15;
+}
+.dial:is([data-phase="press"], [data-phase="drag"], :focus-visible) .dial-handle {
+  opacity: 0.5;
+  scale: 1;
+}
+.dial[data-phase="drag"] .dial-handle {
+  opacity: 0.9;
+}
+.dial[data-dodge]:is([data-phase="press"], [data-phase="drag"], :focus-visible) .dial-handle {
+  opacity: 0.1;
+  scale: 1 0.75;
+}
+@media (hover: hover) and (pointer: fine) {
+  .dial:hover .dial-fill {
+    background: color-mix(in oklab, var(--ink), transparent 85%);
+  }
+  .dial:hover :is(.dial-value, .dial-label) {
+    color: var(--ink);
+  }
+  .dial:hover .dial-ticks i {
+    opacity: 0.15;
+  }
+  .dial:hover .dial-handle {
+    opacity: 0.5;
+    scale: 1;
+  }
+  .dial:hover[data-dodge] .dial-handle {
+    opacity: 0.1;
+    scale: 1 0.75;
+  }
+  .dial-value:hover {
+    border-bottom-color: currentColor;
+    transition: border-color 0.15s var(--ease) 0.5s;
+  }
+}
+.dial-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 8px 0 12px;
+  border-radius: 14px;
+  background: var(--chip);
+}
+.dial-row .dial-label {
+  position: static;
+  translate: none;
+}
+.grid-swatches {
+  display: flex;
+  gap: 6px;
+}
+.grid-swatch {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: inset 0 0 0 1px hsl(0 0% 0% / 0.12);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: scale 0.14s var(--ease);
+}
+/* bigger touch target than the dot */
+.grid-swatch::before {
+  content: "";
+  position: absolute;
+  inset: -5px -3px;
+}
+.grid-swatch::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink);
+  opacity: 0;
+  scale: 0.8;
+  transition:
+    opacity var(--duration) var(--ease),
+    scale var(--duration-settle) var(--ease-settle);
+}
+.grid-swatch[data-active]::after {
+  opacity: 0.8;
+  scale: 1;
+}
+.grid-swatch:active {
+  scale: 0.9;
+}
+.grid-swatch.custom {
+  background:
+    radial-gradient(circle, var(--c) 0 36%, transparent 39%),
+    conic-gradient(from 0deg, #f43f5e, #f59e0b, #84cc16, #06b6d4, #6366f1, #d946ef, #f43f5e);
+}
+.grid-swatch.custom input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
