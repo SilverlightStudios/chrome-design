@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState, useSyncExternalStore } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import type { SettingsResponse } from '../shared/messages';
+import { useStore } from './state';
 import type { EditorState, EditorStore } from './store';
 
 export interface ExportOptions {
@@ -54,10 +55,9 @@ export function useEnv(): EditorEnv {
   return env;
 }
 
-/** Subscribe to a slice of editor state. Selectors must return stable references or primitives. */
+/** A slice of the editor's state (see useStore). */
 export function useEditor<T>(selector: (state: EditorState) => T): T {
-  const { store } = useEnv();
-  return useSyncExternalStore(store.subscribe, () => selector(store.getState()));
+  return useStore(useEnv().store, selector);
 }
 
 export interface Viewport {

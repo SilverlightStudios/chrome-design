@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { fieldName, targetOf } from '../src/content/walkthrough/recorder';
+import { fieldName, targetOf } from '../src/content/walkthrough/targets';
 
 const el = (id: string) => document.getElementById(id)!;
 

@@ -12,7 +12,8 @@ import {
   voiceLine,
 } from '../../walkthrough/summary';
 import type { ParsedTranscript } from '../../walkthrough/transcript';
-import type { Candidate, WalkthroughResult } from './recorder';
+import type { WalkthroughResult } from './assemble';
+import type { Candidate } from './pictures';
 
 /**
  * The walkthrough as files: each picture with the clicks and the laser drawn on (the ink and

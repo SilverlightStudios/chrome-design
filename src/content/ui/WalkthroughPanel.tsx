@@ -1,4 +1,4 @@
-import { type DragEvent, useEffect, useState, useSyncExternalStore } from 'react';
+import { type DragEvent, useEffect, useState } from 'react';
 import { formatClock } from '../../walkthrough/model';
 import { type ParsedTranscript, parseTranscript } from '../../walkthrough/transcript';
 import { useEnv } from '../context';
@@ -10,7 +10,7 @@ import {
   walkthroughZip,
   withTranscript,
 } from '../walkthrough/bundle';
-import { recorder } from '../walkthrough/recorder';
+import { recorder, useRecorder } from '../walkthrough/recorder';
 import { startWalkthrough } from '../walkthrough/voice';
 import { Dial } from './Dial';
 import { plural } from './format';
@@ -43,8 +43,8 @@ function attach(parsed: ParsedTranscript | null, name: string, at = 0): void {
  */
 export function WalkthroughPanel() {
   const env = useEnv();
-  const state = useSyncExternalStore(recorder.subscribe, recorder.getState);
-  const result = state.result;
+  const result = useRecorder((s) => s.result);
+  const pictures = useRecorder((s) => s.pictures);
   const [bundle, setBundle] = useState<BuiltBundle | null>(null);
   const [phase, setPhase] = useState<'idle' | 'working' | 'done' | 'error'>('idle');
   const [copied, setCopied] = useState(false);
@@ -142,7 +142,7 @@ export function WalkthroughPanel() {
         <Icon.record />
         <span>{facts.join(' · ')}</span>
       </div>
-      {wt.frames.length === 0 && !state.pictures ? (
+      {wt.frames.length === 0 && !pictures ? (
         <p className="muted small">Pictures need the Chrome extension.</p>
       ) : null}
 

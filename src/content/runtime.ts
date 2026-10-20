@@ -1,5 +1,4 @@
-import type { RuntimeResponse } from '../shared/messages';
-import { hasExtensionRuntime, sendToBackground } from './ext';
+import { askBackground, hasExtensionRuntime } from './ext';
 
 /**
  * The Chrome Design script's own source, which every exported file carries so it opens with
@@ -25,7 +24,7 @@ export function getRuntimeSource(): Promise<string | null> {
   if (!pending) {
     pending = (async () => {
       if (hasExtensionRuntime()) {
-        const response = await sendToBackground<RuntimeResponse>({ type: 'cd:get-runtime' });
+        const response = await askBackground('cd:get-runtime');
         return response?.ok ? response.source : null;
       }
       const url = window.__chromeDesignRuntimeUrl;

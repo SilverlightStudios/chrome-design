@@ -1,17 +1,16 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useState } from 'react';
 import { formatClock } from '../../walkthrough/model';
-import { recorder } from '../walkthrough/recorder';
+import { recorder, useRecorder } from '../walkthrough/recorder';
 import { ToolButton } from './Toolbar';
 
 /** True while a walkthrough is recording (or being put together). */
 export function useRecording(): boolean {
-  const phase = useSyncExternalStore(recorder.subscribe, () => recorder.getState().phase);
-  return phase === 'recording' || phase === 'finishing';
+  return useRecorder((s) => s.phase === 'recording' || s.phase === 'finishing');
 }
 
 /** Elapsed time, ticking while it records. */
 function Elapsed() {
-  const s = useSyncExternalStore(recorder.subscribe, recorder.getState);
+  const s = useRecorder((state) => state);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (s.phase !== 'recording') return;
@@ -35,11 +34,8 @@ function Elapsed() {
 
 /** The toolbar while recording: the time, Draw (what ⇧ does, for touch), Stop. */
 export function RecordingButtons() {
-  const drawing = useSyncExternalStore(recorder.subscribe, () => recorder.getState().drawing);
-  const finishing = useSyncExternalStore(
-    recorder.subscribe,
-    () => recorder.getState().phase === 'finishing',
-  );
+  const drawing = useRecorder((s) => s.drawing);
+  const finishing = useRecorder((s) => s.phase === 'finishing');
   return (
     <>
       <Elapsed />

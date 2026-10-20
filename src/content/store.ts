@@ -15,6 +15,7 @@ import {
   type ShapeStyle,
 } from '../shared/model';
 import { findShape, pointIn } from '../shared/targets';
+import { Store } from './state';
 
 /** `browse` leaves the page fully interactive (no capture layer). */
 export type ToolId = 'browse' | 'select' | 'comment' | 'draw';
@@ -145,27 +146,12 @@ export function nextCommentNumber(annotations: Annotation[]): number {
   return max + 1;
 }
 
-type Listener = () => void;
-
 /**
- * Minimal external store (works with React's useSyncExternalStore and in plain tests).
- * Document mutations go through `commit`, which records undo history.
+ * The editor's state (state.ts). Document changes go through `commit`, which records undo
+ * history.
  */
-export class EditorStore {
-  private state: EditorState;
-  private listeners = new Set<Listener>();
+export class EditorStore extends Store<EditorState> {
   private docListeners = new Set<(doc: AnnotationDoc) => void>();
-
-  constructor(initial: EditorState) {
-    this.state = initial;
-  }
-
-  getState = (): EditorState => this.state;
-
-  subscribe = (listener: Listener): (() => void) => {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  };
 
   /** Fires after every document change (persistence hook). */
   onDocChange(listener: (doc: AnnotationDoc) => void): () => void {
@@ -173,8 +159,7 @@ export class EditorStore {
     return () => this.docListeners.delete(listener);
   }
 
-  set(patch: Partial<EditorState>): void {
-    const prevDoc = this.state.doc;
+  override set(patch: Partial<EditorState>): void {
     // Opening a panel any other way forgets the way back.
     if ('panel' in patch && !('panelBack' in patch)) patch = { ...patch, panelBack: null };
     // `selectedId` is always the last of `selectedIds`; setting either keeps both in step.
@@ -182,67 +167,57 @@ export class EditorStore {
       patch = { ...patch, selectedId: patch.selectedIds?.at(-1) ?? null };
     else if ('selectedId' in patch && !('selectedIds' in patch))
       patch = { ...patch, selectedIds: patch.selectedId ? [patch.selectedId] : [] };
-    this.state = { ...this.state, ...patch };
-    this.emit(prevDoc);
+    super.set(patch);
   }
 
-  private emit(prevDoc: AnnotationDoc): void {
-    for (const l of this.listeners) l();
-    if (prevDoc !== this.state.doc) for (const l of this.docListeners) l(this.state.doc);
+  protected override replace(next: EditorState): void {
+    const prevDoc = this.state.doc;
+    super.replace(next);
+    if (prevDoc !== next.doc) for (const l of this.docListeners) l(next.doc);
   }
 
   /** Apply an undoable document change. */
   commit(update: (doc: AnnotationDoc) => AnnotationDoc): void {
     const prev = this.state.doc;
-    const next = { ...update(prev), updatedAt: nowIso() };
     const past = [...this.state.past, prev].slice(-HISTORY_LIMIT);
-    this.state = { ...this.state, doc: next, past, future: [] };
-    this.emit(prev);
+    this.replace({
+      ...this.state,
+      doc: { ...update(prev), updatedAt: nowIso() },
+      past,
+      future: [],
+    });
   }
 
   undo = (): void => {
     const { past, future, doc } = this.state;
-    const prev = past[past.length - 1];
-    if (!prev) return;
-    this.state = {
-      ...this.state,
-      doc: prev,
-      past: past.slice(0, -1),
-      future: [doc, ...future],
-      ...this.keepSelection(prev),
-      openThreadId: this.keepIfExists(prev, this.state.openThreadId),
-    };
-    this.emit(doc);
+    const prev = past.at(-1);
+    if (prev) this.goTo(prev, { past: past.slice(0, -1), future: [doc, ...future] });
   };
 
   redo = (): void => {
     const { past, future, doc } = this.state;
     const next = future[0];
-    if (!next) return;
-    this.state = {
-      ...this.state,
-      doc: next,
-      past: [...past, doc],
-      future: future.slice(1),
-      ...this.keepSelection(next),
-      openThreadId: this.keepIfExists(next, this.state.openThreadId),
-    };
-    this.emit(doc);
+    if (next) this.goTo(next, { past: [...past, doc], future: future.slice(1) });
   };
 
-  private keepSelection(doc: AnnotationDoc): Pick<EditorState, 'selectedId' | 'selectedIds'> {
-    const ids = this.state.selectedIds.filter((id) => doc.annotations.some((a) => a.id === id));
-    return { selectedIds: ids, selectedId: ids.at(-1) ?? null };
-  }
-
-  private keepIfExists(doc: AnnotationDoc, id: string | null): string | null {
-    return id && doc.annotations.some((a) => a.id === id) ? id : null;
+  /** Show another point in history, keeping what's still there selected (and open). */
+  private goTo(doc: AnnotationDoc, history: Pick<EditorState, 'past' | 'future'>): void {
+    const has = (id: string) => doc.annotations.some((a) => a.id === id);
+    const selectedIds = this.state.selectedIds.filter(has);
+    const open = this.state.openThreadId;
+    this.replace({
+      ...this.state,
+      ...history,
+      doc,
+      selectedIds,
+      selectedId: selectedIds.at(-1) ?? null,
+      openThreadId: open && has(open) ? open : null,
+    });
   }
 
   /** Switch to another page's document (SPA navigation); history does not cross pages. */
   replaceDoc(doc: AnnotationDoc): void {
-    const prev = this.state.doc;
-    this.state = {
+    this.replace({
       ...this.state,
       doc,
       past: [],
@@ -262,8 +237,7 @@ export class EditorStore {
       region: null,
       textEdit: null,
       viewImage: null,
-    };
-    this.emit(prev);
+    });
   }
 
   canUndo(): boolean {
@@ -386,9 +360,7 @@ export class EditorStore {
 
   setBrief(brief: string): void {
     // The brief is edited as free text; keep it out of undo history to avoid per-keystroke entries.
-    const prev = this.state.doc;
-    this.state = { ...this.state, doc: { ...prev, brief, updatedAt: nowIso() } };
-    this.emit(prev);
+    this.replace({ ...this.state, doc: { ...this.state.doc, brief, updatedAt: nowIso() } });
   }
 
   // ---- guides ---------------------------------------------------------------

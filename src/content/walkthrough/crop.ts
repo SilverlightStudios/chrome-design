@@ -10,7 +10,7 @@ import {
 } from '../../walkthrough/autocrop';
 import type { Walkthrough, WtFrame } from '../../walkthrough/model';
 import { buildSummary } from '../../walkthrough/summary';
-import type { WalkthroughResult } from './recorder';
+import type { WalkthroughResult } from './assemble';
 
 /**
  * Feeds a finished walkthrough to the auto-crop (src/walkthrough/autocrop.ts, Scrawl's): the

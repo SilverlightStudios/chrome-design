@@ -1,7 +1,7 @@
 import type { VoiceStatusResponse } from '../../shared/messages';
 import type { ToRecorder } from '../../walkthrough/protocol';
 import { parseTranscript } from '../../walkthrough/transcript';
-import { sendToBackground } from '../ext';
+import { askBackground } from '../ext';
 import type { EditorStore } from '../store';
 import { bundleForVoice, withTranscript } from './bundle';
 import { recorder, type WalkthroughResult, type WalkthroughSession } from './recorder';
@@ -13,11 +13,11 @@ import { recorder, type WalkthroughResult, type WalkthroughSession } from './rec
  */
 
 export function sendToRecorder(message: ToRecorder): Promise<{ ok: boolean } | null> {
-  return sendToBackground<{ ok: boolean }>({ type: 'cd:voice-send', message });
+  return askBackground('cd:voice-send', { message });
 }
 
 export function voiceStatus(): Promise<VoiceStatusResponse | null> {
-  return sendToBackground<VoiceStatusResponse>({ type: 'cd:voice-status' });
+  return askBackground('cd:voice-status');
 }
 
 const page = () => ({ url: location.href, title: document.title });

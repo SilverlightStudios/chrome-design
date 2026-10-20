@@ -1,5 +1,5 @@
-import type { PingResponse, ToContentMessage, WtSessionInfo } from '../shared/messages';
-import { hasExtensionRuntime, reportState, sendToBackground } from './ext';
+import type { PingResponse, ToContentMessage } from '../shared/messages';
+import { askBackground, hasExtensionRuntime, reportState } from './ext';
 import { isHandoffDocument, prepareHandoffPage, readHandoff } from './handoff';
 import { type Mounted, mountEditor } from './mount';
 import { setRuntimeSource } from './runtime';
@@ -99,7 +99,7 @@ if (isHandoffDocument() && !hasExtensionRuntime()) {
         opening = null;
         reportState(true);
         // Opened on a page during a walkthrough that started on another one: carry on.
-        void sendToBackground<WtSessionInfo | null>({ type: 'cd:wt-active' }).then((info) => {
+        void askBackground('cd:wt-active').then((info) => {
           if (info && mounted === m && !recorder.recording)
             recorder.resume({ host: m.host, store: m.store }, info);
         });

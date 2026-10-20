@@ -1,12 +1,14 @@
 import { guessMime, toDataUrl } from '../shared/base64';
 import {
-  type CaptureVisibleTabResponse,
+  type BackgroundApi,
+  type BackgroundReply,
+  type BackgroundRequest,
   CONTENT_SCRIPT_FILE,
   type FetchAssetResponse,
   type RuntimeResponse,
   type SettingsResponse,
-  type ToBackgroundMessage,
 } from '../shared/messages';
+import { captureTab, captureTurn } from './capture';
 import { activeTab, sendToTab } from './inject';
 import { fromTab, initVoiceLink, voiceSetting, voiceStatus } from './voiceLink';
 import {
@@ -32,12 +34,7 @@ async function toggle(tab: chrome.tabs.Tab | undefined): Promise<void> {
   if (!tab || tab.id === undefined) return;
   const result = await sendToTab(tab, { type: 'cd:toggle' });
   if (result.ok) {
-    await chrome.action
-      .setBadgeText({ text: result.open ? 'on' : '', tabId: tab.id })
-      .catch(() => undefined);
-    await chrome.action
-      .setBadgeBackgroundColor({ color: '#1E3FA8', tabId: tab.id })
-      .catch(() => undefined);
+    await setBadge(tab.id, result.open);
     return;
   }
   const popup = `popup.html?reason=${encodeURIComponent(result.reason)}`;
@@ -96,114 +93,88 @@ async function fetchAsset(url: string, maxBytes: number): Promise<FetchAssetResp
   }
 }
 
-chrome.runtime.onMessage.addListener((message: ToBackgroundMessage, sender, sendResponse) => {
-  // Only accept messages from our own content script running in a tab.
-  if (sender.id !== chrome.runtime.id || !sender.tab) return false;
-  if (message?.type === 'cd:capture-visible-tab') {
-    chrome.tabs
-      .captureVisibleTab(sender.tab.windowId, { format: 'png' })
-      .then((dataUrl) => sendResponse({ ok: true, dataUrl } satisfies CaptureVisibleTabResponse))
-      .catch((error: unknown) =>
-        sendResponse({
-          ok: false,
-          error: error instanceof Error ? error.message : String(error),
-        } satisfies CaptureVisibleTabResponse),
-      );
-    return true;
+function setBadge(tabId: number, open: boolean): Promise<unknown> {
+  return Promise.all([
+    chrome.action.setBadgeText({ text: open ? 'on' : '', tabId }),
+    chrome.action.setBadgeBackgroundColor({ color: '#1E3FA8', tabId }),
+  ]).catch(() => undefined);
+}
+
+async function resizeWindow(windowId: number, width: number): Promise<{ ok: boolean }> {
+  // Screen-size presets: un-maximize the tab's window, then set its outer width.
+  try {
+    const win = await chrome.windows.get(windowId);
+    if (win.state !== 'normal') await chrome.windows.update(windowId, { state: 'normal' });
+    await chrome.windows.update(windowId, { width: Math.round(width) });
+    return { ok: true };
+  } catch {
+    return { ok: false };
   }
-  if (message?.type === 'cd:state') {
-    const tabId = sender.tab.id;
-    if (tabId !== undefined) {
-      void chrome.action
-        .setBadgeText({ text: message.open ? 'on' : '', tabId })
-        .catch(() => undefined);
-      void chrome.action
-        .setBadgeBackgroundColor({ color: '#1E3FA8', tabId })
-        .catch(() => undefined);
-    }
-    return false;
+}
+
+async function settings(): Promise<SettingsResponse> {
+  const [allSites, commands, voice] = await Promise.all([
+    chrome.permissions.contains({ origins: ['<all_urls>'] }),
+    chrome.commands.getAll(),
+    voiceSetting(),
+  ]);
+  const shortcut = commands.find((c) => c.name === 'toggle-chrome-design')?.shortcut ?? '';
+  return { allSites, shortcut, voice };
+}
+
+/** The content script's own source, built into exported files so they open with the toolbar. */
+async function runtimeSource(): Promise<RuntimeResponse> {
+  try {
+    return {
+      ok: true,
+      source: await (await fetch(chrome.runtime.getURL(CONTENT_SCRIPT_FILE))).text(),
+    };
+  } catch (error) {
+    return { ok: false, error: String(error) };
   }
-  if (message?.type === 'cd:get-settings') {
-    void Promise.all([
-      chrome.permissions.contains({ origins: ['<all_urls>'] }),
-      chrome.commands.getAll(),
-      voiceSetting(),
-    ]).then(([allSites, commands, voice]) => {
-      const shortcut = commands.find((c) => c.name === 'toggle-chrome-design')?.shortcut ?? '';
-      sendResponse({ allSites, shortcut, voice } satisfies SettingsResponse);
+}
+
+type Tab = chrome.tabs.Tab & { id: number };
+
+/** One answer per request a tab can make (shared/messages.ts lists them). */
+const handlers: {
+  [K in keyof BackgroundApi]: (
+    message: BackgroundRequest<K>,
+    tab: Tab,
+  ) => BackgroundReply<K> | Promise<BackgroundReply<K>>;
+} = {
+  'cd:capture-turn': captureTurn,
+  'cd:capture-visible-tab': (_, tab) => captureTab(tab.windowId),
+  'cd:fetch-asset': (m) => fetchAsset(m.url, m.maxBytes),
+  'cd:open-options': () => chrome.runtime.openOptionsPage().then(() => ({ ok: true })),
+  'cd:get-settings': settings,
+  'cd:get-runtime': runtimeSource,
+  'cd:resize-window': (m, tab) => resizeWindow(tab.windowId, m.width),
+  'cd:state': (m, tab) => setBadge(tab.id, m.open).then(() => null),
+  'cd:voice-send': (m, tab) => ({ ok: fromTab(m.message, tab.id) }),
+  'cd:voice-status': voiceStatus,
+  'cd:wt-begin': (m, tab) => beginWalkthrough(tab.id, m.info),
+  'cd:wt-sync': (m, tab) => syncWalkthrough(tab.id, m),
+  'cd:wt-collect': (m, tab) => ({ pages: collectWalkthrough(tab.id, m.pageId) }),
+  'cd:wt-end': (_, tab) => endWalkthrough(tab.id),
+  'cd:wt-active': (_, tab) => activeWalkthrough(tab.id),
+};
+
+chrome.runtime.onMessage.addListener((message: BackgroundRequest, sender, sendResponse) => {
+  // Only our own content script, running in a tab.
+  const tab = sender.tab;
+  if (sender.id !== chrome.runtime.id || tab?.id === undefined) return false;
+  const handler = handlers[message?.type] as
+    | ((m: BackgroundRequest, tab: Tab) => unknown)
+    | undefined;
+  if (!handler) return false;
+  void Promise.resolve()
+    .then(() => handler(message, tab as Tab))
+    .then(sendResponse, (error: unknown) => {
+      console.warn('[Chrome Design]', message.type, error);
+      sendResponse(null);
     });
-    return true;
-  }
-  if (message?.type === 'cd:open-options') {
-    void chrome.runtime.openOptionsPage().then(() => sendResponse({ ok: true }));
-    return true;
-  }
-  if (message?.type === 'cd:fetch-asset') {
-    void fetchAsset(message.url, message.maxBytes).then(sendResponse);
-    return true;
-  }
-  if (message?.type === 'cd:resize-window') {
-    // Screen-size presets: un-maximize the tab's window, then set its outer width.
-    const windowId = sender.tab?.windowId;
-    if (windowId === undefined) {
-      sendResponse({ ok: false });
-      return false;
-    }
-    void (async () => {
-      try {
-        const win = await chrome.windows.get(windowId);
-        if (win.state !== 'normal') await chrome.windows.update(windowId, { state: 'normal' });
-        await chrome.windows.update(windowId, { width: Math.round(message.width) });
-        sendResponse({ ok: true });
-      } catch {
-        sendResponse({ ok: false });
-      }
-    })();
-    return true;
-  }
-  if (message?.type === 'cd:voice-send') {
-    sendResponse({ ok: fromTab(message.message, sender.tab.id) });
-    return false;
-  }
-  if (message?.type === 'cd:wt-begin' && sender.tab.id !== undefined) {
-    beginWalkthrough(sender.tab.id, message.info);
-    sendResponse({ ok: true });
-    return false;
-  }
-  if (message?.type === 'cd:wt-sync' && sender.tab.id !== undefined) {
-    syncWalkthrough(sender.tab.id, message);
-    sendResponse({ ok: true });
-    return false;
-  }
-  if (message?.type === 'cd:wt-collect' && sender.tab.id !== undefined) {
-    sendResponse({ pages: collectWalkthrough(sender.tab.id, message.pageId) });
-    return false;
-  }
-  if (message?.type === 'cd:wt-end' && sender.tab.id !== undefined) {
-    endWalkthrough(sender.tab.id);
-    sendResponse({ ok: true });
-    return false;
-  }
-  if (message?.type === 'cd:wt-active' && sender.tab.id !== undefined) {
-    sendResponse(activeWalkthrough(sender.tab.id));
-    return false;
-  }
-  if (message?.type === 'cd:voice-status') {
-    sendResponse(voiceStatus());
-    return false;
-  }
-  if (message?.type === 'cd:get-runtime') {
-    // The content script's own source, built into exported files so they open with the toolbar.
-    void fetch(chrome.runtime.getURL(CONTENT_SCRIPT_FILE))
-      .then((r) => r.text())
-      .then(
-        (source) => sendResponse({ ok: true, source } satisfies RuntimeResponse),
-        (error: unknown) =>
-          sendResponse({ ok: false, error: String(error) } satisfies RuntimeResponse),
-      );
-    return true;
-  }
-  return false;
+  return true;
 });
 
 chrome.tabs.onUpdated.addListener((tabId, info) => {

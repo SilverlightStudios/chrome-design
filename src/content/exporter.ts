@@ -22,8 +22,6 @@ import { hiddenUnder, maskAnchors, redactRects } from './redact';
 import { getRuntimeSource } from './runtime';
 import type { EditorStore } from './store';
 
-const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-
 function anchorsOf(a: Annotation): ElementAnchor[] {
   if (isShape(a)) {
     if (a.kind !== 'image' || !a.placement) return [];
@@ -120,9 +118,6 @@ async function shrinkScreenshot(
 }
 
 const MAX_SLICES = 16;
-/** Chrome allows two tab captures a second. */
-const CAPTURE_GAP_MS = 560;
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   const img = new Image();
@@ -150,7 +145,6 @@ async function captureFullPage(
   host.setAttribute('data-capturing', '');
   const hidden: { el: HTMLElement; value: string; priority: string }[] = [];
   const slices: { dataUrl: string; y: number }[] = [];
-  let last = 0;
   try {
     for (let i = 0; i < total; i++) {
       window.scrollTo(0, i * viewH);
@@ -167,10 +161,6 @@ async function captureFullPage(
           el.style.setProperty('visibility', 'hidden', 'important');
         }
       }
-      await nextFrame();
-      await nextFrame();
-      await sleep(Math.max(80, CAPTURE_GAP_MS - (performance.now() - last)));
-      last = performance.now();
       const shot = await captureVisibleTab();
       if (!shot) return null;
       slices.push({ dataUrl: shot, y: window.scrollY });
@@ -336,17 +326,9 @@ export async function runExport(
           ...(options.includeScreenshot
             ? {
                 screenshot: async () => {
-                  // Hide toolbar/panels but keep annotations visible, as the designer saw them.
-                  host.setAttribute('data-capturing', '');
-                  await nextFrame();
-                  await nextFrame();
-                  await new Promise((r) => setTimeout(r, 60));
-                  try {
-                    const shot = await captureVisibleTab();
-                    return shot ? await shrinkScreenshot(shot) : null;
-                  } finally {
-                    host.removeAttribute('data-capturing');
-                  }
+                  // Toolbar and panels hidden, the feedback visible: as the designer saw it.
+                  const shot = await captureVisibleTab(host);
+                  return shot ? await shrinkScreenshot(shot) : null;
                 },
               }
             : {}),

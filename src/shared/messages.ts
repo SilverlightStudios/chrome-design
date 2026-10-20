@@ -74,31 +74,48 @@ export type ToContentMessage =
       app?: string;
     };
 
-export type ToBackgroundMessage =
-  | { type: 'cd:capture-visible-tab' }
-  | { type: 'cd:fetch-asset'; url: string; maxBytes: number }
-  | { type: 'cd:open-options' }
-  | { type: 'cd:get-settings' }
-  | { type: 'cd:get-runtime' }
-  | { type: 'cd:resize-window'; width: number }
-  | { type: 'cd:state'; open: boolean }
+/**
+ * Everything a tab can ask the service worker: what it sends (`body`) and what comes back
+ * (`reply`). Content code asks with `askBackground` (content/ext.ts); the worker answers from
+ * one handler per request (background/service-worker.ts).
+ */
+export interface BackgroundApi {
+  /** Wait for a turn to take a picture (background/capture.ts), then take it. */
+  'cd:capture-turn': { body: object; reply: null };
+  'cd:capture-visible-tab': { body: object; reply: CaptureVisibleTabResponse };
+  'cd:fetch-asset': { body: { url: string; maxBytes: number }; reply: FetchAssetResponse };
+  'cd:open-options': { body: object; reply: { ok: boolean } };
+  'cd:get-settings': { body: object; reply: SettingsResponse };
+  'cd:get-runtime': { body: object; reply: RuntimeResponse };
+  'cd:resize-window': { body: { width: number }; reply: { ok: boolean } };
+  /** The toolbar opened or closed (the icon's badge follows). */
+  'cd:state': { body: { open: boolean }; reply: null };
   /** To the voice recorder, if the voice link is on. */
-  | { type: 'cd:voice-send'; message: ToRecorder }
-  | { type: 'cd:voice-status' }
+  'cd:voice-send': { body: { message: ToRecorder }; reply: { ok: boolean } };
+  'cd:voice-status': { body: object; reply: VoiceStatusResponse };
   /** Walkthroughs across page loads (src/background/walkthroughs.ts). */
-  | { type: 'cd:wt-begin'; info: WtSessionInfo }
-  | {
-      type: 'cd:wt-sync';
+  'cd:wt-begin': { body: { info: WtSessionInfo }; reply: null };
+  'cd:wt-sync': {
+    body: {
       pinCount: number;
       page: Omit<WtPageData, 'cursor' | 'pictures'> & {
         cursorFrom: number;
         cursor: [number, number, number][];
         pictures: WtSyncedPicture[];
       };
-    }
-  | { type: 'cd:wt-collect'; pageId: string }
-  | { type: 'cd:wt-end' }
-  | { type: 'cd:wt-active' };
+    };
+    reply: null;
+  };
+  'cd:wt-collect': { body: { pageId: string }; reply: { pages: WtPageData[] } };
+  'cd:wt-end': { body: object; reply: null };
+  'cd:wt-active': { body: object; reply: WtSessionInfo | null };
+}
+
+export type BackgroundRequest<K extends keyof BackgroundApi = keyof BackgroundApi> = {
+  [T in K]: { type: T } & BackgroundApi[T]['body'];
+}[K];
+
+export type BackgroundReply<K extends keyof BackgroundApi> = BackgroundApi[K]['reply'];
 
 export type VoiceStatusResponse = { connected: boolean; app?: string };
 

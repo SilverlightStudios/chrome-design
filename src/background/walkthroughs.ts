@@ -1,4 +1,4 @@
-import type { WtPageData, WtSessionInfo } from '../shared/messages';
+import type { BackgroundRequest, WtPageData, WtSessionInfo } from '../shared/messages';
 import { sendToTab } from './inject';
 
 /**
@@ -21,16 +21,14 @@ interface Session {
 
 const sessions = new Map<number, Session>();
 
-export function beginWalkthrough(tabId: number, info: WtSessionInfo): void {
+export function beginWalkthrough(tabId: number, info: WtSessionInfo): null {
   sessions.set(tabId, { info, pages: new Map() });
+  return null;
 }
 
-export function syncWalkthrough(
-  tabId: number,
-  message: Extract<import('../shared/messages').ToBackgroundMessage, { type: 'cd:wt-sync' }>,
-): void {
+export function syncWalkthrough(tabId: number, message: BackgroundRequest<'cd:wt-sync'>): null {
   const s = sessions.get(tabId);
-  if (!s) return;
+  if (!s) return null;
   s.info.pinCount = Math.max(s.info.pinCount, message.pinCount);
   const { cursorFrom, cursor, pictures, ...rest } = message.page;
   const page: WtPageData = s.pages.get(rest.pageId) ?? { ...rest, cursor: [], pictures: [] };
@@ -42,6 +40,7 @@ export function syncWalkthrough(
     else page.pictures.push(p);
   }
   s.pages.set(rest.pageId, page);
+  return null;
 }
 
 /** The pages recorded before this one, in order. */
@@ -53,8 +52,9 @@ export function collectWalkthrough(tabId: number, pageId: string): WtPageData[] 
     .toSorted((a, b) => (a.scrolls[0]?.[0] ?? 0) - (b.scrolls[0]?.[0] ?? 0));
 }
 
-export function endWalkthrough(tabId: number): void {
+export function endWalkthrough(tabId: number): null {
   sessions.delete(tabId);
+  return null;
 }
 
 export function activeWalkthrough(tabId: number): WtSessionInfo | null {

@@ -1,7 +1,7 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useState } from 'react';
 import { pointsToPath } from '../../shared/geometry';
 import { LASER_MS } from '../../walkthrough/model';
-import { recorder } from '../walkthrough/recorder';
+import { useRecorder } from '../walkthrough/recorder';
 
 /**
  * What the reviewer sees while a walkthrough records: a red edge, the laser's fading trail,
@@ -10,7 +10,7 @@ import { recorder } from '../walkthrough/recorder';
  * the page. The surface only takes the pointer while ⇧ is held or Draw is on.
  */
 export function WalkthroughLayer() {
-  const s = useSyncExternalStore(recorder.subscribe, recorder.getState);
+  const s = useRecorder((state) => state);
   const [now, setNow] = useState(() => Date.now());
   const laserOn = s.laser.length > 0;
 
