@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { formatClock } from '../../walkthrough/model';
 import { recorder, useRecorder } from '../walkthrough/recorder';
-import { ToolButton } from './Toolbar';
+import { ToolButton } from './controls';
 
 /** True while a walkthrough is recording (or being put together). */
 export function useRecording(): boolean {

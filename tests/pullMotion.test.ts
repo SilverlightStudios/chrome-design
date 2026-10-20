@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { PullMotion } from '../src/content/motion/MorphSheet';
+import { PullMotion } from '../src/content/motion/BottomSheet';
 
 function setup() {
   const motion = new PullMotion();

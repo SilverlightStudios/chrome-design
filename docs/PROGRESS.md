@@ -97,7 +97,7 @@ recorder). Verified on the demo page in desktop Chromium and the iPhone 15 WebKi
   one number (top edge height) drives shape, content fade and scrim; open 0.42s/0.86 spring
   from the edge with width on an exponential curve from 38%; drag anywhere that isn't a control
   (scrolling list only from its top), 36px overpull; release projects velocity 0.18s; close
-  1.26s critically damped toward -0.58H, removed at -24px (`PullMotion` in motion/MorphSheet.tsx).
+  1.26s critically damped toward -0.58H, removed at -24px (`PullMotion` in motion/BottomSheet.tsx).
 - R5: animated icons — Lucide geometry with Lucide Animated's motion as CSS keyframes
   (`ui/icons.tsx`, `iconMotion.ts` restarts `data-play` on press / mouse enter; `data-hold` icons
   hold a hover pose).

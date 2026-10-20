@@ -3,7 +3,7 @@ import { isComment } from '../../shared/model';
 import { useEditor, useEnv } from '../context';
 import { hasExtensionRuntime } from '../ext';
 import { importHandoffFiles, pickHandoffFiles } from '../importHandoff';
-import { useCompact } from '../motion/MorphSheet';
+import { useCompact } from '../motion/sheets';
 import { Icon, type IconName } from './icons';
 
 /** Touch screens have no keyboard, so no Shortcuts tile. */

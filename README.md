@@ -155,7 +155,7 @@ src/
     overlay/        capture layer (pointer logic), page-space drawings/pins/selection handles,
                     hover + selection outlines, selection bar + details, comment bubble, text editor, rulers/grid
     ui/             toolbar (tools, Shapes menu, style bar), panels (More, Comments, Columns, Send to AI, Settings, Shortcuts, Welcome), `Dial` slider, Paused chip
-    motion/         spring.ts (Spark's spring), glass.tsx (Liquid Glass, `<LiquidGlass>` bars), Tooltip (fluid tooltips), MorphSheet (desktop sheets + phone bottom sheets), presence.ts (exit animations)
+    motion/         spring.ts (Spark's spring), glass.tsx (Liquid Glass, `<LiquidGlass>` bars), Tooltip (fluid tooltips), FloatingSheet and BottomSheet (desktop sheets, phone bottom sheets; sheets.ts what they share), presence.ts (exit animations)
     exporter.ts     capture → build → download
     walkthrough/    recorder.ts (laser, ink, pins, flags, clicks, scrolls, page changes, pictures on one clock),
                     crop.ts (feeds the auto-crop), pageContext.ts (page details), bundle.ts (annotated and
