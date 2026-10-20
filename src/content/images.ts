@@ -1,6 +1,7 @@
 import { pageFetcher } from '../capture/assets';
 import { createId, nowIso } from '../shared/ids';
 import type { ImageAttachment, ImageShape, Point, Rect } from '../shared/model';
+import { type Canvas, canvasOf, dataUrlOf, encode, fitWithin, pixelsOf } from '../shared/pixels';
 import { backgroundFetcher } from './ext';
 import type { EditorStore } from './store';
 
@@ -79,12 +80,6 @@ export function imageUrls(data: DataTransfer | null): string[] {
   return [...new Set(urls)];
 }
 
-/** Scale (w, h) down so the longest edge is at most `max`. */
-export function fitWithin(width: number, height: number, max: number): [number, number] {
-  const scale = Math.min(1, max / Math.max(width, height, 1));
-  return [Math.max(1, Math.round(width * scale)), Math.max(1, Math.round(height * scale))];
-}
-
 function readAsDataUrl(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -126,35 +121,24 @@ async function fromDataUrl(file: File, original: string): Promise<LoadedImage> {
   if (keep) return { name, src: original, width: w, height: h };
 
   const [tw, th] = fitWithin(w, h, MAX_IMAGE_EDGE);
-  const canvas = document.createElement('canvas');
-  canvas.width = tw;
-  canvas.height = th;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return { name, src: original, width: w, height: h };
+  const [canvas, ctx] = canvasOf(tw, th);
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(img, 0, 0, tw, th);
-  let src: string;
-  if (file.type === 'image/jpeg') {
-    src = canvas.toDataURL('image/jpeg', 0.86);
-  } else {
-    src = canvas.toDataURL('image/webp', 0.88);
-    // Safari can't encode WebP and hands back a (large) PNG: use JPEG when nothing is see-through.
-    if (!src.startsWith('data:image/webp') && isOpaque(img))
-      src = canvas.toDataURL('image/jpeg', 0.86);
-  }
-  return { name, src, width: tw, height: th };
+  let blob = await (file.type === 'image/jpeg'
+    ? encode(canvas, 'image/jpeg', 0.86)
+    : encode(canvas, 'image/webp', 0.88));
+  // Safari can't encode WebP and hands back a (large) PNG: use JPEG when nothing is see-through.
+  if (blob.type === 'image/png' && isOpaque(canvas))
+    blob = await encode(canvas, 'image/jpeg', 0.86);
+  return { name, src: await dataUrlOf(blob), width: tw, height: th };
 }
 
 /** Whether a picture has no transparent pixels (checked on a small copy). */
-function isOpaque(img: HTMLImageElement): boolean {
-  const probe = document.createElement('canvas');
-  probe.width = 64;
-  probe.height = 64;
-  const ctx = probe.getContext('2d', { willReadFrequently: true });
-  if (!ctx) return false;
-  ctx.drawImage(img, 0, 0, 64, 64);
-  const data = ctx.getImageData(0, 0, 64, 64).data;
-  for (let i = 3; i < data.length; i += 4) if (data[i]! < 255) return false;
+function isOpaque(picture: Canvas): boolean {
+  const [probe, ctx] = canvasOf(64, 64);
+  ctx.drawImage(picture, 0, 0, 64, 64);
+  const { rgba } = pixelsOf(probe);
+  for (let i = 3; i < rgba.length; i += 4) if (rgba[i]! < 255) return false;
   return true;
 }
 

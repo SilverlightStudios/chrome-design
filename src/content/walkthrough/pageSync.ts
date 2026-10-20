@@ -1,7 +1,7 @@
-import type { WtPageData, WtSessionInfo, WtSyncedPicture } from '../../shared/messages';
+import type { WtPageData, WtPicture, WtSessionInfo } from '../../shared/messages';
 import { askBackground } from '../ext';
 import type { Candidate, Pictures } from './pictures';
-import type { Tape } from './tape';
+import { PAGE_ID, type Tape } from './tape';
 
 /**
  * Walkthroughs that follow a link: the page's script goes away with the page, so while it
@@ -9,15 +9,6 @@ import type { Tape } from './tape';
  * goes); the next page picks the walkthrough up on the same clock (recorder.resume), and on
  * Stop the earlier pages are put in front of this one's (background/walkthroughs.ts keeps them).
  */
-
-export function newId(): string {
-  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `wt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-/** This page load (a walkthrough can span several). */
-export const PAGE_ID = newId();
 
 export class PageSync {
   private tape: Tape;
@@ -38,7 +29,7 @@ export class PageSync {
 
   /** Hand over what's new (pictures and pointer only once; the rest whole). */
   send(): void {
-    const pictures: WtSyncedPicture[] = [];
+    const pictures: WtPicture[] = [];
     for (const c of this.pictures.candidates) {
       if (this.picturesSent.get(c.key) === c.takenAt) continue;
       const { look: _look, ...picture } = c;

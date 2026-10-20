@@ -8,9 +8,23 @@ import {
   type RuntimeResponse,
   type SettingsResponse,
 } from '../shared/messages';
-import { captureTab, captureTurn } from './capture';
+import {
+  addFullPageScreen,
+  captureTab,
+  captureTurn,
+  finishFullPage,
+  startFullPage,
+} from './capture';
 import { activeTab, sendToTab } from './inject';
-import { fromTab, initVoiceLink, voiceSetting, voiceStatus } from './voiceLink';
+import { deliverWalkthrough, fromTab, initVoiceLink, voiceSetting } from './voiceLink';
+import {
+  cropWalkthrough,
+  discardWalkthrough,
+  filesOf,
+  initWalkthroughFiles,
+  sheetOf,
+  takePicture,
+} from './walkthroughFiles';
 import {
   activeWalkthrough,
   beginWalkthrough,
@@ -144,7 +158,10 @@ const handlers: {
   ) => BackgroundReply<K> | Promise<BackgroundReply<K>>;
 } = {
   'cd:capture-turn': captureTurn,
-  'cd:capture-visible-tab': (_, tab) => captureTab(tab.windowId),
+  'cd:capture-visible-tab': (m, tab) => captureTab(tab.windowId, m.maxWidth),
+  'cd:full-page-start': (m, tab) => startFullPage(tab.id, m.width, m.height, m.scale),
+  'cd:full-page-screen': (m, tab) => addFullPageScreen(tab, m.y, m.view),
+  'cd:full-page-finish': (m, tab) => finishFullPage(tab.id, m.height),
   'cd:fetch-asset': (m) => fetchAsset(m.url, m.maxBytes),
   'cd:open-options': () => chrome.runtime.openOptionsPage().then(() => ({ ok: true })),
   'cd:get-settings': settings,
@@ -152,12 +169,17 @@ const handlers: {
   'cd:resize-window': (m, tab) => resizeWindow(tab.windowId, m.width),
   'cd:state': (m, tab) => setBadge(tab.id, m.open).then(() => null),
   'cd:voice-send': (m, tab) => ({ ok: fromTab(m.message, tab.id) }),
-  'cd:voice-status': voiceStatus,
   'cd:wt-begin': (m, tab) => beginWalkthrough(tab.id, m.info),
   'cd:wt-sync': (m, tab) => syncWalkthrough(tab.id, m),
-  'cd:wt-collect': (m, tab) => ({ pages: collectWalkthrough(tab.id, m.pageId) }),
+  'cd:wt-collect': async (m, tab) => ({ pages: await collectWalkthrough(tab.id, m.pageId) }),
   'cd:wt-end': (_, tab) => endWalkthrough(tab.id),
   'cd:wt-active': (_, tab) => activeWalkthrough(tab.id),
+  'cd:wt-picture': (m, tab) => takePicture(tab, m.session, m.key),
+  'cd:wt-crop': (m, tab) => cropWalkthrough(tab.id, m),
+  'cd:wt-sheet': sheetOf,
+  'cd:wt-files': filesOf,
+  'cd:wt-deliver': deliverWalkthrough,
+  'cd:wt-discard': (m) => discardWalkthrough(m.session),
 };
 
 chrome.runtime.onMessage.addListener((message: BackgroundRequest, sender, sendResponse) => {
@@ -188,3 +210,4 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
 
 initVoiceLink();
 initWalkthroughs();
+initWalkthroughFiles();

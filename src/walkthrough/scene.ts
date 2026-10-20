@@ -91,3 +91,34 @@ export function regionDiff(a: Look, b: Look, rect: [number, number, number, numb
     }
   return changed / Math.max(1, (r1 - r0) * (c1 - c0));
 }
+
+/** A look as plain JSON (messages between the page and the service worker carry no arrays of floats). */
+export interface LookWire {
+  thumb: string;
+  grid: { cols: number; rows: number; cells: string };
+}
+
+const floatsToBase64 = (v: Float32Array) => {
+  const bytes = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+
+const base64ToFloats = (b64: string) =>
+  new Float32Array(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer);
+
+export function lookToWire(l: Look): LookWire {
+  return {
+    thumb: floatsToBase64(l.thumb),
+    grid: { cols: l.grid.cols, rows: l.grid.rows, cells: floatsToBase64(l.grid.cells) },
+  };
+}
+
+export function lookFromWire(w: LookWire): Look {
+  return {
+    thumb: base64ToFloats(w.thumb),
+    grid: { cols: w.grid.cols, rows: w.grid.rows, cells: base64ToFloats(w.grid.cells) },
+  };
+}

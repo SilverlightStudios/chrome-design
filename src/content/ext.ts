@@ -27,22 +27,35 @@ export function askBackground<K extends keyof BackgroundApi>(
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 
 /**
- * A picture of the tab as it is now (PNG data URL; null without the extension). Waits for its
- * turn (Chrome allows two a second), then hides this UI (`host`, when given) for the picture.
+ * Take a picture of the tab (`take` asks the service worker for it): waits for its turn
+ * (Chrome allows two a second), then hides this UI (`host`, when given) just for the picture.
  */
-export async function captureVisibleTab(host?: HTMLElement): Promise<string | null> {
-  if (!hasExtensionRuntime()) return null;
+export async function withPictureTurn<T>(
+  host: HTMLElement | undefined,
+  take: () => Promise<T>,
+): Promise<T> {
   await askBackground('cd:capture-turn');
   host?.setAttribute('data-capturing', '');
   try {
     // Let the page paint without the UI (and settle after a scroll).
     await nextFrame();
     await nextFrame();
-    const reply = await askBackground('cd:capture-visible-tab');
-    return reply?.ok ? reply.dataUrl : null;
+    return await take();
   } finally {
     host?.removeAttribute('data-capturing');
   }
+}
+
+/** The tab as a JPEG at most `maxWidth` wide, without this UI (null without the extension). */
+export async function captureVisibleTab(
+  host: HTMLElement,
+  maxWidth: number,
+): Promise<{ dataUrl: string; width: number; height: number } | null> {
+  if (!hasExtensionRuntime()) return null;
+  const reply = await withPictureTurn(host, () =>
+    askBackground('cd:capture-visible-tab', { maxWidth }),
+  );
+  return reply?.ok ? { dataUrl: reply.dataUrl, width: reply.width, height: reply.height } : null;
 }
 
 /**

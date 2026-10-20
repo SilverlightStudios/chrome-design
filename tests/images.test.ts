@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { fitWithin, placeImages, placementRect } from '../src/content/images';
+import { placeImages, placementRect } from '../src/content/images';
 import { createInitialState, EditorStore, emptyDoc } from '../src/content/store';
 import { messagePreview } from '../src/content/ui/format';
+import { fitWithin } from '../src/shared/pixels';
 import { PIXEL } from './helpers';
 
 describe('placing images', () => {

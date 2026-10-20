@@ -5,14 +5,14 @@ import { Store, useStore } from '../state';
 import type { EditorStore } from '../store';
 import { Activity } from './activity';
 import { assemble, type WalkthroughResult, type WalkthroughSession } from './assemble';
-import { applyAutocrop } from './crop';
 import { flag, syncFlags } from './flags';
 import { Marks } from './marks';
+import { releasePictures, withCrops } from './output';
 import { pageDetails } from './pageContext';
-import { newId, PageSync, sessionInfo, withEarlierPages } from './pageSync';
+import { PageSync, sessionInfo, withEarlierPages } from './pageSync';
 import { PageWatch } from './pageWatch';
 import { Pictures } from './pictures';
-import { Tape } from './tape';
+import { newId, Tape } from './tape';
 
 export type { WalkthroughResult, WalkthroughSession } from './assemble';
 
@@ -185,7 +185,7 @@ export class WalkthroughRecorder extends Store<RecorderState> {
       openThreadId: null,
     });
     const recording = () => this.recording;
-    const pictures = new Pictures(tape, env.host, hasExtensionRuntime());
+    const pictures = new Pictures(tape, env.host, hasExtensionRuntime() ? session.id : null);
     const marks = new Marks(tape, pictures, this);
     const sync = hasExtensionRuntime() ? new PageSync(tape, pictures) : null;
     const watch = new PageWatch(tape, pictures, recording);
@@ -222,7 +222,10 @@ export class WalkthroughRecorder extends Store<RecorderState> {
 
   /** Forget a finished walkthrough. */
   discard(): void {
-    if (this.state.phase === 'ready') this.set({ phase: 'idle', session: null, result: null });
+    const { phase, result } = this.state;
+    if (phase !== 'ready' || !result) return;
+    releasePictures(result);
+    this.set({ phase: 'idle', session: null, result: null });
   }
 
   /** A spoken cue from the voice recorder (epoch ms): worth a picture. */
@@ -258,7 +261,8 @@ export class WalkthroughRecorder extends Store<RecorderState> {
       await withEarlierPages(tape, pictures);
       void askBackground('cd:wt-end');
     }
-    const result = await applyAutocrop(
+    // Each picture cropped to where its moment happened (Scrawl's auto-crop).
+    const result = await withCrops(
       assemble(tape, pictures.candidates, this.state.session, run.startPage, durationMs),
     );
     this.end();

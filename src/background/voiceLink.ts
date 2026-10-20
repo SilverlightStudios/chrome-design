@@ -1,4 +1,5 @@
-import type { VoiceStatusResponse } from '../shared/messages';
+import { arrayBufferToBase64 } from '../shared/base64';
+import type { VoiceStatusResponse, WtBundleRequest } from '../shared/messages';
 import { APP_NAME, APP_VERSION } from '../shared/model';
 import {
   type FromRecorder,
@@ -7,6 +8,7 @@ import {
   VOICE_PROTOCOL,
 } from '../walkthrough/protocol';
 import { restrictedReason, sendToTab } from './inject';
+import { bundleFor } from './walkthroughFiles';
 import { stopAfterResume } from './walkthroughs';
 
 /**
@@ -222,9 +224,9 @@ async function onRecorderMessage(message: FromRecorder): Promise<void> {
                   transcript: message.transcript,
                   ...(message.app ? { app: message.app } : {}),
                 } as const);
-      await chrome.tabs.sendMessage(tabId, forward).catch(() => {
+      await chrome.tabs.sendMessage(tabId, forward).catch(async () => {
         // Between pages of a walkthrough: stop once the next page has it.
-        if (message.type === 'recording.stop' && stopAfterResume(tabId)) return;
+        if (message.type === 'recording.stop' && (await stopAfterResume(tabId))) return;
         postToRecorder({
           type: 'walkthrough.unavailable',
           session: message.session,
@@ -246,6 +248,45 @@ async function onRecorderMessage(message: FromRecorder): Promise<void> {
     default:
       return;
   }
+}
+
+const MIME: Record<string, string> = {
+  jpg: 'image/jpeg',
+  md: 'text/markdown',
+  json: 'application/json',
+};
+
+/**
+ * A finished walkthrough to the recorder: the bundle (the walkthrough and summary), then each
+ * picture, then done. The bridge writes them to the walkthrough's folder.
+ */
+export async function deliverWalkthrough(
+  request: WtBundleRequest & { update?: boolean },
+): Promise<{ ok: boolean; app?: string }> {
+  if (status.state !== 'connected') return { ok: false };
+  const { files } = await bundleFor(request);
+  const pictures = files.filter((f) => f.name !== 'summary.md' && f.name !== 'walkthrough.json');
+  const { session } = request;
+  const sent = postToRecorder({
+    type: 'walkthrough.bundle',
+    session,
+    folder: request.folder,
+    walkthrough: request.walkthrough,
+    summary: request.summary,
+    files: pictures.map((f) => f.name),
+    ...(request.update ? { update: true } : {}),
+  });
+  if (!sent) return { ok: false };
+  for (const f of pictures)
+    postToRecorder({
+      type: 'walkthrough.file',
+      session,
+      name: f.name,
+      mime: MIME[f.name.split('.').at(-1) ?? ''] ?? 'application/octet-stream',
+      base64: arrayBufferToBase64(f.data),
+    });
+  postToRecorder({ type: 'walkthrough.done', session });
+  return { ok: true, ...(status.app ? { app: status.app } : {}) };
 }
 
 /** A message from a tab for the recorder. Remembers which tab a session lives in. */

@@ -21,8 +21,8 @@ export interface WalkthroughSession {
 
 export interface WalkthroughResult {
   walkthrough: Walkthrough;
-  /** The pictures as taken, by frame file name (annotated when the bundle is built). */
-  shots: Map<string, Candidate>;
+  /** Each frame's file → the key its picture is kept under (in the service worker). */
+  shots: Record<string, string>;
   summary: string;
   folder: string;
   /** Sent to the voice recorder (its name, when it said). */
@@ -53,10 +53,10 @@ export function assemble(
     i === undefined ? undefined : marks.find((m) => m.strokes.includes(i));
   // A mark's picture is placed when the mark began (it's retaken as the mark grows).
   const picked = pickFrames(candidates.map((c) => ({ ...c, t: markOf(c.strokeIndex)?.t0 ?? c.t })));
-  const shots = new Map<string, Candidate>();
+  const shots: Record<string, string> = {};
   const frames: WtFrame[] = picked.map((c, i) => {
     const file = `frames/frame-${p2(i + 1)}.jpg`;
-    shots.set(file, c);
+    shots[file] = c.key;
     const mark = markOf(c.strokeIndex);
     if (mark) mark.frame = file;
     return {

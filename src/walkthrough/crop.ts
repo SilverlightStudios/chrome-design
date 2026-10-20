@@ -1,51 +1,22 @@
 import {
   area,
-  Content,
+  type Content,
   type Crop,
-  changeRegions,
   computeCrops,
   cropLabel,
+  type Input,
   type Item,
   type Rect,
-} from '../../walkthrough/autocrop';
-import type { Walkthrough, WtFrame } from '../../walkthrough/model';
-import { buildSummary } from '../../walkthrough/summary';
-import type { WalkthroughResult } from './assemble';
+} from './autocrop.ts';
+import type { Walkthrough, WtFrame } from './model.ts';
 
 /**
- * Feeds a finished walkthrough to the auto-crop (src/walkthrough/autocrop.ts, Scrawl's): the
- * ink, laser, clicks, scrolls and where the pointer rested, placed on screen as they were when
- * they happened, plus what changed between pictures and where each picture has content. The
- * crops go on the frames (`frame.crop`) and `walkthrough.autocrop`; the pictures themselves are
- * cut when the bundle is built (bundle.ts), with the full ones kept beside them.
+ * A walkthrough's pictures cropped to where each moment happened (autocrop.ts, Scrawl's): the
+ * ink, laser, clicks, scrolls, what appeared and where the pointer rested, placed on screen as
+ * they were when they happened, plus what changed between pictures and where each has content.
+ * The crops go on the frames (`frame.crop`) and `walkthrough.autocrop`; the pictures are cut
+ * when the bundle is drawn (bundle.ts), with the full ones kept beside them.
  */
-
-interface Pixels {
-  rgba: Uint8ClampedArray;
-  w: number;
-  h: number;
-}
-
-async function pixels(dataUrl: string): Promise<Pixels | null> {
-  try {
-    const img = new Image();
-    img.src = dataUrl;
-    await img.decode();
-    const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return null;
-    ctx.drawImage(img, 0, 0);
-    return {
-      rgba: ctx.getImageData(0, 0, canvas.width, canvas.height).data,
-      w: canvas.width,
-      h: canvas.height,
-    };
-  } catch {
-    return null;
-  }
-}
 
 /** Evenly spaced points, at most `max` (Scrawl's `subsample`). */
 function subsample<T>(v: T[], max: number): T[] {
@@ -56,11 +27,17 @@ function subsample<T>(v: T[], max: number): T[] {
   );
 }
 
+/** The viewport the pictures show, in CSS px. */
+export function screenOf(wt: Walkthrough): [number, number] | null {
+  const f = wt.frames[0];
+  return f ? [f.width / f.scale, f.height / f.scale] : null;
+}
+
 export function cropInput(
   wt: Walkthrough,
   screen: [number, number],
   changes: Rect[][],
-): Omit<Parameters<typeof computeCrops>[0], 'content'> {
+): Omit<Input, 'content'> {
   const [sw, sh] = screen;
   const scrolls = wt.scrolls ?? [];
   // Where the page was scrolled at `t`, so page positions land where they were on screen.
@@ -78,10 +55,10 @@ export function cropInput(
   };
   const items: Item[] = [];
   const markFrame = new Map<number, number>();
-  wt.marks.forEach((m) => {
+  for (const m of wt.marks) {
     const k = wt.frames.findIndex((f) => f.file === m.frame);
     if (k >= 0) for (const i of m.strokes) markFrame.set(i, k);
-  });
+  }
   wt.strokes.forEach((s, i) => {
     if (s.points.length === 0) return;
     const pts = subsample(
@@ -99,14 +76,7 @@ export function cropInput(
       ...(k !== undefined ? { keyframe: k } : {}),
     });
   });
-  const cursorAt = (t: number) => {
-    let found: [number, number, number] | null = null;
-    for (const c of wt.cursor) {
-      if (c[0] > t) break;
-      found = c;
-    }
-    return found;
-  };
+  const cursorAt = (t: number) => wt.cursor.findLast((c) => c[0] <= t) ?? null;
   for (const e of wt.events) {
     if (e.kind === 'click')
       items.push({
@@ -166,42 +136,32 @@ export function cropInput(
         keyframe: k,
       });
   });
-  return {
-    screen,
-    duration: wt.durationMs,
-    keyframes: wt.frames.map((f) => f.t),
-    items,
-  };
+  return { screen, duration: wt.durationMs, keyframes: wt.frames.map((f) => f.t), items };
 }
 
-/** The walkthrough with its pictures' crops worked out (unchanged when nothing is worth it). */
-export async function applyAutocrop(result: WalkthroughResult): Promise<WalkthroughResult> {
-  const wt = result.walkthrough;
-  if (wt.frames.length === 0) return result;
-  const shots = wt.frames.map((f) => result.shots.get(f.file));
-  const first = shots[0];
-  if (!first) return result;
-  const screen: [number, number] = [first.width / first.scale, first.height / first.scale];
-  const px: (Pixels | null)[] = [];
-  for (const shot of shots) px.push(shot ? await pixels(shot.dataUrl) : null);
-  const changes: Rect[][] = px.map((cur, k) => {
-    const prev = k > 0 ? px[k - 1] : null;
-    return prev && cur ? changeRegions(prev, cur) : [];
-  });
-  const content = px.map((p) => (p ? Content.fromPixels(p.rgba, p.w, p.h, screen) : null));
+/**
+ * The walkthrough with its pictures' crops worked out: `changes` and `content` per frame (from
+ * the pictures' pixels). Unchanged when nothing is worth cropping.
+ */
+export function cropFrames(
+  wt: Walkthrough,
+  changes: Rect[][],
+  content: (Content | null)[],
+): Walkthrough {
+  const screen = screenOf(wt);
+  if (!screen) return wt;
   let crops: Crop[];
   try {
     crops = computeCrops({ ...cropInput(wt, screen, changes), content });
   } catch (error) {
     // A crop bug must never cost the walkthrough: keep the full pictures.
     console.warn('[Chrome Design] auto-crop failed', error);
-    return result;
+    return wt;
   }
   const label = cropLabel(crops);
-  if (!label) return result;
+  if (!label) return wt;
   const frames: WtFrame[] = wt.frames.map((f, k) => {
-    const c = crops[k]!;
-    const r = c.rect;
+    const { rect: r, kind, reason } = crops[k]!;
     return {
       ...f,
       crop: {
@@ -209,12 +169,12 @@ export async function applyAutocrop(result: WalkthroughResult): Promise<Walkthro
         y: Math.round(r[1] * screen[1]),
         width: Math.round((r[2] - r[0]) * screen[0]),
         height: Math.round((r[3] - r[1]) * screen[1]),
-        kind: c.kind,
-        reason: c.reason,
+        kind,
+        reason,
       },
     };
   });
-  const walkthrough: Walkthrough = {
+  return {
     ...wt,
     frames,
     autocrop: {
@@ -226,5 +186,4 @@ export async function applyAutocrop(result: WalkthroughResult): Promise<Walkthro
       ),
     },
   };
-  return { ...result, walkthrough, summary: buildSummary(walkthrough) };
 }

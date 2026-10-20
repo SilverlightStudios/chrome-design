@@ -4,12 +4,12 @@ import { type ParsedTranscript, parseTranscript } from '../../walkthrough/transc
 import { useEnv } from '../context';
 import { downloadBlob } from '../exporter';
 import {
-  type BuiltBundle,
-  buildBundle,
   copyWalkthrough,
+  type Sheet,
+  sheetOf,
   walkthroughZip,
   withTranscript,
-} from '../walkthrough/bundle';
+} from '../walkthrough/output';
 import { recorder, useRecorder } from '../walkthrough/recorder';
 import { startWalkthrough } from '../walkthrough/voice';
 import { Dial } from './Dial';
@@ -45,7 +45,7 @@ export function WalkthroughPanel() {
   const env = useEnv();
   const result = useRecorder((s) => s.result);
   const pictures = useRecorder((s) => s.pictures);
-  const [bundle, setBundle] = useState<BuiltBundle | null>(null);
+  const [sheet, setSheet] = useState<Sheet | null>(null);
   const [phase, setPhase] = useState<'idle' | 'working' | 'done' | 'error'>('idle');
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -54,7 +54,7 @@ export function WalkthroughPanel() {
   useEffect(() => {
     if (!result) return;
     let live = true;
-    void buildBundle(result).then((b) => live && setBundle(b));
+    void sheetOf(result).then((s) => live && setSheet(s));
     return () => {
       live = false;
     };
@@ -124,12 +124,12 @@ export function WalkthroughPanel() {
       onDrop={onDrop}
     >
       <PanelHead title="Walkthrough" />
-      {bundle ? (
+      {sheet ? (
         <img
           className="wt-preview"
-          src={bundle.sheet.url}
-          width={bundle.sheet.width}
-          height={bundle.sheet.height}
+          src={sheet.url}
+          width={sheet.width}
+          height={sheet.height}
           alt="Every picture, numbered"
         />
       ) : wt.frames.length ? (
@@ -250,10 +250,10 @@ export function WalkthroughPanel() {
           className="ghost-action"
           data-testid="cd-wt-image"
           data-done={saved ? '' : undefined}
-          disabled={!bundle}
+          disabled={!sheet}
           onClick={() => {
-            if (!bundle) return;
-            downloadBlob(`${result.folder}.jpg`, bundle.sheet.jpeg);
+            if (!sheet) return;
+            downloadBlob(`${result.folder}.jpg`, sheet.jpeg);
             setSaved(true);
             window.setTimeout(() => setSaved(false), 1600);
           }}

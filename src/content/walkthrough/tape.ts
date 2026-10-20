@@ -1,5 +1,14 @@
 import type { WtEvent, WtStroke } from '../../walkthrough/model';
 
+export function newId(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `wt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** This page load (a walkthrough can span several). */
+export const PAGE_ID = newId();
+
 /** `[t, x, y]`: the pointer, or where the page was scrolled to, at `t`. */
 export type Sample = [number, number, number];
 

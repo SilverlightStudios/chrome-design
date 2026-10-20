@@ -1,9 +1,8 @@
-import type { VoiceStatusResponse } from '../../shared/messages';
 import type { ToRecorder } from '../../walkthrough/protocol';
 import { parseTranscript } from '../../walkthrough/transcript';
 import { askBackground } from '../ext';
 import type { EditorStore } from '../store';
-import { bundleForVoice, withTranscript } from './bundle';
+import { bundleRequest, withTranscript } from './output';
 import { recorder, type WalkthroughResult, type WalkthroughSession } from './recorder';
 
 /**
@@ -14,10 +13,6 @@ import { recorder, type WalkthroughResult, type WalkthroughSession } from './rec
 
 export function sendToRecorder(message: ToRecorder): Promise<{ ok: boolean } | null> {
   return askBackground('cd:voice-send', { message });
-}
-
-export function voiceStatus(): Promise<VoiceStatusResponse | null> {
-  return askBackground('cd:voice-status');
 }
 
 const page = () => ({ url: location.href, title: document.title });
@@ -39,30 +34,18 @@ export function startWalkthrough(
   return started;
 }
 
-/** Send a finished walkthrough to the recorder: the bundle, then each file, then done. */
+/** Send a finished walkthrough to the recorder (the service worker sends its files). */
 export async function deliver(
   result: WalkthroughResult,
   session: string,
   update = false,
 ): Promise<boolean> {
-  const status = await voiceStatus();
-  if (!status?.connected) return false;
-  const bundle = await bundleForVoice(result);
-  const sent = await sendToRecorder({
-    type: 'walkthrough.bundle',
-    session,
-    folder: bundle.folder,
-    walkthrough: bundle.walkthrough,
-    summary: bundle.summary,
-    files: bundle.files.map((f) => f.name),
-    ...(update ? { update: true } : {}),
-  });
+  const request = bundleRequest(result);
+  if (!request) return false;
+  const sent = await askBackground('cd:wt-deliver', { ...request, session, update });
   if (!sent?.ok) return false;
-  for (const f of bundle.files) await sendToRecorder({ type: 'walkthrough.file', session, ...f });
-  await sendToRecorder({ type: 'walkthrough.done', session });
-  const now = recorder.getState().result;
-  if (now === result)
-    recorder.update({ ...result, delivered: status.app ? { app: status.app } : {} });
+  if (recorder.getState().result === result)
+    recorder.update({ ...result, delivered: sent.app ? { app: sent.app } : {} });
   return true;
 }
 

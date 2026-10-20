@@ -1,35 +1,29 @@
+import type { WtPicture } from '../../shared/messages';
 import type { WtEvent, WtFrameReason, WtPoint } from '../../walkthrough/model';
-import { type Look, look, regionDiff, SCENE_CHANGE, sceneDiff } from '../../walkthrough/scene';
-import { captureVisibleTab } from '../ext';
+import {
+  type Look,
+  lookFromWire,
+  regionDiff,
+  SCENE_CHANGE,
+  sceneDiff,
+} from '../../walkthrough/scene';
+import { askBackground, withPictureTurn } from '../ext';
 import { screenName } from './pageContext';
-import type { Tape } from './tape';
+import { PAGE_ID, type Tape } from './tape';
 
 /**
  * Pictures of the screen while a walkthrough records: asked for at the moments that matter
  * (a click, a mark, a page change…), taken one at a time as Chrome allows (two a second), and
- * on Stop the most telling ones are kept (`pickFrames`).
+ * on Stop the most telling ones are kept (`pickFrames`). The service worker takes and keeps
+ * them (background/walkthroughFiles.ts); the page keeps what each one shows and a small "look"
+ * for telling whether the screen changed.
  */
 
 /** A picture taken while recording (before the best ones are picked). */
-export interface Candidate {
-  key: string;
-  reason: WtFrameReason;
-  t: number;
-  takenAt: number;
-  /** The ink, pin or laser stroke it was taken for. */
-  strokeIndex?: number;
-  scroll: WtPoint;
-  viewport: { width: number; height: number };
-  url: string;
-  dataUrl: string;
-  width: number;
-  height: number;
-  scale: number;
+export type Candidate = WtPicture & {
   /** For "is this new?" (scene.ts). */
   look?: Look;
-  /** What screen the page was on. */
-  screen?: string;
-}
+};
 
 export type Region = [number, number, number, number];
 
@@ -99,63 +93,24 @@ export function pickFrames<T extends { reason: WtFrameReason; t: number }>(
   return list;
 }
 
-async function shrink(
-  dataUrl: string,
-  // Full resolution up to 2560 px (Scrawl decodes Screen keyframes at 2560): crops stay sharp.
-  maxWidth = 2560,
-): Promise<{ dataUrl: string; width: number; height: number; look?: Look }> {
-  const img = new Image();
-  img.src = dataUrl;
-  await img.decode();
-  // A small copy for telling whether the screen changed (Scrawl's thumbnail and grid).
-  let seen: Look | undefined;
-  const small = document.createElement('canvas');
-  small.width = 256;
-  small.height = Math.max(1, Math.round((256 * img.naturalHeight) / img.naturalWidth));
-  const sctx = small.getContext('2d', { willReadFrequently: true });
-  if (sctx) {
-    sctx.drawImage(img, 0, 0, small.width, small.height);
-    seen = look(sctx.getImageData(0, 0, small.width, small.height).data, small.width, small.height);
-  }
-  const scale = Math.min(1, maxWidth / img.naturalWidth);
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(img.naturalWidth * scale);
-  canvas.height = Math.round(img.naturalHeight * scale);
-  const ctx = canvas.getContext('2d');
-  if (!ctx)
-    return {
-      dataUrl,
-      width: img.naturalWidth,
-      height: img.naturalHeight,
-      ...(seen ? { look: seen } : {}),
-    };
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  return {
-    dataUrl: canvas.toDataURL('image/jpeg', 0.86),
-    width: canvas.width,
-    height: canvas.height,
-    ...(seen ? { look: seen } : {}),
-  };
-}
-
 export class Pictures {
   candidates: Candidate[] = [];
   /** Where the page was scrolled in the last picture. */
   lastScroll: WtPoint = { x: window.scrollX, y: window.scrollY };
   private tape: Tape;
   private host: HTMLElement;
-  /** Pictures can be taken here (the extension; not the demo page or a handoff file). */
-  private enabled: boolean;
+  /** The walkthrough they're kept under; null where there are no pictures (the demo page). */
+  private session: string | null;
   private pending = new Map<string, Pending>();
   private busy = false;
   private timer = 0;
   private seq = 0;
   private waiters: (() => void)[] = [];
 
-  constructor(tape: Tape, host: HTMLElement, enabled: boolean) {
+  constructor(tape: Tape, host: HTMLElement, session: string | null) {
     this.tape = tape;
     this.host = host;
-    this.enabled = enabled;
+    this.session = session;
   }
 
   /** When the last picture was taken (ms on the tape), -Infinity before the first. */
@@ -168,8 +123,9 @@ export class Pictures {
   }
 
   request(reason: WtFrameReason, options: PictureRequest = {}): void {
-    if (!this.enabled) return;
-    const key = options.key ?? `${reason}-${++this.seq}`;
+    if (!this.session) return;
+    // Unique across the pages of a walkthrough: it's what the picture is kept under.
+    const key = `${PAGE_ID}:${options.key ?? `${reason}-${++this.seq}`}`;
     const existing = this.pending.get(key);
     const taken = this.candidates.find((c) => c.key === key);
     if (!existing && !taken && this.candidates.length >= MAX_CANDIDATES) return;
@@ -226,7 +182,7 @@ export class Pictures {
     this.pending.delete(due.key);
     this.busy = true;
     try {
-      const shot = await this.capture();
+      const shot = await this.capture(due.key);
       if (shot && this.isNew(due, shot)) this.keep(due, shot);
       else if (shot && due.event)
         this.tape.events = this.tape.events.filter((e) => e !== due.event);
@@ -272,23 +228,28 @@ export class Pictures {
     this.lastScroll = shot.scroll;
   }
 
-  private async capture(): Promise<Omit<Candidate, 'key' | 'reason' | 't' | 'takenAt'> | null> {
+  private async capture(
+    key: string,
+  ): Promise<Omit<Candidate, 'key' | 'reason' | 't' | 'takenAt'> | null> {
     const scroll = { x: window.scrollX, y: window.scrollY };
     const viewport = {
       width: document.documentElement.clientWidth || window.innerWidth,
       height: window.innerHeight,
     };
     const url = location.href;
-    const raw = await captureVisibleTab(this.host);
-    if (!raw) return null;
-    const small = await shrink(raw).catch(() => null);
-    if (!small) return null;
+    const session = this.session!;
+    const taken = await withPictureTurn(this.host, () =>
+      askBackground('cd:wt-picture', { session, key }),
+    );
+    if (!taken) return null;
     return {
       scroll,
       viewport,
       url,
-      ...small,
-      scale: small.width / (window.innerWidth || viewport.width),
+      width: taken.width,
+      height: taken.height,
+      scale: taken.width / (window.innerWidth || viewport.width),
+      look: lookFromWire(taken.look),
     };
   }
 }

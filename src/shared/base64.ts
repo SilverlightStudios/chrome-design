@@ -1,6 +1,6 @@
-/** Chunked ArrayBuffer → base64 (works in service workers, which lack FileReader). */
-export function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
+/** Chunked bytes → base64 (works in service workers, which lack FileReader). */
+export function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array): string {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   const chunk = 0x8000;
   let binary = '';
   for (let i = 0; i < bytes.length; i += chunk) {

@@ -14,9 +14,16 @@ import type {
   ImageShape,
 } from '../shared/model';
 import { isComment, isShape } from '../shared/model';
+import { bytesOf, cut, decode, encode } from '../shared/pixels';
 import type { ExportOptions, ExportStatus } from './context';
 import { containerOfRect, elementsInRect, overlappedChildren } from './dom';
-import { backgroundFetcher, captureVisibleTab, hasExtensionRuntime } from './ext';
+import {
+  askBackground,
+  backgroundFetcher,
+  captureVisibleTab,
+  hasExtensionRuntime,
+  withPictureTurn,
+} from './ext';
 import type { HandoffData } from './handoff';
 import { hiddenUnder, maskAnchors, redactRects } from './redact';
 import { getRuntimeSource } from './runtime';
@@ -97,57 +104,42 @@ async function embedLinkedImages(doc: AnnotationDoc): Promise<AnnotationDoc> {
   return { ...doc, annotations };
 }
 
-/** Downscale a screenshot so the handoff stays reasonably small. */
-async function shrinkScreenshot(
-  dataUrl: string,
-  maxWidth = 1600,
-): Promise<{ dataUrl: string; width: number; height: number }> {
-  const img = new Image();
-  img.src = dataUrl;
-  await img.decode();
-  const scale = Math.min(1, maxWidth / img.naturalWidth);
-  const width = Math.round(img.naturalWidth * scale);
-  const height = Math.round(img.naturalHeight * scale);
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return { dataUrl, width: img.naturalWidth, height: img.naturalHeight };
-  ctx.drawImage(img, 0, 0, width, height);
-  return { dataUrl: canvas.toDataURL('image/jpeg', 0.86), width, height };
-}
-
-const MAX_SLICES = 16;
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  const img = new Image();
-  img.src = src;
-  return img.decode().then(() => img);
-}
+/** The screenshot is kept this wide at most, so the handoff stays reasonably small. */
+const SCREENSHOT_WIDTH = 1600;
+const MAX_SCREENS = 16;
+/** The full-page picture is kept this wide at most. */
+const FULL_PAGE_WIDTH = 1280;
 
 /**
  * The whole page, top to bottom, with the feedback drawn on: scroll a screen at a time and
- * capture each (the toolbar and panels are hidden, drawings and pins stay). Fixed and sticky
- * page parts are hidden after the first screen so headers aren't repeated. Extension only.
+ * capture each (the toolbar and panels are hidden, drawings and pins stay), stitched in the
+ * service worker. Fixed and sticky page parts are hidden after the first screen so headers
+ * aren't repeated. Extension only.
  */
 async function captureFullPage(
   host: HTMLElement,
   onProgress: (done: number, total: number) => void,
 ): Promise<FullPageShot | null> {
   const root = document.documentElement;
-  const viewW = root.clientWidth || window.innerWidth;
-  const viewH = window.innerHeight;
+  const view = { width: root.clientWidth || window.innerWidth, height: window.innerHeight };
   const pageH = Math.max(root.scrollHeight, document.body?.scrollHeight ?? 0);
-  const total = Math.min(MAX_SLICES, Math.ceil(pageH / viewH));
+  const total = Math.min(MAX_SCREENS, Math.ceil(pageH / view.height));
+  const width = Math.min(FULL_PAGE_WIDTH, view.width);
+  const scale = width / view.width;
   const start = { x: window.scrollX, y: window.scrollY };
   const behavior = root.style.scrollBehavior;
   root.style.scrollBehavior = 'auto';
   host.setAttribute('data-capturing', '');
   const hidden: { el: HTMLElement; value: string; priority: string }[] = [];
-  const slices: { dataUrl: string; y: number }[] = [];
+  let lastY = 0;
   try {
+    await askBackground('cd:full-page-start', {
+      width,
+      height: Math.min(pageH, total * view.height) * scale,
+      scale,
+    });
     for (let i = 0; i < total; i++) {
-      window.scrollTo(0, i * viewH);
+      window.scrollTo(0, i * view.height);
       if (i === 1) {
         for (const el of Array.from(document.body?.querySelectorAll<HTMLElement>('*') ?? [])) {
           if (el.localName.startsWith('chrome-design')) continue;
@@ -161,9 +153,14 @@ async function captureFullPage(
           el.style.setProperty('visibility', 'hidden', 'important');
         }
       }
-      const shot = await captureVisibleTab();
-      if (!shot) return null;
-      slices.push({ dataUrl: shot, y: window.scrollY });
+      lastY = window.scrollY;
+      const screen = await withPictureTurn(undefined, () =>
+        askBackground('cd:full-page-screen', {
+          y: lastY,
+          view: { ...view, innerWidth: window.innerWidth || view.width },
+        }),
+      );
+      if (!screen?.ok) return null;
       onProgress(i + 1, total);
     }
   } finally {
@@ -172,36 +169,9 @@ async function captureFullPage(
     root.style.scrollBehavior = behavior;
     host.removeAttribute('data-capturing');
   }
-  const coveredH = Math.min(pageH, (slices.at(-1)?.y ?? 0) + viewH);
-  const width = Math.min(1280, viewW);
-  const scale = width / viewW;
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = Math.round(coveredH * scale);
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
-  for (const slice of slices) {
-    const img = await loadImage(slice.dataUrl);
-    const dpr = img.naturalWidth / (window.innerWidth || viewW);
-    // Leave out a classic scrollbar on the right.
-    ctx.drawImage(
-      img,
-      0,
-      0,
-      viewW * dpr,
-      viewH * dpr,
-      0,
-      Math.round(slice.y * scale),
-      width,
-      Math.round(viewH * scale),
-    );
-  }
-  return {
-    dataUrl: canvas.toDataURL('image/jpeg', 0.8),
-    width: canvas.width,
-    height: canvas.height,
-    scale,
-  };
+  return askBackground('cd:full-page-finish', {
+    height: Math.min(pageH, lastY + view.height),
+  });
 }
 
 /**
@@ -209,7 +179,7 @@ async function captureFullPage(
  * agent sees the picture in its place without hunting through a tall screenshot.
  */
 async function contextCrops(out: BuildOutput, shot: FullPageShot): Promise<ZipEntry[]> {
-  const page = await loadImage(shot.dataUrl);
+  const page = await decode(shot.dataUrl);
   const crops: ZipEntry[] = [];
   for (const entry of out.payload.images) {
     if (entry.kind !== 'placed' || !entry.rect) continue;
@@ -220,19 +190,13 @@ async function contextCrops(out: BuildOutput, shot: FullPageShot): Promise<ZipEn
     const x1 = Math.min(shot.width, (r.x + r.width + margin) * shot.scale);
     const y1 = Math.min(shot.height, (r.y + r.height + margin) * shot.scale);
     if (x1 - x0 < 8 || y1 - y0 < 8) continue;
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(x1 - x0);
-    canvas.height = Math.round(y1 - y0);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) continue;
-    ctx.drawImage(page, x0, y0, x1 - x0, y1 - y0, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, 'image/jpeg', 0.85));
-    if (!blob) continue;
+    const crop = cut(page, [x0, y0, x1 - x0, y1 - y0]);
     crops.push({
       name: entry.file.replace(/\.[a-z0-9]+$/i, '-in-context.jpg'),
-      data: new Uint8Array(await blob.arrayBuffer()),
+      data: await bytesOf(await encode(crop, 'image/jpeg', 0.85)),
     });
   }
+  page.close();
   return crops;
 }
 
@@ -325,11 +289,8 @@ export async function runExport(
           ...(hidden ? { hidden } : {}),
           ...(options.includeScreenshot
             ? {
-                screenshot: async () => {
-                  // Toolbar and panels hidden, the feedback visible: as the designer saw it.
-                  const shot = await captureVisibleTab(host);
-                  return shot ? await shrinkScreenshot(shot) : null;
-                },
+                // Toolbar and panels hidden, the feedback visible: as the designer saw it.
+                screenshot: () => captureVisibleTab(host, SCREENSHOT_WIDTH),
               }
             : {}),
         });
