@@ -28,7 +28,7 @@ export type FromRecorder =
   | { type: 'recording.cancel'; session: string }
   /** Optional, live: a spoken cue ("here", "look", "this") — Chrome Design takes a picture. */
   | { type: 'cue'; session: string; at: number; word: string }
-  /** Optional: the transcript, for the review panel (Copy for AI then includes the words). */
+  /** Optional: the transcript, for Send to AI (its message then includes the words). */
   | { type: 'transcript'; session: string; transcript: unknown; app?: string }
   | { type: 'status' }
   /** From the bridge itself: whether a recorder is connected to it right now. */

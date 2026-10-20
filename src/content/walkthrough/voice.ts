@@ -75,7 +75,7 @@ export function stopFromRecorder(): Promise<WalkthroughResult | null> {
   return recorder.stop();
 }
 
-/** A transcript sent by the recorder: shown in the review panel and used by Copy for AI. */
+/** A transcript sent by the recorder: shown in Send to AI and sent with the walkthrough. */
 export function applyRecorderTranscript(
   session: string,
   transcript: unknown,

@@ -293,7 +293,7 @@ export async function deliverWalkthrough(
 export function fromTab(message: ToRecorder, tabId: number | undefined): boolean {
   if ('session' in message && tabId !== undefined) {
     if (message.type === 'walkthrough.started') sessions.set(message.session, tabId);
-    // Kept after it's done: the recorder may still send the transcript for the review panel.
+    // Kept after it's done: the recorder may still send the transcript for Send to AI.
     if (message.type === 'walkthrough.discarded') sessions.delete(message.session);
   }
   return postToRecorder(message);

@@ -26,8 +26,8 @@ The toolbar is one row: **Close · Select · Comment · Pencil · Shapes · Text
 | Image | `⇧⌘K` | Pick images to place on the page, like on a canvas. While any tool is on you can also drag images straight onto the page (they land where you drop them), including a picture dragged from another website, or paste an image or an image link with `⌘V` (it lands in the middle of the screen). A linked picture is copied in when its site allows it; otherwise the link is kept and embedded at download time if possible. A placed image is selected right away: drag to move, pull a corner to resize (proportions kept; `⇧` frees them), `⌫` deletes. Large pictures are scaled down to 1600 px on the long edge before they're saved. When the tools are paused, drops and pastes go to the page as usual. |
 | Style bar | | Appears above the toolbar while drawing or when a drawing is selected: colour, stroke width, dashed, eraser, delete, undo and redo. Changes apply to the selected drawing. |
 | More ⋯ | | Comments list (`F`, filter by open or resolved, click to jump to one), Use the page (pauses the tools so the page works normally), Open file (bring a downloaded handoff `.html` or `.zip` back onto the live page: its comments, replies, drawings and images join yours as one undoable step; a file for another page asks first; dropping the file on the page does the same), Rulers (`M`, drag from a ruler to add a guide), Columns (`G` toggles; the ⋯ on the tile opens its settings: Stretch / Left / Center / Right / Space between / around / evenly, DialKit-style sliders for count, width, gutter, margin and opacity where a typed number can go past the slider, colour swatches), Screen size (with the extension, on a computer: resize the window to Phone 390 / Tablet 834 / Laptop 1280 / Desktop 1440 so the page's own breakpoints apply, with a live width readout and a way back), Shortcuts (`?`, desktop only), Quick tour, Settings and Clear this page. Panels opened from More have a back button. |
-| Send to AI | `⇧E` | Shows what will be included, takes an optional note for the assistant, and downloads the file. |
-| Walkthrough | `W` | Talk a page through while Chrome Design follows along (the ◉ button; More → Walkthrough reopens the last one). The page stays usable; hold `⇧` and move for a laser pointer, `⇧`-drag for red ink (circles, underlines and arrows are recognised), `⇧`-click for a numbered pin, and **Flag** (`⌥⇧F`) for "look here": a picture now and a comment pinned where the pointer is (it gets what you said then, once there's a transcript). Clicks, scrolling, typing (which field, never what was typed), page changes and things that appear by themselves (toasts, dialogs, popovers, live messages) are noted, and pictures are taken at those moments; a picture of something appearing is kept only if it shows something new. Following a link doesn't end it: it carries on on the next page, on the same clock. Each picture is cropped to where its moment happened (Scrawl's auto-crop; the full pictures are kept in `frames-full/`), and page details are read from the page (what screen it's on: dialog, selected tab, page heading; the route; a Next.js route pattern; language, theme, size). On a touch screen the bar's **Draw** does what `⇧` does. **Stop** (`⌥⇧W`) shows the whole walkthrough as one picture: a header (page, length, how the voice lines up) and every numbered picture with what happened, what was said and what else happened then. Add what you said from any speech-to-text tool (.srt, .vtt, .json or .txt; the **Voice starts** dial lines it up), then **Download .zip** (`summary.md`, `walkthrough.json`, `contact-sheet.jpg`, `frames/`), **Copy for AI** (the picture plus the same text) or **Save image** (just the picture). With the voice link on, your own voice recorder starts and stops it and gets it back: see [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md). |
+| Send to AI | `⇧E` | The one way out. Shows what goes (the button's name says it too: "Send to AI · 3 comments · walkthrough"): the comments and drawings, and the last walkthrough as a card. Takes an optional note for the assistant; **What the AI gets** shows the message exactly as Copy for AI copies it. Download file, .zip with images and Copy for AI all carry everything, walkthrough included. |
+| Walkthrough | `W` | Talk a page through while Chrome Design follows along (the ◉ button). The page stays usable; hold `⇧` and move for a laser pointer, `⇧`-drag for red ink (circles, underlines and arrows are recognised), `⇧`-click for a numbered pin, and **Flag** (`⌥⇧F`) for "look here": a picture now and a comment pinned where the pointer is (it gets what you said then, once there's a transcript). Clicks, scrolling, typing (which field, never what was typed), page changes and things that appear by themselves (toasts, dialogs, popovers, live messages) are noted, and pictures are taken at those moments; a picture of something appearing is kept only if it shows something new. Following a link doesn't end it: it carries on on the next page, on the same clock. Each picture is cropped to where its moment happened (Scrawl's auto-crop; the full pictures are kept in `frames-full/`), and page details are read from the page (what screen it's on: dialog, selected tab, page heading; the route; a Next.js route pattern; language, theme, size). On a touch screen the bar's **Draw** does what `⇧` does. **Stop** (`⌥⇧W`) opens Send to AI with the walkthrough in it, as one picture: a header (page, length, how the voice lines up) and every numbered picture with what happened, what was said and what else happened then. Add what you said from any speech-to-text tool (.srt, .vtt, .json or .txt, or drop the file on the card; the **Voice starts** dial lines it up). It goes with the rest of the feedback (the .zip puts `summary.md`, `walkthrough.json`, `contact-sheet.jpg` and `frames/` in `walkthrough/`); **Save image** saves just the picture, and × removes it (with Undo). With the voice link on, your own voice recorder starts and stops it and gets it back: see [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md). |
 | Undo / redo | `⌘Z` / `⇧⌘Z` | Applies to every change: comments, drawings, guides, moves and deletes. |
 | Step back | `Esc` | Each press goes back one level: closes bubbles and panels, deselects, returns to Select, then pauses the tools. While paused the page gets all its keys back. |
 
@@ -79,8 +79,9 @@ Measured in Chrome DevTools (`document.getAnimations()`, rAF sampling) against t
 - **Without JavaScript** (file previews, mail apps) it still shows the page with pins, outlines, drawings and placed images drawn on top, plus a corner list of the comments and their pictures (declarative shadow DOM, so page CSS can't touch it).
 - **For AI agents.** An HTML comment at the very top holds the instructions and the whole feedback in plain text (every comment with replies and attached pictures, every drawing, every placed image with where it sits). The instructions explain that the board is a scratch board (nothing is pixel-perfect unless a comment says so), and that a placed image is usually a screenshot of the intended design, often a component from Figma. It tells the agent *what* to build (what the picture shows, with nearby comments), *how* it should look (in the page's own design system), and *where* it goes: where it was dropped, `placement.inside` (the section it belongs in) and `placement.covers` (what it sits on). The top comment also carries a short Python script that unpacks every picture into `images/`, the clean page into `page.html` and the payload into `handoff.json`.
 - **A picture of the whole page.** With the extension, the download also takes a top-to-bottom picture of the page with every drawing, placed image and comment pin drawn on (it scrolls a screen at a time, hides the toolbar, and hides fixed headers after the first screen so they don't repeat). It's in the file (`#chrome-design-fullpage`, unpacked as `page-annotated.jpg`).
-- **Copy for AI** copies one chat-ready message instead of a file: the page, how to read a scratch board, and every comment, drawing and placed image with where it sits (plus an HTML copy carrying the pictures, for editors that take them).
-- **Download .zip with images** saves the same thing as a folder for coding agents and chat uploads: the `.html`, `AGENTS.md` (instructions + feedback), `handoff.json`, `page.html`, `screenshot.jpg`, `page-annotated.jpg`, `images/placed-NN-….png` / `images/comment-NN-k-….png`, and `images/placed-NN-…-in-context.jpg` (each placed image cropped from the page picture with what's around it).
+- **Copy for AI** copies one chat-ready message instead of a file: the page, how to read a scratch board, and every comment, drawing and placed image with where it sits, then the walkthrough's summary when there is one (plus an HTML copy carrying the pictures and the walkthrough's contact sheet, for editors that take them). Send to AI's **What the AI gets** shows this message.
+- **A walkthrough goes too.** The file carries its summary (`#chrome-design-walkthrough`) and contact sheet (`#chrome-design-walkthrough-sheet`), mentioned in the instructions at the top; a shared file keeps it when downloaded again.
+- **Download .zip with images** saves the same thing as a folder for coding agents and chat uploads: the `.html`, `AGENTS.md` (instructions + feedback), `handoff.json`, `page.html`, `screenshot.jpg`, `page-annotated.jpg`, `images/placed-NN-….png` / `images/comment-NN-k-….png`, `images/placed-NN-…-in-context.jpg` (each placed image cropped from the page picture with what's around it), and `walkthrough/` when there is one.
 
 What's inside the file:
 
@@ -129,7 +130,7 @@ After changing code, run `pnpm build` again and click the reload icon on the ext
 | `pnpm demo` | Runs the real in-page UI on a sample site at http://127.0.0.1:5173 (open it on a phone to test the touch layout). There is no extension runtime there, so screenshots are skipped and annotations go to `localStorage`. It also serves `/chrome-design.js` (the content script, built on request) so files downloaded from the demo open with the toolbar too. |
 | `pnpm demo:build` | Static build of the demo into `demo-dist/` (`.github/workflows/demo.yml` publishes it to GitHub Pages on every push to `main`) |
 | `pnpm typecheck` | `tsc --noEmit` (TypeScript 7) |
-| `pnpm lint` | Oxlint + Biome check |
+| `pnpm lint` | Oxlint + Biome check, and no CSS class left that no code uses (`scripts/unused-css.mjs`) |
 | `pnpm lint:fix` / `pnpm format` | Auto-fix / format |
 | `pnpm test` | Vitest unit tests (schema/export, sanitizer, CSS rewriting, geometry incl. resize handles, store history, shortcuts, plain-language element names) |
 | `pnpm e2e:install` | One-time project-local Chromium download for e2e (`PLAYWRIGHT_BROWSERS_PATH=0`, stored in `node_modules`) |
@@ -145,27 +146,40 @@ After changing code, run `pnpm build` again and click the reload icon on the ext
 
 ```
 src/
-  shared/      typed models (model.ts), JSON Schema (schema.ts), escaping, geometry (hit tests, resize handles), measurement, messages
-  background/  service worker: icon click / ⌥⇧D toggle, captureVisibleTab, optional asset fetch; inject.ts (restricted-page checks + on-demand injection)
+  shared/      typed models (model.ts), JSON Schema (schema.ts), escaping, geometry (hit tests, resize handles), measurement,
+               messages.ts (every request a tab makes to the service worker, and its reply), pixels.ts (reading, resizing
+               and writing pictures on OffscreenCanvas, the same on the page and in the service worker)
+  background/  service worker: icon click / ⌥⇧D toggle, optional asset fetch, one handler per request; inject.ts (restricted-page checks +
+               on-demand injection); capture.ts (every tab picture waits its turn: Chrome allows two a second; resizing, the
+               full-page picture stitched); walkthroughs.ts (walkthroughs across pages, in chrome.storage.session);
+               walkthroughFiles.ts + pictureStore.ts (walkthrough pictures kept in IndexedDB, crops, contact sheets, files);
+               voiceLink.ts (the voice link)
   popup/       restricted-page explainer (popup.html) and the welcome & settings page (options.html)
   content/     content script (IIFE, injected on demand) with React UI in a shadow root (top layer)
-    store.ts        editor state + undo/redo history (external store, framework-free)
+    state.ts        the one store (Store + useStore); store.ts the editor's (undo/redo history), the recorder is another
+    package.ts      what Send to AI sends: the feedback and the walkthrough
     describe.ts     plain-language names for elements (“Button “Start free””)
     keyboard.ts     Figma-style single-key tools and the Esc chain
     overlay/        capture layer (pointer logic), page-space drawings/pins/selection handles,
                     hover + selection outlines, selection bar + details, comment bubble, text editor, rulers/grid
-    ui/             toolbar (tools, Shapes menu, style bar), panels (More, Comments, Columns, Send to AI, Settings, Shortcuts, Welcome), `Dial` slider, Paused chip
+    ui/             Toolbar, StyleBar (the contextual style bar), controls (ToolButton), panels (More, Comments, Columns,
+                    Send to AI with its WalkthroughCard, Settings, Shortcuts, Welcome), `Dial` slider, Paused chip
     motion/         spring.ts (Spark's spring), glass.tsx (Liquid Glass, `<LiquidGlass>` bars), Tooltip (fluid tooltips), FloatingSheet and BottomSheet (desktop sheets, phone bottom sheets; sheets.ts what they share), presence.ts (exit animations)
-    exporter.ts     capture → build → download
-    walkthrough/    recorder.ts (laser, ink, pins, flags, clicks, scrolls, page changes, pictures on one clock),
-                    crop.ts (feeds the auto-crop), pageContext.ts (page details), bundle.ts (annotated and
-                    cropped pictures, contact sheets, .zip, Copy for AI), voice.ts (the page's side of the voice link)
+    exporter.ts     capture → build → download, Copy for AI
+    styles/         the UI's CSS, one file per part (tokens, base, glass, toolbar, panels, …) in cascade order (index.css)
+    walkthrough/    recorder.ts (start, stop, resume on the next page) and its parts: tape.ts (what's recorded, one
+                    clock), activity.ts (pointer, clicks, scrolls, typing, keys), marks.ts (ink, pins, laser), pageWatch.ts
+                    (toasts, dialogs, routes), pictures.ts (which pictures, which are kept), pageSync.ts (across pages),
+                    flags.ts, assemble.ts; output.ts (crops, contact sheet, files, through the service worker),
+                    pageContext.ts (page details), voice.ts (the page's side of the voice link)
   capture/     DOM → sanitized snapshot: stylesheets (CSSOM, @import, adopted sheets, shadow roots),
                asset embedding with byte budget, viewport-unit rewriting, element anchors/selectors
   export/      pure document builder (build.ts), agent prompt, SVG overlay, self-contained viewer runtime
   walkthrough/ pure, also runs in Node: model.ts (walkthrough.json), shapes.ts (ink → circle / underline / arrow / pin,
                ported from Scrawl), transcript.ts (SRT, VTT, Whisper / NeMo JSON, text), summary.ts (summary.md), protocol.ts
-               autocrop.ts (Scrawl's auto-crop, ported), scene.ts (Scrawl's "did the screen change")
+               autocrop.ts (Scrawl's auto-crop, ported), crop.ts (a walkthrough's crops), scene.ts (Scrawl's "did the
+               screen change"); bundle.ts draws the pictures and contact sheet (OffscreenCanvas: the service worker or
+               the page, not Node)
 bridge/        the voice link's native messaging host (host.mjs), its installer, and a stand-in voice recorder
 tools/         walkthrough-merge.ts: transcript + walkthrough → summary.md, for voice tools
 demo/          sample site + harness for the in-page UI (also the phone preview)

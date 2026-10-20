@@ -1,13 +1,29 @@
 # Build progress (resumable notes)
 
-## Status (2026-10-19)
-R12 done: walkthroughs and the voice link. All checks pass: typecheck, Oxlint, Biome, 126 unit
-tests, 12 Playwright e2e tests against the real unpacked extension (a walkthrough with laser, ink,
-a pin, clicks and a transcript; the voice link through the real bridge with a stand-in
-recorder). Verified on the demo page in desktop Chromium and the iPhone 15 WebKit emulator
-(finger ink, a tap pin, the bottom-sheet review panel).
+## Status (2026-10-20)
+R15 done: the architecture pass. All checks pass: typecheck, Oxlint, Biome, the unused-CSS
+check, 130 unit tests, 13 Playwright e2e tests against the real unpacked extension. Styles
+verified unchanged by comparing every element's computed style under the old and new sheets
+(light and dark, toolbar and each panel).
 
 ## Rounds
+- R15 (architecture): one store (`content/state.ts`: `Store` + `useStore`; the editor and the
+  recorder are both one) and typed messages (`BackgroundApi` in shared/messages.ts, `askBackground`,
+  one handler per request in the service worker). The recorder in parts (tape, activity, marks,
+  pageWatch, pictures, pageSync, flags, assemble; a fresh set per run). The service worker takes
+  every tab picture in turn (`background/capture.ts`: Chrome's two a second, the toolbar hidden
+  only for the picture), resizes screenshots and stitches the full-page picture, and keeps
+  walkthrough pictures in IndexedDB (`pictureStore.ts`); on Stop it crops them and draws the
+  pictures and contact sheet (`walkthroughFiles.ts`, with `src/walkthrough/crop.ts` and
+  `bundle.ts` on OffscreenCanvas via `shared/pixels.ts`, the one picture pipeline) and sends the
+  voice recorder its files itself. Walkthrough sessions across pages live in
+  chrome.storage.session. Send to AI is the one way out: the walkthrough is a card in it (Remove
+  with Undo, Save image, transcript), every format carries it (file blocks
+  `#chrome-design-walkthrough` / `-sheet`, `walkthrough/` in the .zip, its summary in Copy for
+  AI), "What the AI gets" previews the message, and the Send button says what goes. Styles split
+  into `content/styles/` (tokens, base, glass, one file per part; order kept), with
+  `scripts/unused-css.mjs` in `pnpm lint`. Toolbar.tsx → Toolbar + StyleBar + controls;
+  MorphSheet.tsx → FloatingSheet + BottomSheet + sheets.ts.
 - R14: Scrawl's auto-crop ported rule for rule (`walkthrough/autocrop.ts` + its tests in
   tests/autocrop.test.ts; `content/walkthrough/crop.ts` builds its input: positions placed on
   screen with the `scrolls` timeline, change regions between pictures, `Content` from pixels).
@@ -116,7 +132,7 @@ recorder). Verified on the demo page in desktop Chromium and the iPhone 15 WebKi
 ## Architecture decisions
 - Content script = single IIFE (`dist/content.js`) injected on demand via `chrome.scripting` (activeTab). UI is React inside an open Shadow DOM host `<chrome-design-root>` shown as a manual popover (top layer); removed entirely on close after a 240ms exit.
 - Page-space annotation layer: absolutely positioned 0×0 container at document origin (scrolls natively). Toolbar/rulers/grid/selection bar use fixed positioning.
-- Service worker: injection, `captureVisibleTab`, optional cross-origin asset fetch (only with optional `<all_urls>` granted from Settings → “Allow other websites”).
+- Service worker: injection, every tab picture (one queue, resized there), optional cross-origin asset fetch (only with optional `<all_urls>` granted from Settings → “Allow other websites”), walkthrough pictures and files. Heavy picture work (decode, crop analysis, contact sheets, stitching) runs there, not on the page; content scripts can't start workers of their own on arbitrary pages (CSP, origin).
 - Export: `src/export/build.ts` is pure (tested in Node/jsdom). Snapshot stored raw in `<script type="text/html" id="chrome-design-snapshot">` (escaping in `src/shared/escape.ts`), payload `application/json`, schema `application/schema+json`, source DOM as JSON string. Viewer runtime is one self-contained function embedded with `fn.toString()` (must not reference module scope); CSP `default-src 'none'` + script hash; snapshot iframe `sandbox="allow-same-origin"`.
 - Remote assets that can't be embedded are replaced by a placeholder (`data-cd-original-*` keeps the URL) so the export never touches the network.
 - vh/dvh/svh/lvh/vw units in declarations are rewritten to px for the full-height snapshot iframe.

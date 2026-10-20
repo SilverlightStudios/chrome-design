@@ -10,7 +10,7 @@ The two apps stay separate and each works alone:
 
 | | Chrome Design alone | Voice recorder alone | Linked |
 | --- | --- | --- | --- |
-| Start | `W`, More → Walkthrough | its hotkey | either one starts both (the recorder only when Chrome is in front) |
+| Start | `W`, the ◉ button | its hotkey | either one starts both (the recorder only when Chrome is in front) |
 | Pictures, marks, clicks | ✓ | – | ✓ |
 | What was said | drop in any transcript (.srt, .vtt, .json, .txt) and line it up with the **Voice starts** dial | ✓ | lined up exactly, by clock |
 | Final text for the agent | `summary.md` / Copy for AI | its own | the recorder writes it (or Chrome Design does, from the transcript the recorder sends back) |
@@ -173,8 +173,8 @@ Checklist:
    contact sheet as an image) or straight into an agent session with both attached.
 8. Optional: **cues.** If transcription streams, send `cue` when you hear "here", "look",
    "this" or "watch" (Scrawl's cue words): Chrome takes a picture at that moment.
-9. Optional: **send the transcript back** (`transcript`). Chrome's review panel and Copy for AI
-   then show the words, and Chrome redraws `contact-sheet.jpg` (the whole walkthrough as one
+9. Optional: **send the transcript back** (`transcript`). Send to AI (its walkthrough card, the
+   message and the files) then shows the words, and Chrome redraws `contact-sheet.jpg` (the whole walkthrough as one
    picture) with each quote under its picture and saves it into the same folder
    (`walkthrough.saved` with `update: true`). Wait for that if you'd rather deliver the picture
    with the words on it than draw them yourself.
@@ -203,7 +203,7 @@ Recorder → Chrome Design:
 | `recording.stop` | `session`, `stoppedAt` | finish and send the walkthrough |
 | `recording.cancel` | `session` | stop and keep nothing |
 | `cue` | `session`, `at`, `word` | optional: take a picture now |
-| `transcript` | `session`, `transcript`, `app?` | optional: the words, for Chrome's review panel |
+| `transcript` | `session`, `transcript`, `app?` | optional: the words, for Send to AI in Chrome |
 | `status` | | Chrome answers `status {recording, session?}` |
 
 Chrome Design → recorder:
@@ -247,7 +247,7 @@ header (page, length, how the voice lines up), then every numbered picture with 
 what was said and what else happened then. It's what a person, or an agent pasting one image
 into a chat, reads at a glance. `summary.md` is the same thing as text, which agents read more
 reliably than words inside a picture, so Copy for AI puts both on the clipboard (the picture and
-the text), the way Scrawl pastes `contact-sheet.png` + `summary.md`. `walkthrough.json` is for
+the text, after the page's comments), the way Scrawl pastes `contact-sheet.png` + `summary.md`. `walkthrough.json` is for
 programs: exact times, positions, selectors and the raw strokes, for tools (like your recorder)
 that rearrange or reformat.
 
@@ -293,6 +293,8 @@ Three ways for the recorder to produce it:
   written out (`marks[].description`), so the port is only arranging lines.
 
 ## Files in a walkthrough folder
+
+The voice recorder's folder; in Send to AI's .zip, the same files are in `walkthrough/`.
 
 | file | |
 | --- | --- |
@@ -347,12 +349,15 @@ without a click).
 ## Limits
 
 - A walkthrough follows the tab across links and page loads (the service worker keeps the earlier
-  pages until Stop). It skips pages Chrome Design can't run on and carries on on the next one it
+  pages in `chrome.storage.session` until Stop, so it survives the worker being stopped; the
+  pictures are taken and kept by the service worker, in IndexedDB, and go when the walkthrough is
+  replaced, its tab closes, or a day passes). It skips pages Chrome Design can't run on and carries on on the next one it
   can; on another site that needs **Images from other websites**. It follows one tab, not new
   tabs a link opens. Stopping (from the recorder) while a page is loading waits for it.
 - Chrome allows two pictures a second, so pictures are taken at moments (marks, clicks, scrolls,
-  page loads, things appearing, flags, cues), at most 20 are kept (flags always), and the
-  toolbar hides for an instant each time.
+  page loads, things appearing, flags, cues), each waiting its turn in the service worker, at most
+  20 are kept (flags always), and the toolbar hides for an instant each time (only once it's
+  that picture's turn).
 - Pictures need the extension: on the demo page and in shared files the walkthrough has marks,
   clicks and words, but no pictures.
 - Text typed into fields is never recorded, only which field; it can still show in a picture,
