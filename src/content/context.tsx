@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { SettingsResponse } from '../shared/messages';
+import type { SentWalkthrough } from '../shared/model';
 import { useStore } from './state';
 import type { EditorState, EditorStore } from './store';
 
@@ -36,6 +37,8 @@ export interface EditorEnv {
   runExport: (options: ExportOptions, onStatus: (status: ExportStatus) => void) => Promise<void>;
   /** Copy the instructions and feedback for pasting into an AI chat. */
   copyForAi: () => Promise<boolean>;
+  /** The message Copy for AI copies (with `walkthrough`, the walkthrough's summary). */
+  chatText: (walkthrough?: string) => string;
   toast: (message: string, action?: ToastAction) => void;
   /** Open the extension's full settings page in a tab; false without the extension. */
   openSettingsPage: () => Promise<boolean>;
@@ -43,6 +46,8 @@ export interface EditorEnv {
   getSettings: () => Promise<SettingsResponse | null>;
   /** Running inside a shared handoff file (no extension; the page is a copy). */
   handoff?: boolean;
+  /** The walkthrough a shared handoff file came with. */
+  sentWalkthrough?: SentWalkthrough;
 }
 
 const EnvContext = createContext<EditorEnv | null>(null);

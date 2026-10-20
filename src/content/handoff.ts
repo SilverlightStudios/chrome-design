@@ -1,6 +1,6 @@
 import { freezeMediaQueries } from '../capture/media';
 import { BLOCK_IDS, ROOT_ATTRIBUTE } from '../export/prompt';
-import type { AnnotationDoc, FullPageShot, HandoffPayload } from '../shared/model';
+import type { AnnotationDoc, FullPageShot, HandoffPayload, SentWalkthrough } from '../shared/model';
 
 /**
  * A shared handoff file opened in a browser: the page copy with Chrome Design built in. The
@@ -16,6 +16,8 @@ export interface HandoffData {
   source: string;
   screenshot?: { dataUrl: string; width: number; height: number };
   fullPage?: FullPageShot;
+  /** A walkthrough sent with the feedback (carried over to a re-download). */
+  walkthrough?: SentWalkthrough;
   /** Where edits made in this copy are remembered (per file, in this browser). */
   storageKey: string;
 }
@@ -58,6 +60,18 @@ export function readHandoff(runtime: string): HandoffData | null {
         width: Number(full.getAttribute('data-width')) || 0,
         height: Number(full.getAttribute('data-height')) || 0,
         scale: Number(full.getAttribute('data-scale')) || 1,
+      };
+    const summary = blockText(BLOCK_IDS.walkthrough);
+    const sheet = document.getElementById(BLOCK_IDS.walkthroughSheet);
+    const sheetUrl = sheet?.textContent?.trim();
+    if (summary && sheet && sheetUrl?.startsWith('data:image/'))
+      data.walkthrough = {
+        summary: JSON.parse(summary) as string,
+        sheet: {
+          dataUrl: sheetUrl,
+          width: Number(sheet.getAttribute('data-width')) || 0,
+          height: Number(sheet.getAttribute('data-height')) || 0,
+        },
       };
     return data;
   } catch (error) {

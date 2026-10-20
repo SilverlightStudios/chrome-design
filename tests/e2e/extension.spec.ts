@@ -719,29 +719,35 @@ test('walkthrough: laser, ink and clicks become numbered pictures and a summary'
   await page.waitForTimeout(1200);
   await ui.locator('.tb-btn[aria-label^="Stop"]').click();
 
-  const panel = ui.locator('.walkthrough-panel');
+  // Stop opens Send to AI: the walkthrough goes with the rest of the feedback.
+  const panel = ui.locator('[data-testid="cd-wt-card"]');
   await expect(panel).toBeVisible({ timeout: 15_000 });
   await expect(panel.locator('.wt-preview')).toBeVisible();
   await expect(panel.locator('.summary-row').first()).toContainText('picture');
+  await expect(ui.locator('.tb-btn[aria-label^="Send to AI"]')).toHaveAttribute(
+    'aria-label',
+    /walkthrough/,
+  );
 
   const downloading = page.waitForEvent('download');
-  await ui.locator('[data-testid="cd-wt-download"]').click();
+  await ui.locator('[data-testid="cd-export-zip"]').click();
   const download = await downloading;
-  expect(download.suggestedFilename()).toMatch(/^walkthrough-127\.0\.0\.1-.*\.zip$/);
+  expect(download.suggestedFilename()).toMatch(/^chrome-design-127\.0\.0\.1-.*\.zip$/);
   const zip = readFileSync((await download.path())!);
-  const summary = zipEntry(zip, 'summary.md');
+  expect(zipEntry(zip, 'AGENTS.md')).toContain('`walkthrough/`');
+  const summary = zipEntry(zip, 'walkthrough/summary.md');
   expect(summary).toContain('circled Heading “Simple pricing”');
   expect(summary).toContain('pin 1 on Button “Start free”');
   expect(summary).toContain('pointed at Heading “Simple pricing”');
   expect(summary).toContain('[clicked Button “Start free”]');
   expect(summary).toContain('typed in Field “Email”');
   expect(summary).not.toContain('nobody@example.com');
-  const wt = JSON.parse(zipEntry(zip, 'walkthrough.json'));
+  const wt = JSON.parse(zipEntry(zip, 'walkthrough/walkthrough.json'));
   expect(wt.kind).toBe('chrome-design.walkthrough');
   expect(wt.frames.length).toBeGreaterThanOrEqual(4);
   expect(wt.frames[0].reason).toBe('start');
-  expect(zip.includes(Buffer.from('contact-sheet.jpg'))).toBe(true);
-  expect(zip.includes(Buffer.from('frames/frame-01.jpg'))).toBe(true);
+  expect(zip.includes(Buffer.from('walkthrough/contact-sheet.jpg'))).toBe(true);
+  expect(zip.includes(Buffer.from('walkthrough/frames/frame-01.jpg'))).toBe(true);
 
   // The whole walkthrough as one picture.
   const saving = page.waitForEvent('download');
@@ -759,11 +765,26 @@ test('walkthrough: laser, ink and clicks become numbered pictures and a summary'
   });
   await expect(panel.locator('.wt-voice')).toContainText('said.srt');
   await expect(panel.locator('.dial')).toBeVisible();
+  // What the AI gets is shown as it will be copied.
+  await ui.locator('summary', { hasText: 'What the AI gets' }).click();
+  await expect(ui.locator('[data-testid="cd-ai-preview"]')).toContainText('WALKTHROUGH');
+  await expect(ui.locator('[data-testid="cd-ai-preview"]')).toContainText(
+    '“This heading is too big.”',
+  );
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseUrl });
-  await ui.locator('[data-testid="cd-wt-copy"]').click();
-  await expect(ui.locator('[data-testid="cd-wt-copy"][data-done]')).toHaveCount(1);
+  await ui.locator('[data-testid="cd-copy-for-ai"]').click();
+  await expect(ui.locator('[data-testid="cd-copy-for-ai"][data-done]')).toHaveCount(1);
   const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toContain('WALKTHROUGH');
   expect(copied).toContain('“This heading is too big.”');
+
+  // The shareable file carries it too.
+  const saving2 = page.waitForEvent('download');
+  await ui.locator('[data-testid="cd-export-download"]').click();
+  const html = readFileSync((await (await saving2).path())!, 'utf8');
+  expect(html).toContain('id="chrome-design-walkthrough"');
+  expect(html).toContain('id="chrome-design-walkthrough-sheet"');
+  expect(html).toContain('THE WALKTHROUGH');
   await page.close();
 });
 
@@ -806,13 +827,13 @@ test('walkthrough: crops, page changes, a flag that leaves a comment, and a seco
   await page.waitForTimeout(800);
   const ui2 = page.locator('chrome-design-root');
   await ui2.locator('.tb-btn[aria-label^="Stop"]').click();
-  await expect(ui2.locator('.walkthrough-panel')).toBeVisible({ timeout: 20_000 });
+  await expect(ui2.locator('[data-testid="cd-wt-card"]')).toBeVisible({ timeout: 20_000 });
 
   const downloading = page.waitForEvent('download');
-  await ui2.locator('[data-testid="cd-wt-download"]').click();
+  await ui2.locator('[data-testid="cd-export-zip"]').click();
   const zip = readFileSync((await (await downloading).path())!);
-  const summary = zipEntry(zip, 'summary.md');
-  const wt = JSON.parse(zipEntry(zip, 'walkthrough.json'));
+  const summary = zipEntry(zip, 'walkthrough/summary.md');
+  const wt = JSON.parse(zipEntry(zip, 'walkthrough/walkthrough.json'));
   // One walkthrough over both pages, on one clock.
   expect(wt.page.title).toBe('Shop');
   expect(summary).toContain('Message “Saved to your list” appeared');
@@ -835,7 +856,13 @@ test('walkthrough: crops, page changes, a flag that leaves a comment, and a seco
     true,
   );
   expect(summary).toContain('Cropped to: the activity');
-  expect(zip.includes(Buffer.from('frames-full/frame-01.jpg'))).toBe(true);
-  expect(zip.includes(Buffer.from('contact-sheet-full.jpg'))).toBe(true);
+  expect(zip.includes(Buffer.from('walkthrough/frames-full/frame-01.jpg'))).toBe(true);
+  expect(zip.includes(Buffer.from('walkthrough/contact-sheet-full.jpg'))).toBe(true);
+
+  // Removing it can be undone.
+  await ui2.locator('[data-testid="cd-wt-remove"]').click();
+  await expect(ui2.locator('[data-testid="cd-wt-card"]')).toHaveCount(0);
+  await ui2.locator('.toast-btn', { hasText: 'Undo' }).click();
+  await expect(ui2.locator('[data-testid="cd-wt-card"]')).toBeVisible();
   await page.close();
 });

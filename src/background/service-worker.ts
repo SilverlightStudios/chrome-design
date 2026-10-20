@@ -19,7 +19,6 @@ import { activeTab, sendToTab } from './inject';
 import { deliverWalkthrough, fromTab, initVoiceLink, voiceSetting } from './voiceLink';
 import {
   cropWalkthrough,
-  discardWalkthrough,
   filesOf,
   initWalkthroughFiles,
   sheetOf,
@@ -179,7 +178,6 @@ const handlers: {
   'cd:wt-sheet': sheetOf,
   'cd:wt-files': filesOf,
   'cd:wt-deliver': deliverWalkthrough,
-  'cd:wt-discard': (m) => discardWalkthrough(m.session),
 };
 
 chrome.runtime.onMessage.addListener((message: BackgroundRequest, sender, sendResponse) => {

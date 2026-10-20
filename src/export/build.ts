@@ -22,6 +22,7 @@ import {
   type PageCapture,
   SCHEMA_ID,
   SCHEMA_VERSION,
+  type SentWalkthrough,
 } from '../shared/model';
 import { handoffSchema } from '../shared/schema';
 import { pinColor, renderOverlaySvg } from './overlay';
@@ -45,6 +46,8 @@ export interface BuildInput {
    * Without it the file still shows the page with the feedback drawn on top (no tools).
    */
   runtime?: string;
+  /** A walkthrough sent with the feedback. */
+  walkthrough?: SentWalkthrough;
 }
 
 export interface BuildOutput {
@@ -248,13 +251,13 @@ function lastIndexOfCi(haystack: string, needle: string): number {
 }
 
 export async function buildHandoff(input: BuildInput): Promise<BuildOutput> {
-  const { capture, doc } = input;
+  const { capture, doc, walkthrough } = input;
   const meta = capture.meta;
   const refs = input.refs ?? new Map<string, string>();
   const exportedAt = input.exportedAt ?? new Date().toISOString();
   const annotations = linkAnnotations(doc.annotations, refs);
   const images = imageIndex(annotations);
-  const agentPrompt = buildAgentPrompt(doc, meta, images);
+  const agentPrompt = buildAgentPrompt(doc, meta, images, !!walkthrough);
   const runtime = input.runtime ? escapeInlineScript(input.runtime) : '';
 
   const payload: HandoffPayload = {
@@ -302,6 +305,13 @@ export async function buildHandoff(input: BuildInput): Promise<BuildOutput> {
   }
   if (runtime)
     payload.blocks.runtime = { elementId: BLOCK_IDS.runtime, bytes: byteLength(runtime) };
+  if (walkthrough)
+    payload.blocks.walkthrough = {
+      elementId: BLOCK_IDS.walkthrough,
+      sheetElementId: BLOCK_IDS.walkthroughSheet,
+      width: walkthrough.sheet.width,
+      height: walkthrough.sheet.height,
+    };
 
   const csp = [
     "default-src 'none'",
@@ -326,7 +336,7 @@ AGENT INSTRUCTIONS
 ${agentPrompt}
 
 THE FEEDBACK
-${describeAnnotations(annotations, images) || '(no comments or drawings; see the brief)'}`)}
+${describeAnnotations(annotations, images) || '(no comments or drawings; see the brief)'}${walkthrough ? `\n\nTHE WALKTHROUGH\n${walkthrough.summary.trimEnd()}` : ''}`)}
 -->\n`);
 
   // Before anything can load: the policy, a phone-friendly viewport, and the page held at the
@@ -346,6 +356,12 @@ ${describeAnnotations(annotations, images) || '(no comments or drawings; see the
         : '',
       capture.fullPage
         ? `<script type="text/plain" id="${BLOCK_IDS.fullPage}" data-chrome-design data-width="${capture.fullPage.width}" data-height="${capture.fullPage.height}" data-scale="${capture.fullPage.scale}">${escapeHtml(capture.fullPage.dataUrl)}</script>`
+        : '',
+      walkthrough
+        ? `<script type="application/json" id="${BLOCK_IDS.walkthrough}" data-chrome-design>${jsonForScript(walkthrough.summary)}</script>`
+        : '',
+      walkthrough
+        ? `<script type="text/plain" id="${BLOCK_IDS.walkthroughSheet}" data-chrome-design data-width="${walkthrough.sheet.width}" data-height="${walkthrough.sheet.height}">${escapeHtml(walkthrough.sheet.dataUrl)}</script>`
         : '',
       runtime ? `<script id="${BLOCK_IDS.runtime}" data-chrome-design>${runtime}</script>` : '',
     ].join('\n'),

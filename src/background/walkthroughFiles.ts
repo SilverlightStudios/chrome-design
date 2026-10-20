@@ -92,14 +92,12 @@ export async function filesOf(request: WtBundleRequest): Promise<WtFile[]> {
   return files.map((f) => ({ name: f.name, base64: arrayBufferToBase64(f.data) }));
 }
 
-export function discardWalkthrough(session: string): null {
-  bundles.delete(session);
-  void removeSession(session);
-  return null;
-}
-
+/** A closed tab's walkthroughs: their pictures and files go. */
 export function forgetTab(tabId: number): void {
-  for (const session of tabSessions.get(tabId) ?? []) discardWalkthrough(session);
+  for (const session of tabSessions.get(tabId) ?? []) {
+    bundles.delete(session);
+    void removeSession(session);
+  }
   tabSessions.delete(tabId);
   finished.delete(tabId);
 }

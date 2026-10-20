@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { isComment } from '../../shared/model';
 import { type ExportStatus, useEditor, useEnv } from '../context';
+import { useRecorder } from '../walkthrough/recorder';
 import { plural } from './format';
 import { Icon } from './icons';
 import { PanelHead } from './PanelHead';
+import { WalkthroughCard } from './WalkthroughCard';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -61,7 +63,29 @@ function friendlyStage(label: string): string {
   return label;
 }
 
-/** Send to AI: one note, one button. Everything else is optional and tucked away. */
+/** Exactly what the AI gets, as text (built only while it's shown). */
+function Preview() {
+  const env = useEnv();
+  const [open, setOpen] = useState(false);
+  // Made again whenever the feedback changes.
+  useEditor((s) => s.doc);
+  const summary = useRecorder((s) => s.result?.summary) ?? env.sentWalkthrough?.summary;
+  return (
+    <details className="options" onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>What the AI gets</summary>
+      {open ? (
+        <pre className="ai-preview" data-testid="cd-ai-preview">
+          {env.chatText(summary)}
+        </pre>
+      ) : null}
+    </details>
+  );
+}
+
+/**
+ * Send to AI: everything that goes, one note, one button. The page's feedback and the
+ * walkthrough (when there is one) go together, in every format.
+ */
 export function ExportPanel() {
   const env = useEnv();
   const { store } = env;
@@ -73,6 +97,7 @@ export function ExportPanel() {
   const [copied, setCopied] = useState(false);
   const comments = annotations.filter(isComment);
   const drawings = annotations.length - comments.length;
+  const walkthrough = useRecorder((s) => !!s.result) || !!env.sentWalkthrough;
   const busy = status.phase === 'working';
   const missing =
     status.phase === 'done'
@@ -104,7 +129,9 @@ export function ExportPanel() {
         ]
           .filter(Boolean)
           .join(' and ')
-      : 'No comments yet';
+      : walkthrough
+        ? 'No comments'
+        : 'No comments yet';
 
   return (
     <div className="panel export-panel">
@@ -113,6 +140,7 @@ export function ExportPanel() {
         <Icon.comment />
         <span>{summary}</span>
       </div>
+      <WalkthroughCard />
       <label className="stack">
         <textarea
           rows={2}
@@ -208,6 +236,7 @@ export function ExportPanel() {
           {status.message}
         </p>
       )}
+      <Preview />
       {env.handoff ? null : (
         <details className="options">
           <summary>Options</summary>

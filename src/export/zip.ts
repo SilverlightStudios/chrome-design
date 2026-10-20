@@ -116,10 +116,15 @@ function dataUrlBytes(src: string): Uint8Array | null {
 /** The files in the agent folder (exported for tests). */
 const text = (s: string) => new TextEncoder().encode(s);
 
+/**
+ * `extra`: more pictures in images/ (each placed image in context); `walkthrough`: a recorded
+ * walkthrough's files, put in walkthrough/.
+ */
 export function zipFiles(
   out: BuildOutput,
   capture: PageCapture,
   extra: ZipEntry[] = [],
+  walkthrough: ZipEntry[] = [],
 ): ZipEntry[] {
   const { payload } = out;
   const srcs = new Map<string, string>();
@@ -150,6 +155,9 @@ export function zipFiles(
     extra.length
       ? '- `images/placed-…-in-context.jpg`: each placed image in its place on the page, with the content around it.'
       : '',
+    walkthrough.length
+      ? '- `walkthrough/`: a recorded walkthrough of the page. `summary.md` is what the reviewer did, pointed at and said, moment by moment; `contact-sheet.jpg` is every picture, numbered; `frames/` the pictures themselves; `walkthrough.json` everything on one clock. Read it with the comments.'
+      : '',
     '',
     '## Instructions',
     '',
@@ -173,11 +181,20 @@ export function zipFiles(
     ...(full ? [{ name: 'page-annotated.jpg', data: full }] : []),
     ...images,
     ...extra,
+    ...walkthrough.map((f) => ({ ...f, name: `walkthrough/${f.name}` })),
   ];
 }
 
-export function buildZip(out: BuildOutput, capture: PageCapture, extra: ZipEntry[] = []): Blob {
+export function buildZip(
+  out: BuildOutput,
+  capture: PageCapture,
+  extra: ZipEntry[] = [],
+  walkthrough: ZipEntry[] = [],
+): Blob {
   const folder = out.filename.replace(/\.html$/, '');
-  const entries = zipFiles(out, capture, extra).map((e) => ({ ...e, name: `${folder}/${e.name}` }));
+  const entries = zipFiles(out, capture, extra, walkthrough).map((e) => ({
+    ...e,
+    name: `${folder}/${e.name}`,
+  }));
   return new Blob([zipEntries(entries)], { type: 'application/zip' });
 }

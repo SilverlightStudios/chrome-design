@@ -31,9 +31,11 @@ import {
   SHAPE_TOOLS,
   type ShapeToolId,
 } from '../store';
+import { useRecorder } from '../walkthrough/recorder';
 import { startWalkthrough } from '../walkthrough/voice';
 import { ExportPanel } from './ExportPanel';
 import { FeedbackPanel } from './FeedbackPanel';
+import { plural } from './format';
 import { GridPanel } from './GridPanel';
 import { HelpPanel } from './HelpPanel';
 import { Icon, type IconName } from './icons';
@@ -42,7 +44,6 @@ import { MorePanel } from './MorePanel';
 import { ScreenPanel } from './ScreenPanel';
 import { SettingsPanel } from './SettingsPanel';
 import { RecordingButtons, useRecording } from './WalkthroughBar';
-import { WalkthroughPanel } from './WalkthroughPanel';
 import { WelcomePanel } from './WelcomePanel';
 
 interface ButtonProps {
@@ -450,19 +451,10 @@ const PANELS: Record<Exclude<PanelId, 'none'>, { label: string; render: () => Re
   settings: { label: 'Settings', render: () => <SettingsPanel /> },
   screen: { label: 'Screen size', render: () => <ScreenPanel /> },
   layers: { label: 'Layers', render: () => <LayersPanel /> },
-  walkthrough: { label: 'Walkthrough', render: () => <WalkthroughPanel /> },
 };
 
 /** Panels reached from More; the More button stays lit and closes them. */
-const MORE_CHILDREN = new Set<PanelId>([
-  'list',
-  'grid',
-  'help',
-  'settings',
-  'screen',
-  'layers',
-  'walkthrough',
-]);
+const MORE_CHILDREN = new Set<PanelId>(['list', 'grid', 'help', 'settings', 'screen', 'layers']);
 
 const skipOwnUi = (el: Element) => el.localName === HOST_TAG;
 
@@ -494,6 +486,16 @@ export function Toolbar() {
   const openCount = useEditor(
     (s) => s.doc.annotations.filter((a) => isComment(a) && a.status === 'open').length,
   );
+  const commentCount = useEditor((s) => s.doc.annotations.filter(isComment).length);
+  const hasWalkthrough = useRecorder((s) => !!s.result) || !!env.sentWalkthrough;
+  // The Send button says what goes.
+  const sendLabel = [
+    'Send to AI',
+    commentCount ? plural(commentCount, 'comment') : '',
+    hasWalkthrough ? 'walkthrough' : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
   const compact = useCompact();
   const recording = useRecording();
   const [pos, setPos] = useState<UiPrefs['toolbar']>({ edge: 'bottom', x: 0, y: 0 });
@@ -857,7 +859,7 @@ export function Toolbar() {
                 />
                 <ToolButton
                   icon="export"
-                  label="Send to AI"
+                  label={sendLabel}
                   hideTip
                   kbd="⇧E"
                   className="droplet"

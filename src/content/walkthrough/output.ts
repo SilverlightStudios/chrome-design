@@ -136,9 +136,3 @@ export function withTranscript(
     ...(parsed ? { heard: { parsed, name: options.source ?? parsed.format } } : {}),
   };
 }
-
-/** Let the service worker drop a walkthrough's pictures (it was discarded or replaced). */
-export function releasePictures(result: WalkthroughResult): void {
-  const session = result.walkthrough.session?.id;
-  if (session && hasExtensionRuntime()) void askBackground('cd:wt-discard', { session });
-}

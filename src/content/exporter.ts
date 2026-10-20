@@ -25,6 +25,7 @@ import {
   withPictureTurn,
 } from './ext';
 import type { HandoffData } from './handoff';
+import { walkthroughToSend } from './package';
 import { hiddenUnder, maskAnchors, redactRects } from './redact';
 import { getRuntimeSource } from './runtime';
 import type { EditorStore } from './store';
@@ -320,18 +321,22 @@ export async function runExport(
     }
     onStatus({ phase: 'working', label: 'Building file…' });
     const runtime = await getRuntimeSource();
+    const walkthrough = await walkthroughToSend(handoff);
     const out = await buildHandoff({
       capture,
       doc,
       refs,
       grid: s.grid,
       ...(runtime ? { runtime } : {}),
+      ...(walkthrough
+        ? { walkthrough: { summary: walkthrough.summary, sheet: walkthrough.sheet } }
+        : {}),
     });
     let filename = out.filename;
     let bytes = out.bytes;
     if (options.format === 'zip') {
       const crops = capture.fullPage ? await contextCrops(out, capture.fullPage) : [];
-      const zip = buildZip(out, capture, crops);
+      const zip = buildZip(out, capture, crops, walkthrough ? await walkthrough.files() : []);
       filename = out.filename.replace(/\.html$/, '.zip');
       bytes = zip.size;
       downloadBlob(filename, zip);
@@ -345,34 +350,52 @@ export async function runExport(
   }
 }
 
+/** The page as Copy for AI describes it (a shared file: the page it was made from). */
+function pageMeta(handoff?: HandoffData) {
+  return (
+    handoff?.payload.page ?? {
+      url: location.href,
+      title: document.title,
+      viewport: {
+        width: document.documentElement.clientWidth || window.innerWidth,
+        height: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio || 1,
+      },
+    }
+  );
+}
+
 /**
- * Copy the feedback for an AI chat: the instructions and every comment, drawing and placed
- * image (with where it sits) as text, plus an HTML version carrying the pictures for editors
- * that take them. False when the clipboard refuses.
+ * The feedback as one chat message: the instructions and every comment, drawing and placed
+ * image (with where it sits), then the walkthrough's summary when there is one. What Copy for
+ * AI copies, and what Send to AI previews.
+ */
+export function chatMessage(store: EditorStore, handoff?: HandoffData, walkthrough?: string) {
+  const s = store.getState();
+  const doc = maskAnchors(withPlacements(s.doc), redactRects(s.doc));
+  const images = imageIndex(doc.annotations);
+  const text = buildChatPrompt(doc, pageMeta(handoff), images, walkthrough);
+  return { doc, images, text };
+}
+
+/**
+ * Copy the feedback for an AI chat: the message as text, plus an HTML version carrying the
+ * pictures (and the walkthrough's contact sheet) for editors that take them. False when the
+ * clipboard refuses.
  */
 export async function copyForAi(store: EditorStore, handoff?: HandoffData): Promise<boolean> {
-  const s = store.getState();
-  const boxes = redactRects(s.doc);
-  const doc = maskAnchors(withPlacements(s.doc), boxes);
-  const meta = handoff?.payload.page ?? {
-    url: location.href,
-    title: document.title,
-    viewport: {
-      width: document.documentElement.clientWidth || window.innerWidth,
-      height: window.innerHeight,
-      devicePixelRatio: window.devicePixelRatio || 1,
-    },
-  };
-  const images = imageIndex(doc.annotations);
-  const text = buildChatPrompt(doc, meta, images);
+  const walkthrough = await walkthroughToSend(handoff);
+  const { doc, images, text } = chatMessage(store, handoff, walkthrough?.summary);
   const srcs = new Map<string, string>();
   for (const a of doc.annotations) {
     if (isShape(a) && a.kind === 'image') srcs.set(a.id, a.src);
     if (isComment(a))
       for (const m of a.messages) for (const att of m.attachments ?? []) srcs.set(att.id, att.src);
   }
-  const pictures = images
-    .map((i) => ({ name: i.file, src: srcs.get(i.attachmentId ?? i.annotationId) ?? '' }))
+  const pictures = [
+    ...images.map((i) => ({ name: i.file, src: srcs.get(i.attachmentId ?? i.annotationId) ?? '' })),
+    ...(walkthrough ? [{ name: 'Walkthrough contact sheet', src: walkthrough.sheet.dataUrl }] : []),
+  ]
     .filter((p) => p.src.startsWith('data:image/'))
     .map(
       (p) =>
@@ -385,6 +408,7 @@ export async function copyForAi(store: EditorStore, handoff?: HandoffData): Prom
       new ClipboardItem({
         'text/plain': new Blob([text], { type: 'text/plain' }),
         'text/html': new Blob([html], { type: 'text/html' }),
+        ...(walkthrough?.png ? { 'image/png': walkthrough.png } : {}),
       }),
     ]);
     return true;

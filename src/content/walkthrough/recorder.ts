@@ -7,7 +7,7 @@ import { Activity } from './activity';
 import { assemble, type WalkthroughResult, type WalkthroughSession } from './assemble';
 import { flag, syncFlags } from './flags';
 import { Marks } from './marks';
-import { releasePictures, withCrops } from './output';
+import { withCrops } from './output';
 import { pageDetails } from './pageContext';
 import { PageSync, sessionInfo, withEarlierPages } from './pageSync';
 import { PageWatch } from './pageWatch';
@@ -220,12 +220,20 @@ export class WalkthroughRecorder extends Store<RecorderState> {
     this.set({ phase: this.state.result ? 'ready' : 'idle', session: null, ...LIVE_CLEARED });
   }
 
-  /** Forget a finished walkthrough. */
-  discard(): void {
+  /**
+   * Put a finished walkthrough away (it can be restored: its pictures stay in the service
+   * worker until another one is finished in this tab, the tab closes, or a day passes).
+   */
+  discard(): WalkthroughResult | null {
     const { phase, result } = this.state;
-    if (phase !== 'ready' || !result) return;
-    releasePictures(result);
+    if (phase !== 'ready' || !result) return null;
     this.set({ phase: 'idle', session: null, result: null });
+    return result;
+  }
+
+  /** Undo a discard (unless another walkthrough has started since). */
+  restore(result: WalkthroughResult): void {
+    if (this.state.phase === 'idle') this.set({ phase: 'ready', result });
   }
 
   /** A spoken cue from the voice recorder (epoch ms): worth a picture. */
@@ -267,7 +275,8 @@ export class WalkthroughRecorder extends Store<RecorderState> {
     );
     this.end();
     this.set({ phase: 'ready', result, ...LIVE_CLEARED });
-    this.env?.store.set({ tool: 'select', panel: 'walkthrough', panelBack: 'more' });
+    // Ready to send, with the rest of the feedback.
+    this.env?.store.set({ tool: 'select', panel: 'export' });
     for (const hook of this.finishHooks) hook(result, this.state.session);
     return result;
   }

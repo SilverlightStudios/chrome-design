@@ -44,8 +44,7 @@ export type PanelId =
   | 'more'
   | 'settings'
   | 'screen'
-  | 'layers'
-  | 'walkthrough';
+  | 'layers';
 
 /** Comment being composed (not yet part of the document / history). */
 export interface DraftComment {

@@ -155,7 +155,6 @@ export interface BackgroundApi {
     body: WtBundleRequest & { update?: boolean };
     reply: { ok: boolean; app?: string };
   };
-  'cd:wt-discard': { body: { session: string }; reply: null };
 }
 
 export type BackgroundRequest<K extends keyof BackgroundApi = keyof BackgroundApi> = {

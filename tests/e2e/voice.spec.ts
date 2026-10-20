@@ -213,7 +213,7 @@ test('the voice recorder starts and stops a walkthrough, and gets it back as fil
       segments: [{ t0: 1600, t1: 2600, text: 'This heading is wrong.' }],
     },
   });
-  const panel = ui.locator('.walkthrough-panel');
+  const panel = ui.locator('[data-testid="cd-wt-card"]');
   await expect(panel.locator('.wt-sent')).toContainText('Sent to Test recorder');
   await expect(panel.locator('.wt-voice')).toContainText('Test recorder');
   await expect(panel.locator('.dial')).toHaveCount(0);

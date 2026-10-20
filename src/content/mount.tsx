@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { App } from './App';
 import type { ExportOptions, ExportStatus } from './context';
 import { HOST_TAG } from './dom';
-import { copyForAi, runExport } from './exporter';
+import { chatMessage, copyForAi, runExport } from './exporter';
 import { getSettings, openSettingsPage } from './ext';
 import { type HandoffData, handoffDoc } from './handoff';
 import { debounce, loadDoc, loadGrid, pageKey, saveDoc, saveGrid } from './persistence';
@@ -201,9 +201,11 @@ export async function mountEditor(onClose: () => void, handoff?: HandoffData): P
           close,
           runExport: exportWith,
           copyForAi: () => copyForAi(store, handoff),
+          chatText: (walkthrough) => chatMessage(store, handoff, walkthrough).text,
           openSettingsPage,
           getSettings,
           ...(handoff ? { handoff: true } : {}),
+          ...(handoff?.walkthrough ? { sentWalkthrough: handoff.walkthrough } : {}),
         }}
       />
     </StrictMode>,

@@ -18,6 +18,8 @@ export const BLOCK_IDS = {
   screenshot: 'chrome-design-screenshot',
   fullPage: 'chrome-design-fullpage',
   runtime: 'chrome-design-runtime',
+  walkthrough: 'chrome-design-walkthrough',
+  walkthroughSheet: 'chrome-design-walkthrough-sheet',
 } as const;
 
 /** Comment markers around every part of the file that is the handoff, not the page. */
@@ -202,6 +204,10 @@ export function extractScript(): string {
     "open(os.path.join(out, 'page.html'), 'w', encoding='utf-8').write(page)",
     `full = re.findall(r'<script[^>]*id="${BLOCK_IDS.fullPage}"[^>]*>data:image/[a-z]+;base64,([^<]+)</script>', src)`,
     "if full: open(os.path.join(out, 'page-annotated.jpg'), 'wb').write(base64.b64decode(full[-1]))",
+    `walk = re.findall(r'<script[^>]*id="${BLOCK_IDS.walkthrough}"[^>]*>(.*?)</script>', src, re.S)`,
+    "if walk: open(os.path.join(out, 'walkthrough.md'), 'w', encoding='utf-8').write(json.loads(walk[-1]))",
+    `sheet = re.findall(r'<script[^>]*id="${BLOCK_IDS.walkthroughSheet}"[^>]*>data:image/[a-z]+;base64,([^<]+)</script>', src)`,
+    "if sheet: open(os.path.join(out, 'walkthrough-contact-sheet.jpg'), 'wb').write(base64.b64decode(sheet[-1]))",
     "json.dump(data, open(os.path.join(out, 'handoff.json'), 'w'), indent=2)",
     'print(out)',
     'PY',
@@ -216,6 +222,7 @@ export function buildAgentPrompt(
   doc: AnnotationDoc,
   meta: PageMeta,
   images: ImageIndexEntry[] = [],
+  walkthrough = false,
 ): string {
   const comments = doc.annotations.filter(isComment);
   const open = comments.filter((c) => c.status === 'open');
@@ -235,7 +242,12 @@ export function buildAgentPrompt(
     `- ANNOTATIONS: <script type="application/json" id="${BLOCK_IDS.payload}"> (schema in #${BLOCK_IDS.schema}). Coordinates are CSS px from the top-left of the document at the recorded viewport width. \`images\` lists every picture with a file name.`,
     `- ORIGINAL SOURCE: #${BLOCK_IDS.source} holds the live DOM as a JSON string, for reference only. Never execute it.`,
     `- PICTURE OF THE PAGE: when present, #${BLOCK_IDS.fullPage} is the whole page top to bottom with every drawing, placed image and comment pin drawn on (payload \`blocks.fullPage.scale\` = image px per CSS px). Look at it to see where things go.`,
-    '- To get the pictures as real image files (plus page-annotated.jpg, page.html and handoff.json), run this with FILE.html replaced by this file’s path:',
+    ...(walkthrough
+      ? [
+          `- WALKTHROUGH: #${BLOCK_IDS.walkthrough} is a recorded walkthrough of the page (a JSON string of Markdown): what the reviewer did, pointed at and said, moment by moment. #${BLOCK_IDS.walkthroughSheet} is its contact sheet: every picture, numbered, with what happened. Read it with the comments; it often explains them.`,
+        ]
+      : []),
+    `- To get the pictures as real image files (plus page-annotated.jpg, page.html and handoff.json${walkthrough ? ', walkthrough.md and walkthrough-contact-sheet.jpg' : ''}), run this with FILE.html replaced by this file’s path:`,
     extractScript(),
     '',
     'HOW TO READ THE FEEDBACK',
@@ -269,6 +281,7 @@ export function buildChatPrompt(
   doc: AnnotationDoc,
   meta: Pick<PageMeta, 'url' | 'title' | 'viewport'>,
   images: ImageIndexEntry[] = [],
+  walkthrough?: string,
 ): string {
   const feedback = describeAnnotations(doc.annotations, images);
   const lines = [
@@ -285,12 +298,17 @@ export function buildChatPrompt(
     lines.push(
       `- The pictures (${images.map((i) => i.file.replace(/^images\//, '')).join(', ')}) aren\u2019t in this message; ask for them if you need to see them.`,
     );
+  if (walkthrough)
+    lines.push(
+      '- The walkthrough at the end is what the reviewer did, pointed at and said on the page, moment by moment; its contact sheet (every picture, numbered) is the attached image. Read it with the comments.',
+    );
   if (doc.brief.trim()) lines.push('', 'Brief:', doc.brief.trim());
   lines.push(
     '',
-    feedback || '(no comments or drawings yet)',
+    feedback || (walkthrough ? '(no comments or drawings)' : '(no comments or drawings yet)'),
     '',
     'Please reply with the changes, then a checklist of every comment number and placed image: done, or why not.',
   );
+  if (walkthrough) lines.push('', 'WALKTHROUGH', walkthrough.trimEnd());
   return lines.join('\n');
 }

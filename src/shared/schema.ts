@@ -177,6 +177,13 @@ export const handoffSchema = {
           required: ['elementId', 'bytes'],
           properties: { elementId: str, bytes: { type: 'integer', minimum: 0 } },
         },
+        walkthrough: {
+          type: 'object',
+          description:
+            'A recorded walkthrough: elementId holds its summary (a JSON string of Markdown), sheetElementId its contact sheet (a data: URL).',
+          required: ['elementId', 'sheetElementId', 'width', 'height'],
+          properties: { elementId: str, sheetElementId: str, width: num, height: num },
+        },
       },
     },
   },

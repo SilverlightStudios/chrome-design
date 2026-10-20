@@ -3,19 +3,12 @@ import { formatClock } from '../../walkthrough/model';
 import { type ParsedTranscript, parseTranscript } from '../../walkthrough/transcript';
 import { useEnv } from '../context';
 import { downloadBlob } from '../exporter';
-import {
-  copyWalkthrough,
-  type Sheet,
-  sheetOf,
-  walkthroughZip,
-  withTranscript,
-} from '../walkthrough/output';
-import { recorder, useRecorder } from '../walkthrough/recorder';
-import { startWalkthrough } from '../walkthrough/voice';
+import { TooltipGroup } from '../motion/Tooltip';
+import { type Sheet, sheetOf, withTranscript } from '../walkthrough/output';
+import { recorder, useRecorder, type WalkthroughResult } from '../walkthrough/recorder';
 import { Dial } from './Dial';
 import { plural } from './format';
 import { Icon } from './icons';
-import { PanelHead } from './PanelHead';
 
 const TRANSCRIPT_TYPES = '.srt,.vtt,.json,.txt,text/plain,application/json';
 
@@ -38,42 +31,39 @@ function attach(parsed: ParsedTranscript | null, name: string, at = 0): void {
 }
 
 /**
- * After a walkthrough: the contact sheet, what it holds, what was said (a transcript from any
- * voice tool, or the one the voice recorder sent), and Download / Copy for AI.
+ * The walkthrough in Send to AI: its contact sheet, what it holds, what was said (a transcript
+ * from any voice tool, or the one the voice recorder sent), Save image and Remove. A shared
+ * file's walkthrough (`sent`) shows its contact sheet only.
  */
-export function WalkthroughPanel() {
+export function WalkthroughCard() {
   const env = useEnv();
   const result = useRecorder((s) => s.result);
   const pictures = useRecorder((s) => s.pictures);
-  const [sheet, setSheet] = useState<Sheet | null>(null);
-  const [phase, setPhase] = useState<'idle' | 'working' | 'done' | 'error'>('idle');
-  const [copied, setCopied] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [made, setMade] = useState<{ of: WalkthroughResult; sheet: Sheet | null } | null>(null);
+  const sheet = made && made.of === result ? made.sheet : null;
   const [dropping, setDropping] = useState(false);
+  const sent = env.sentWalkthrough;
 
   useEffect(() => {
     if (!result) return;
     let live = true;
-    void sheetOf(result).then((s) => live && setSheet(s));
+    void sheetOf(result).then((s) => live && setMade({ of: result, sheet: s }));
     return () => {
       live = false;
     };
   }, [result]);
 
   if (!result) {
+    if (!sent) return null;
     return (
-      <div className="panel walkthrough-panel">
-        <PanelHead title="Walkthrough" />
-        <button
-          type="button"
-          className="morph-pill"
-          data-phase="idle"
-          onClick={() => startWalkthrough({ host: env.host, store: env.store })}
-        >
-          <span className="layer idle">
-            <Icon.record /> Record
-          </span>
-        </button>
+      <div className="wt-card">
+        <img
+          className="wt-preview"
+          src={sent.sheet.dataUrl}
+          width={sent.sheet.width}
+          height={sent.sheet.height}
+          alt="The walkthrough: every picture, numbered"
+        />
       </div>
     );
   }
@@ -84,16 +74,14 @@ export function WalkthroughPanel() {
   const pointed = wt.marks.length - marks;
   const clicks = wt.events.filter((e) => e.kind === 'click').length;
   const facts = [
-    formatClock(wt.durationMs),
+    `Walkthrough ${formatClock(wt.durationMs)}`,
     wt.frames.length ? plural(wt.frames.length, 'picture') : '',
     marks ? plural(marks, 'mark') : '',
     pointed ? `pointed ${pointed}×` : '',
     clicks ? plural(clicks, 'click') : '',
   ].filter(Boolean);
   const nudgeable = transcript && !transcript.untimed && transcript.alignment === 'assumed';
-
   const heard = result.heard;
-  const offset = (transcript?.offsetMs ?? 0) / 1000;
 
   const load = async (file: File | null) => {
     if (!file) return;
@@ -111,9 +99,16 @@ export function WalkthroughPanel() {
     void load(e.dataTransfer.files[0] ?? null);
   };
 
+  const remove = () => {
+    const removed = recorder.discard();
+    if (removed)
+      env.toast('Walkthrough removed', { label: 'Undo', run: () => recorder.restore(removed) });
+  };
+
   return (
     <div
-      className="panel walkthrough-panel"
+      className="wt-card"
+      data-testid="cd-wt-card"
       data-dropping={dropping ? '' : undefined}
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes('Files')) return;
@@ -123,14 +118,13 @@ export function WalkthroughPanel() {
       onDragLeave={() => setDropping(false)}
       onDrop={onDrop}
     >
-      <PanelHead title="Walkthrough" />
       {sheet ? (
         <img
           className="wt-preview"
           src={sheet.url}
           width={sheet.width}
           height={sheet.height}
-          alt="Every picture, numbered"
+          alt="The walkthrough: every picture, numbered"
         />
       ) : wt.frames.length ? (
         <div
@@ -138,21 +132,40 @@ export function WalkthroughPanel() {
           style={{ aspectRatio: `${wt.viewport.width} / ${wt.viewport.height}` }}
         />
       ) : null}
-      <div className="summary-row">
+      <TooltipGroup placement="up" className="summary-row" ariaLabel="Walkthrough">
         <Icon.record />
-        <span>{facts.join(' · ')}</span>
-      </div>
+        <span className="grow">{facts.join(' · ')}</span>
+        <button
+          type="button"
+          className="icon-btn"
+          data-testid="cd-wt-image"
+          data-tip="Save image"
+          aria-label="Save image"
+          disabled={!sheet}
+          onClick={() => sheet && downloadBlob(`${result.folder}.jpg`, sheet.jpeg)}
+        >
+          <Icon.image />
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
+          data-testid="cd-wt-remove"
+          data-tip="Remove the walkthrough"
+          aria-label="Remove the walkthrough"
+          onClick={remove}
+        >
+          <Icon.close />
+        </button>
+      </TooltipGroup>
       {wt.frames.length === 0 && !pictures ? (
         <p className="muted small">Pictures need the Chrome extension.</p>
       ) : null}
-
       {result.delivered ? (
         <div className="summary-row wt-sent" role="status">
           <Icon.check />
           <span>Sent to {result.delivered.app ?? 'your voice recorder'}</span>
         </div>
       ) : null}
-
       {transcript ? (
         <div className="wt-voice">
           <div className="summary-row">
@@ -173,7 +186,7 @@ export function WalkthroughPanel() {
           {nudgeable && heard ? (
             <Dial
               label="Voice starts"
-              value={offset}
+              value={(transcript.offsetMs ?? 0) / 1000}
               min={-30}
               max={30}
               limit={600}
@@ -193,74 +206,6 @@ export function WalkthroughPanel() {
           <Icon.voice /> Add what you said
         </button>
       )}
-
-      <button
-        type="button"
-        className="morph-pill"
-        data-phase={phase}
-        data-testid="cd-wt-download"
-        disabled={phase === 'working'}
-        onClick={() => {
-          setPhase('working');
-          void walkthroughZip(result)
-            .then((zip) => {
-              downloadBlob(`${result.folder}.zip`, zip);
-              setPhase('done');
-              window.setTimeout(() => setPhase('idle'), 2200);
-            })
-            .catch(() => {
-              setPhase('error');
-              window.setTimeout(() => setPhase('idle'), 2600);
-            });
-        }}
-      >
-        <span className="layer idle">
-          <Icon.export /> Download .zip
-        </span>
-        <span className="layer working">
-          <span className="label-text">Putting it together…</span>
-        </span>
-        <span className="layer done">
-          <Icon.check />
-          <span className="label-text">Saved to Downloads</span>
-        </span>
-        <span className="layer error">Couldn’t save — try again</span>
-      </button>
-      <div className="ghost-row">
-        <button
-          type="button"
-          className="ghost-action"
-          data-testid="cd-wt-copy"
-          data-done={copied ? '' : undefined}
-          onClick={() => {
-            void copyWalkthrough(result).then((ok) => {
-              if (!ok) {
-                env.toast('Couldn’t copy');
-                return;
-              }
-              setCopied(true);
-              window.setTimeout(() => setCopied(false), 1600);
-            });
-          }}
-        >
-          {copied ? <Icon.check /> : <Icon.copy />} Copy for AI
-        </button>
-        <button
-          type="button"
-          className="ghost-action"
-          data-testid="cd-wt-image"
-          data-done={saved ? '' : undefined}
-          disabled={!sheet}
-          onClick={() => {
-            if (!sheet) return;
-            downloadBlob(`${result.folder}.jpg`, sheet.jpeg);
-            setSaved(true);
-            window.setTimeout(() => setSaved(false), 1600);
-          }}
-        >
-          {saved ? <Icon.check /> : <Icon.image />} Save image
-        </button>
-      </div>
     </div>
   );
 }

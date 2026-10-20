@@ -354,10 +354,13 @@ svg {
 .tb-btn.rec-stop {
   color: var(--rec);
 }
-.walkthrough-panel {
+/* The walkthrough in Send to AI: a transcript file can be dropped on it. */
+.wt-card {
   position: relative;
+  display: grid;
+  gap: 8px;
 }
-.walkthrough-panel[data-dropping]::after {
+.wt-card[data-dropping]::after {
   content: "";
   position: absolute;
   inset: 4px;
@@ -391,6 +394,22 @@ svg {
 }
 .wt-sent svg {
   color: var(--success);
+}
+/* What the AI gets: the message exactly as it's copied. */
+.ai-preview {
+  max-height: 220px;
+  overflow: auto;
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--chip);
+  font:
+    12px / 1.45 ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .ghost-action[data-armed] {
   color: var(--danger);

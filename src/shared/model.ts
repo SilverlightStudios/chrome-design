@@ -361,7 +361,15 @@ export interface HandoffPayload {
     fullPage?: { elementId: string; width: number; height: number; scale: number };
     /** The built-in Chrome Design toolbar (runs when the file is opened in a browser). */
     runtime?: { elementId: string; bytes: number };
+    /** A recorded walkthrough: its summary (JSON string) and its contact sheet (a picture). */
+    walkthrough?: { elementId: string; sheetElementId: string; width: number; height: number };
   };
+}
+
+/** A walkthrough sent with the feedback: what happened and was said, and every picture as one. */
+export interface SentWalkthrough {
+  summary: string;
+  sheet: { dataUrl: string; width: number; height: number };
 }
 
 export const DEFAULT_GRID: GridSettings = {
