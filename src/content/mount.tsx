@@ -163,6 +163,8 @@ export async function mountEditor(onClose: () => void, handoff?: HandoffData): P
   document.addEventListener('toggle', onToggle, true);
   document.addEventListener('fullscreenchange', reassert);
 
+  recorder.attach({ host, store });
+
   const persistDoc = debounce(() => void saveDoc(href, store.getState().doc), 300);
   const persistGrid = debounce(() => void saveGrid(href, store.getState().grid), 300);
   let lastGrid = store.getState().grid;
@@ -223,6 +225,7 @@ export async function mountEditor(onClose: () => void, handoff?: HandoffData): P
     unmount: () => {
       // Closing the toolbar ends a recording; the walkthrough is kept for when it opens again.
       if (recorder.recording) void recorder.stop();
+      recorder.detach(store);
       window.clearInterval(navWatch);
       topLayerWatch.disconnect();
       document.removeEventListener('toggle', onToggle, true);

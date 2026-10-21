@@ -111,6 +111,22 @@ export class WalkthroughRecorder extends Store<RecorderState> {
     return () => this.finishHooks.delete(hook);
   }
 
+  /**
+   * The toolbar opened (again): flags, the panel after Stop and transcripts go to its editor.
+   * The recorder outlives the toolbar; each opening has a new editor.
+   */
+  attach(env: Env): void {
+    this.env = env;
+    // A transcript may have come while the toolbar was closed.
+    const result = this.state.result;
+    if (result) syncFlags(env.store, result.walkthrough);
+  }
+
+  /** The toolbar closed: its editor is gone. */
+  detach(store: EditorStore): void {
+    if (this.env?.store === store) this.env = null;
+  }
+
   setDrawing(on: boolean): void {
     this.set({ drawing: on });
   }
