@@ -3,7 +3,11 @@ import { measureBetween } from '../../shared/measure';
 import type { Rect } from '../../shared/model';
 import { useEditor, useViewport } from '../context';
 import { friendlyName } from '../describe';
+import { usePresence } from '../motion/presence';
 import { spacingFor } from './spacing';
+
+/** How long the hover outline takes to fade out (in: a little quicker, in CSS). */
+const HOVER_FADE_MS = 120;
 
 const px = (v: string) => Number.parseFloat(v) || 0;
 
@@ -261,8 +265,11 @@ export function InspectOverlay() {
       : null;
   // Holding ⌥ swaps them for the padding/margin view (or the distance to the hovered element).
   const guides = useSpacingGuides(picked && !alt ? picked : null);
-  if (!active) return null;
-  const hr = hovering ? clientRect(hovering) : null;
+  // The hover outline fades out (from one element to the next it just moves).
+  const hover = usePresence(hovering ? 'hover' : null, hovering, HOVER_FADE_MS);
+  if (!active && !hover.key) return null;
+  const outlined = hover.payload?.isConnected ? hover.payload : null;
+  const hr = outlined ? clientRect(outlined) : null;
   const pr = picked ? clientRect(picked) : null;
   const pillText = pr ? sizeLabel(pr) : '';
   const pillX = pr
@@ -291,15 +298,17 @@ export function InspectOverlay() {
         <>
           <div
             className="hover-outline"
+            data-exiting={hover.exiting ? '' : undefined}
             style={{ left: hr.x, top: hr.y, width: hr.width, height: hr.height }}
           />
           <div
             className="name-tag"
+            data-exiting={hover.exiting ? '' : undefined}
             style={{ left: Math.max(4, hr.x), top: hr.y < 26 ? hr.y + hr.height + 4 : hr.y - 24 }}
           >
             {tool === 'comment'
-              ? `Comment on ${friendlyName(hovering!).toLowerCase()}`
-              : friendlyName(hovering!)}
+              ? `Comment on ${friendlyName(outlined!).toLowerCase()}`
+              : friendlyName(outlined!)}
           </div>
         </>
       )}

@@ -71,6 +71,7 @@ const FILES: Record<string, [string, string]> = {
   '/spa': ['text/html', SPA],
   '/csp': ['text/html', CSP_PAGE],
   '/walk': ['text/html', WALK],
+  '/flags': ['text/html', WALK],
   '/shop': ['text/html', SHOP],
   '/shop-cart': ['text/html', CART],
   '/': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
@@ -826,6 +827,65 @@ test('walkthrough: laser, ink and clicks become numbered pictures and a summary'
   expect(html).toContain('id="chrome-design-walkthrough"');
   expect(html).toContain('id="chrome-design-walkthrough-sheet"');
   expect(html).toContain('THE WALKTHROUGH');
+  await page.close();
+});
+
+test('flags are placed on the page: click Flag then the page, or drag it there', async () => {
+  const page = await context.newPage();
+  await page.goto(`${baseUrl}/flags`);
+  await toggleToolbar(page);
+  const ui = page.locator('chrome-design-root');
+  const flagButton = ui.locator('.tb-btn[aria-label^="Flag"]');
+  const pins = ui.locator('.pin');
+  await ui.locator('.toolbar .tb-btn[aria-label^="Walkthrough"]').click();
+  await expect(ui.locator('.rec-time')).toBeVisible();
+
+  // Click Flag: it's picked up, not dropped under the bar; the page's next click places it.
+  await flagButton.click();
+  await expect(ui.locator('.wt-flag-surface[data-on]')).toHaveCount(1);
+  await expect(pins).toHaveCount(0);
+  const title = (await page.locator('#title').boundingBox())!;
+  await page.mouse.move(title.x + 60, title.y + 20, { steps: 3 });
+  await expect(ui.locator('.wt-flag-ghost')).toHaveCount(1);
+  await page.mouse.click(title.x + 60, title.y + 20);
+  await expect(pins).toHaveCount(1);
+  await expect(ui.locator('.wt-flag-surface[data-on]')).toHaveCount(0);
+  const [x1, y1] = (await pins.evaluateAll(pinSpots))[0]!;
+  expect(Math.abs(x1! - (title.x + 60))).toBeLessThan(3);
+  expect(Math.abs(y1! - (title.y + 20))).toBeLessThan(3);
+
+  // Or drag it off the bar onto the page.
+  const cta = (await page.locator('#cta').boundingBox())!;
+  const from = (await flagButton.boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(cta.x + 20, cta.y + 10, { steps: 8 });
+  await page.mouse.up();
+  await expect(pins).toHaveCount(2);
+
+  // Picked up and put back: Esc.
+  await flagButton.click();
+  await expect(ui.locator('.wt-flag-surface[data-on]')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(ui.locator('.wt-flag-surface[data-on]')).toHaveCount(0);
+  await expect(ui.locator('.rec-time')).toBeVisible();
+  await ui.locator('.tb-btn[aria-label^="Stop"]').click();
+  await expect(ui.locator('[data-testid="cd-wt-card"]')).toBeVisible({ timeout: 15_000 });
+
+  // Select again puts the pointer down: the page works and nothing is outlined.
+  const select = ui.locator('.tb-btn[aria-label^="Select"]');
+  await expect(select).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
+  await page.mouse.move(title.x + 30, title.y + 20, { steps: 3 });
+  await expect(ui.locator('.hover-outline')).toHaveCount(1);
+  await select.click();
+  await expect(select).toHaveAttribute('aria-pressed', 'false');
+  await expect(ui.locator('.status-chip')).toContainText('Paused');
+  await page.mouse.move(title.x + 50, title.y + 30, { steps: 3 });
+  await expect(ui.locator('.hover-outline')).toHaveCount(0);
+  // And again: back to Select.
+  await select.click();
+  await expect(select).toHaveAttribute('aria-pressed', 'true');
   await page.close();
 });
 

@@ -59,6 +59,11 @@ export interface RecorderState {
   laser: [number, number, number][];
   pins: { n: number; x: number; y: number }[];
   ripples: { id: number; x: number; y: number }[];
+  /**
+   * A flag picked up from the bar, on its way to the page: `at` is where it would go (page
+   * space), null while the pointer is over the toolbar.
+   */
+  flagging: { at: WtPoint | null } | null;
   session: WalkthroughSession | null;
   result: WalkthroughResult | null;
   /** Pictures can be taken here (the extension; not the demo page or a handoff file). */
@@ -83,7 +88,15 @@ interface Run {
 
 type FinishHook = (result: WalkthroughResult, session: WalkthroughSession | null) => void;
 
-const LIVE_CLEARED = { ink: [], laser: [], pins: [], ripples: [], drawing: false, shift: false };
+const LIVE_CLEARED = {
+  ink: [],
+  laser: [],
+  pins: [],
+  ripples: [],
+  drawing: false,
+  shift: false,
+  flagging: null,
+};
 
 export class WalkthroughRecorder extends Store<RecorderState> {
   private env: Env | null = null;
@@ -207,7 +220,8 @@ export class WalkthroughRecorder extends Store<RecorderState> {
     const watch = new PageWatch(tape, pictures, recording);
     const activity = new Activity(tape, pictures, marks, this, {
       stop: () => void this.stop(),
-      flag: () => this.flag(),
+      flag: (at) => this.flag(at),
+      dropFlag: () => this.dropFlag(),
       sync: () => sync?.send(),
       mutations: () => watch.mutations,
       recording,
@@ -261,10 +275,28 @@ export class WalkthroughRecorder extends Store<RecorderState> {
     run.pictures.request('cue', { t });
   }
 
-  /** "Look here": a picture now, and a comment on the page where the pointer is. */
-  flag(): void {
+  /** "Look here": a picture now, and a comment on the page at `at`, or where the pointer is. */
+  flag(at?: WtPoint): void {
     const run = this.recording ? this.run : null;
-    if (run) flag(run.tape, run.pictures, this.env?.store ?? null);
+    if (run) flag(run.tape, run.pictures, this.env?.store ?? null, at);
+    this.set({ flagging: null });
+  }
+
+  /**
+   * Pick a flag up from the bar: it goes where the page is next clicked, or, when it was
+   * dragged off the bar (`drag`: that pointer, pressed at that point), where it's let go.
+   */
+  pickUpFlag(drag?: { pointerId: number; x: number; y: number }): void {
+    const run = this.recording ? this.run : null;
+    if (!run) return;
+    run.activity.flagDrag = drag ?? null;
+    this.set({ flagging: { at: null } });
+  }
+
+  /** Put a picked-up flag back. */
+  dropFlag(): void {
+    if (this.run) this.run.activity.flagDrag = null;
+    this.set({ flagging: null });
   }
 
   /** Stop following and put the walkthrough together. */

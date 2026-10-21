@@ -1,5 +1,5 @@
 import type { WtPoint, WtTarget } from '../../walkthrough/model';
-import { isExtensionNode, isTypingEvent } from '../dom';
+import { HOST_TAG, isExtensionNode, isTypingEvent } from '../dom';
 import type { Store } from '../state';
 import type { Marks } from './marks';
 import type { Pictures } from './pictures';
@@ -16,7 +16,9 @@ import { targetAt, targetOf } from './targets';
 
 export interface ActivityHooks {
   stop: () => void;
-  flag: () => void;
+  /** A flag at `at` (page space), or where the pointer is. */
+  flag: (at?: WtPoint) => void;
+  dropFlag: () => void;
   /** Leaving the page: hand the last second over too (pageSync.ts). */
   sync: () => void;
   /** How many times the page has changed so far (pageWatch.ts). */
@@ -29,6 +31,15 @@ const MAX_CURSOR = 30_000;
 /** A pointer that moved, then 20 s without a picture: one more. */
 const IDLE_MS = 20_000;
 
+/** A drag this far off the Flag button places the flag where it's let go. */
+const FLAG_DRAG_PX = 6;
+
+/** Whether a viewport point is over this UI (the toolbar, a panel), not the page. */
+function overOurUi(x: number, y: number): boolean {
+  const el = document.querySelector(HOST_TAG)?.shadowRoot?.elementFromPoint(x, y);
+  return !!el?.closest('.ui');
+}
+
 const isPageScroller = (el: Element) =>
   el === document.scrollingElement || el === document.documentElement;
 
@@ -36,6 +47,8 @@ const fromComposed = (e: Event, test: (el: Element) => boolean) =>
   e.composedPath().some((n) => n instanceof Element && test(n));
 
 export class Activity {
+  /** The Flag button was pressed and may be dragged off: that pointer, and where. */
+  flagDrag: { pointerId: number; x: number; y: number } | null = null;
   private tape: Tape;
   private pictures: Pictures;
   private marks: Marks;
@@ -107,6 +120,12 @@ export class Activity {
   }
 
   private onKey(e: KeyboardEvent, down: boolean): void {
+    if (down && e.key === 'Escape' && this.live.getState().flagging) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      this.hooks.dropFlag();
+      return;
+    }
     if (down && e.altKey && e.shiftKey && (e.code === 'KeyW' || e.code === 'KeyF')) {
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -127,6 +146,15 @@ export class Activity {
 
   private onPointerDown(e: PointerEvent): void {
     const p = this.page(e);
+    // A picked-up flag goes where the page is clicked (the page doesn't get the click).
+    if (
+      this.live.getState().flagging &&
+      fromComposed(e, (el) => el.hasAttribute('data-flag-surface'))
+    ) {
+      e.preventDefault();
+      this.hooks.flag(p);
+      return;
+    }
     if (fromComposed(e, (el) => el.hasAttribute('data-wt-surface'))) {
       if (e.button !== 0) return;
       e.preventDefault();
@@ -158,6 +186,8 @@ export class Activity {
   private onPointerMove(e: PointerEvent): void {
     const p = this.page(e);
     const t = this.tape.now();
+    if (this.live.getState().flagging)
+      this.live.set({ flagging: { at: overOurUi(e.clientX, e.clientY) ? null : p } });
     if (t - this.lastCursorAt >= CURSOR_EVERY_MS && this.tape.cursor.length < MAX_CURSOR) {
       this.tape.cursor.push([t, Math.round(p.x), Math.round(p.y)]);
       this.lastCursorAt = t;
@@ -169,6 +199,16 @@ export class Activity {
   }
 
   private onPointerUp(e: PointerEvent): void {
+    const drag = this.flagDrag;
+    if (drag?.pointerId === e.pointerId) {
+      // Dragged off the Flag button onto the page: the flag goes where it's let go. A click on
+      // the button keeps it picked up for the next click on the page.
+      this.flagDrag = null;
+      const far = Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > FLAG_DRAG_PX;
+      if (far && e.type === 'pointerup' && !overOurUi(e.clientX, e.clientY))
+        this.hooks.flag(this.page(e));
+      return;
+    }
     if (this.marks.endInk(e.pointerId)) return;
     const c = this.click;
     this.click = null;

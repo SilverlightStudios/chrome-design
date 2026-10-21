@@ -25,6 +25,33 @@
   pointer-events: auto;
   cursor: crosshair;
 }
+.wt-flag-surface {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  touch-action: none;
+}
+.wt-flag-surface[data-on] {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+/* The flag on its way to the page. */
+.wt-flag-ghost {
+  pointer-events: none;
+}
+.wt-flag-ghost .ring {
+  fill: var(--rec);
+  stroke: #fff;
+  stroke-width: 2.5;
+  opacity: 0.9;
+}
+.wt-flag-ghost text {
+  fill: #fff;
+  font: 700 14px var(--font);
+}
+.tb-btn.rec-flag {
+  touch-action: none;
+}
 .wt-ink {
   position: absolute;
   left: 0;

@@ -40,6 +40,13 @@ export function WalkthroughLayer() {
         aria-hidden="true"
         onContextMenu={(e) => capturing && e.preventDefault()}
       />
+      {/* A picked-up flag: the page waits for the click that places it. */}
+      <div
+        className="wt-flag-surface"
+        data-flag-surface=""
+        data-on={recording && s.flagging ? '' : undefined}
+        aria-hidden="true"
+      />
       <svg className="wt-ink" width="1" height="1" aria-hidden="true">
         {s.ink.map((stroke) => (
           <path
@@ -81,6 +88,17 @@ export function WalkthroughLayer() {
           <g className="wt-laser-tip">
             <circle cx={trail.at(-1)![0]} cy={trail.at(-1)![1]} r="6" className="halo" />
             <circle cx={trail.at(-1)![0]} cy={trail.at(-1)![1]} r="2.6" className="core" />
+          </g>
+        ) : null}
+        {recording && s.flagging?.at ? (
+          <g
+            className="wt-flag-ghost"
+            transform={`translate(${s.flagging.at.x} ${s.flagging.at.y})`}
+          >
+            <circle r="14" className="ring" />
+            <text y="5" textAnchor="middle">
+              ⚑
+            </text>
           </g>
         ) : null}
         {s.ripples.map((r) => (

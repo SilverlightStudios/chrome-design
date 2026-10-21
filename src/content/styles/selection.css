@@ -8,6 +8,19 @@
 .hover-outline {
   border: 1.5px solid var(--inspect);
 }
+/* Outlines and the name tag fade in quickly, and the hover outline out (InspectOverlay). */
+.hover-outline,
+.picked-outline,
+.name-tag {
+  transition: opacity 0.12s var(--ease);
+  @starting-style {
+    opacity: 0;
+  }
+}
+.hover-outline[data-exiting],
+.name-tag[data-exiting] {
+  opacity: 0;
+}
 .inspect-layer[data-tool="comment"] .hover-outline {
   border-style: dashed;
   border-color: color-mix(in oklab, var(--inspect), transparent 25%);

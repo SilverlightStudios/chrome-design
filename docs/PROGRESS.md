@@ -7,6 +7,10 @@ verified unchanged by comparing every element's computed style under the old and
 (light and dark, toolbar and each panel).
 
 ## Rounds
+- R15.2: ⚑ on the recording bar is picked up and placed (click it then the page, or drag it onto
+  the page; Esc puts it back; ⌥⇧F still flags at the pointer) instead of landing under the bar;
+  Select clicked again puts the pointer down (Paused); the hover outline and name tag fade in
+  and out (120 ms, `usePresence`), the selection outline fades in.
 - R15.1: guides — a dragged guide stays the same element and its move/release are heard on the
   window (it used to unmount on drag start, lose the pointer and never let go); snapping looks at
   the elements under the pointer and 6 px either side, with their ancestors and the selected

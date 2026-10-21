@@ -1,7 +1,7 @@
 import { buildAnchor } from '../../capture/anchor';
 import { createId, nowIso } from '../../shared/ids';
 import { type CommentThread, isComment } from '../../shared/model';
-import { formatClock, type Walkthrough } from '../../walkthrough/model';
+import { formatClock, type Walkthrough, type WtPoint } from '../../walkthrough/model';
 import { timeline } from '../../walkthrough/summary';
 import { pickElement } from '../dom';
 import { type EditorStore, nextCommentNumber } from '../store';
@@ -10,26 +10,34 @@ import type { Tape } from './tape';
 import { targetOf } from './targets';
 
 /**
- * Flags (⌥⇧F, or ⚑ on the recording bar): "look here". A picture that's never dropped, and a
- * Note comment pinned where the pointer is, so the moment is in the feedback too. Once there's
+ * Flags (⌥⇧F, or ⚑ on the recording bar: click it then the page, or drag it onto the page):
+ * "look here". A picture that's never dropped, and a Note comment pinned there, so the moment is in the feedback too. Once there's
  * a transcript the comment also says what was said then.
  */
 
 /** A flag comment's own words (kept at the end when what was said is added). */
 const flagBody = (t: number) => `⚑ Walkthrough ${formatClock(t)}`;
 
-export function flag(tape: Tape, pictures: Pictures, store: EditorStore | null): void {
+/** A flag at `at` (page space), or where the pointer is (⌥⇧F). */
+export function flag(
+  tape: Tape,
+  pictures: Pictures,
+  store: EditorStore | null,
+  at?: WtPoint,
+): void {
   const t = tape.now();
   const last = tape.cursor.at(-1);
-  const point = last
-    ? { x: last[1], y: last[2] }
-    : { x: window.scrollX + window.innerWidth / 2, y: window.scrollY + window.innerHeight / 2 };
+  const point =
+    at ??
+    (last
+      ? { x: last[1], y: last[2] }
+      : { x: window.scrollX + window.innerWidth / 2, y: window.scrollY + window.innerHeight / 2 });
   const el = pickElement(point.x - window.scrollX, point.y - window.scrollY);
   const target = el ? targetOf(el) : undefined;
   let number: number | undefined;
   if (store) {
     number = nextCommentNumber(store.getState().doc.annotations);
-    const at = nowIso();
+    const now = nowIso();
     const anchor =
       el && el !== document.body && el !== document.documentElement ? buildAnchor(el) : null;
     const thread: CommentThread = {
@@ -39,9 +47,9 @@ export function flag(tape: Tape, pictures: Pictures, store: EditorStore | null):
       intent: 'note',
       status: 'open',
       target: anchor ? { type: 'element', point, anchor } : { type: 'point', point },
-      messages: [{ id: createId('m'), body: flagBody(t), createdAt: at }],
-      createdAt: at,
-      updatedAt: at,
+      messages: [{ id: createId('m'), body: flagBody(t), createdAt: now }],
+      createdAt: now,
+      updatedAt: now,
       viewport: {
         width: document.documentElement.clientWidth || window.innerWidth,
         height: window.innerHeight,

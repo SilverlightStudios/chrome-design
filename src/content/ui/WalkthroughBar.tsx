@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatClock } from '../../walkthrough/model';
 import { recorder, useRecorder } from '../walkthrough/recorder';
 import { ToolButton } from './controls';
@@ -36,6 +36,9 @@ function Elapsed() {
 export function RecordingButtons() {
   const drawing = useRecorder((s) => s.drawing);
   const finishing = useRecorder((s) => s.phase === 'finishing');
+  const flagging = useRecorder((s) => !!s.flagging);
+  // The press that picked the flag up: its click keeps it picked up (for the page's click).
+  const pickedUp = useRef(false);
   return (
     <>
       <Elapsed />
@@ -49,10 +52,21 @@ export function RecordingButtons() {
       />
       <ToolButton
         icon="flag"
-        label="Flag this moment"
+        label={flagging ? 'Click where the flag goes' : 'Flag: click, then click the page'}
         kbd="⌥⇧F"
+        className="rec-flag"
+        active={flagging}
         disabled={finishing}
-        onClick={() => recorder.flag()}
+        onPointerDown={(e) => {
+          pickedUp.current = !recorder.getState().flagging;
+          if (pickedUp.current)
+            recorder.pickUpFlag({ pointerId: e.pointerId, x: e.clientX, y: e.clientY });
+        }}
+        onClick={() => {
+          if (pickedUp.current) pickedUp.current = false;
+          else if (recorder.getState().flagging) recorder.dropFlag();
+          else recorder.pickUpFlag();
+        }}
       />
       <ToolButton
         icon="stop"

@@ -160,6 +160,11 @@ export function Toolbar() {
 
   const choose = (next: 'select' | 'comment') => {
     const s = store.getState();
+    // Select again puts the pointer down: the page is the reviewer's to use (Paused).
+    if (next === 'select' && s.tool === 'select') {
+      store.set({ tool: 'browse', hoverEl: null, draft: null });
+      return;
+    }
     store.set({
       tool: next,
       selectedId: null,
