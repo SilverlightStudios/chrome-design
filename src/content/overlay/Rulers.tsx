@@ -3,11 +3,11 @@ import { createId } from '../../shared/ids';
 import { gridColumns } from '../../shared/measure';
 import type { Guide } from '../../shared/model';
 import { useEditor, useEnv, useViewport, type Viewport } from '../context';
-import { capturePointer, pickElement } from '../dom';
+import { capturePointer, isExtensionNode } from '../dom';
 import { TooltipGroup } from '../motion/Tooltip';
+import { Icon } from '../ui/icons';
 
 export const RULER = 20;
-const SNAP = 5;
 
 function hexToRgba(hex: string, alpha: number): string {
   const h = hex.replace('#', '');
@@ -104,36 +104,63 @@ function drawRuler(
   ctx.stroke();
 }
 
-/** Snap a page coordinate to the nearest edge of the element under the pointer. */
+/** How close (CSS px) a guide comes to an edge before it snaps to it. */
+const SNAP = 6;
+
+interface Snap {
+  position: number;
+  /** The element it snapped to (outlined while dragging). */
+  el: Element | null;
+}
+
+/**
+ * Where a guide being dragged lands: the nearest edge or middle of an element near it, within
+ * SNAP. Elements near the line are the ones under the pointer and just either side of it, with
+ * their ancestors (so a section's edge counts as well as a button's), plus the selected element.
+ */
 function snapToContent(
   axis: Guide['axis'],
   value: number,
   clientX: number,
   clientY: number,
-): number {
-  const el = pickElement(clientX, clientY);
-  if (!el || el === document.documentElement || el === document.body) return value;
-  const r = el.getBoundingClientRect();
-  const edges =
-    axis === 'x'
-      ? [r.left, r.left + r.width / 2, r.right].map((v) => v + window.scrollX)
-      : [r.top, r.top + r.height / 2, r.bottom].map((v) => v + window.scrollY);
-  let best = value;
-  let bestDist = SNAP + 1;
-  for (const edge of edges) {
-    const d = Math.abs(edge - value);
-    if (d < bestDist) {
-      best = edge;
-      bestDist = d;
+  picked: Element | null,
+): Snap {
+  const near = new Set<Element>(picked?.isConnected ? [picked] : []);
+  for (const d of [-SNAP, 0, SNAP]) {
+    const [x, y] = axis === 'x' ? [clientX + d, clientY] : [clientX, clientY + d];
+    for (const el of document.elementsFromPoint(x, y))
+      if (!isExtensionNode(el) && el !== document.documentElement && el !== document.body)
+        near.add(el);
+  }
+  const scroll = axis === 'x' ? window.scrollX : window.scrollY;
+  let best: Snap = { position: Math.round(value), el: null };
+  let bestDist = SNAP;
+  for (const el of near) {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) continue;
+    const [lo, hi] = axis === 'x' ? [r.left, r.right] : [r.top, r.bottom];
+    // Edges win a tie with a middle.
+    for (const [edge, bias] of [
+      [lo, 0],
+      [hi, 0],
+      [(lo + hi) / 2, 0.5],
+    ] as const) {
+      const d = Math.abs(edge + scroll - value) + bias;
+      if (d <= bestDist) {
+        best = { position: Math.round(edge + scroll), el };
+        bestDist = d;
+      }
     }
   }
-  return Math.round(best);
+  return best;
 }
 
 interface GuideDrag {
   id: string | null;
   axis: Guide['axis'];
   position: number;
+  /** The element it's snapped to. */
+  snapped?: Element | null;
 }
 
 function toClient(g: { axis: Guide['axis']; position: number }, vp: Viewport): number {
@@ -150,7 +177,9 @@ export function RulersAndGuides() {
   const topRef = useRef<HTMLCanvasElement>(null);
   const leftRef = useRef<HTMLCanvasElement>(null);
   const [drag, setDrag] = useState<GuideDrag | null>(null);
-  const dragRef = useRef<GuideDrag | null>(null);
+  // Ends a drag in progress (listeners on the window, so the release always arrives).
+  const stopDrag = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopDrag.current?.(), []);
 
   const focus = pickedEl?.isConnected ? pickedEl : hoverEl?.isConnected ? hoverEl : null;
   const fr = focus?.getBoundingClientRect();
@@ -165,70 +194,106 @@ export function RulersAndGuides() {
 
   if (!rulers) return null;
 
-  const begin = (e: ReactPointerEvent<HTMLElement>, d: GuideDrag) => {
+  /**
+   * A guide follows the pointer until it's let go, wherever that is: the move and release are
+   * heard on the window (the guide being dragged may be re-rendered under the pointer).
+   * Released on its ruler, a guide is removed (or never added).
+   */
+  const begin = (e: ReactPointerEvent<HTMLElement>, start: GuideDrag) => {
     e.stopPropagation();
     e.preventDefault();
+    stopDrag.current?.();
     capturePointer(e.currentTarget, e.pointerId);
-    dragRef.current = d;
+    const pointerId = e.pointerId;
+    let d = start;
     setDrag(d);
-  };
-  const move = (e: ReactPointerEvent<HTMLElement>) => {
-    const d = dragRef.current;
-    if (!d) return;
-    const raw = d.axis === 'x' ? e.clientX + window.scrollX : e.clientY + window.scrollY;
-    const next = {
-      ...d,
-      position: e.altKey ? Math.round(raw) : snapToContent(d.axis, raw, e.clientX, e.clientY),
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      const raw = d.axis === 'x' ? ev.clientX + window.scrollX : ev.clientY + window.scrollY;
+      const snap = ev.altKey
+        ? { position: Math.round(raw), el: null }
+        : snapToContent(d.axis, raw, ev.clientX, ev.clientY, store.getState().pickedEl);
+      d = { ...d, position: snap.position, snapped: snap.el };
+      setDrag(d);
     };
-    dragRef.current = next;
-    setDrag(next);
+    const up = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      stop();
+      if (ev.type === 'pointercancel') return;
+      const onRuler = d.axis === 'x' ? ev.clientX < RULER : ev.clientY < RULER;
+      if (d.id) {
+        if (onRuler) store.removeGuide(d.id);
+        else store.moveGuide(d.id, d.position);
+      } else if (!onRuler) {
+        store.addGuide({ id: createId('g'), axis: d.axis, position: d.position });
+      }
+    };
+    const stop = () => {
+      stopDrag.current = null;
+      window.removeEventListener('pointermove', move, true);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', up, true);
+      window.removeEventListener('blur', stop);
+      setDrag(null);
+    };
+    window.addEventListener('pointermove', move, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
+    window.addEventListener('blur', stop);
+    stopDrag.current = stop;
   };
-  const end = (e: ReactPointerEvent<HTMLElement>) => {
-    const d = dragRef.current;
-    dragRef.current = null;
-    setDrag(null);
-    if (!d) return;
-    const onRuler = d.axis === 'x' ? e.clientX < RULER : e.clientY < RULER;
-    if (d.id) {
-      if (onRuler) store.removeGuide(d.id);
-      else store.moveGuide(d.id, d.position);
-    } else if (!onRuler) {
-      store.addGuide({ id: createId('g'), axis: d.axis, position: d.position });
-    }
-  };
-  const handlers = { onPointerMove: move, onPointerUp: end, onPointerCancel: end };
 
-  const shown = guides.filter((g) => g.id !== drag?.id);
+  // The guide being moved stays the same element (it holds the pointer), at the drag's place.
+  const shown: GuideDrag[] = guides.map((g) => (g.id === drag?.id ? drag : g));
+  if (drag && !drag.id) shown.push(drag);
+  const snapped = drag?.snapped?.isConnected ? drag.snapped.getBoundingClientRect() : null;
   return (
     <div className="rulers ui">
       <div className="ruler-strip x" />
       <div className="ruler-strip y" />
+      {snapped ? (
+        <div
+          className="guide-snap"
+          aria-hidden="true"
+          style={{
+            left: snapped.left,
+            top: snapped.top,
+            width: snapped.width,
+            height: snapped.height,
+          }}
+        />
+      ) : null}
       {shown.map((g) => {
         const c = toClient(g, vp);
+        const id = g.id;
+        const dragging = g === drag;
         return (
           <div
-            key={g.id}
+            key={id ?? 'new'}
             className="guide"
             data-axis={g.axis}
+            data-dragging={dragging ? '' : undefined}
             style={g.axis === 'x' ? { left: c } : { top: c }}
-            onPointerDown={(e) => begin(e, { id: g.id, axis: g.axis, position: g.position })}
-            onDoubleClick={() => store.removeGuide(g.id)}
-            {...handlers}
+            onPointerDown={(e) => id && begin(e, { id, axis: g.axis, position: g.position })}
+            onDoubleClick={() => id && store.removeGuide(id)}
           >
-            <span className="guide-label">{Math.round(g.position)}</span>
+            <span className="guide-label">
+              {Math.round(g.position)}
+              {id && !dragging ? (
+                <button
+                  type="button"
+                  className="guide-remove"
+                  aria-label="Remove guide"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => store.removeGuide(id)}
+                >
+                  <Icon.close />
+                </button>
+              ) : null}
+            </span>
           </div>
         );
       })}
-      {drag && (
-        <div
-          className="guide"
-          data-axis={drag.axis}
-          data-dragging=""
-          style={drag.axis === 'x' ? { left: toClient(drag, vp) } : { top: toClient(drag, vp) }}
-        >
-          <span className="guide-label">{Math.round(drag.position)}</span>
-        </div>
-      )}
       <canvas
         ref={topRef}
         className="ruler ruler-x"
@@ -236,7 +301,6 @@ export function RulersAndGuides() {
         onPointerDown={(e) =>
           begin(e, { id: null, axis: 'y', position: e.clientY + window.scrollY })
         }
-        {...handlers}
       />
       <canvas
         ref={leftRef}
@@ -245,7 +309,6 @@ export function RulersAndGuides() {
         onPointerDown={(e) =>
           begin(e, { id: null, axis: 'x', position: e.clientX + window.scrollX })
         }
-        {...handlers}
       />
       <TooltipGroup placement="down" className="ruler-corner-tip" ariaLabel="Guides">
         <button

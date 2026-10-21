@@ -76,6 +76,7 @@ const FILES: Record<string, [string, string]> = {
   '/': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
   '/phone': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
   '/sizes': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
+  '/guides': ['text/html', readFileSync(resolve(import.meta.dirname, 'fixture.html'), 'utf8')],
   '/style.css': [
     'text/css',
     'body{font-family:system-ui;margin:0;color:#123}h1{font-size:48px;padding:24px}',
@@ -457,6 +458,46 @@ test('integrates with hostile pages: transformed root, max z-index overlay, page
   await expect(page.locator('chrome-design-root')).toHaveCount(0);
   await page.keyboard.press('c');
   await expect(page.locator('#count')).toHaveText('2');
+});
+
+test('guides: snap to an element, move and let go, remove with ×', async () => {
+  const page = await context.newPage();
+  await page.goto(`${baseUrl}/guides`);
+  await toggleToolbar(page);
+  const ui = page.locator('chrome-design-root');
+  await page.keyboard.press('m');
+  await expect(ui.locator('.ruler-y')).toBeVisible();
+  const cta = (await page.locator('#cta').boundingBox())!;
+  const guide = ui.locator('.guide[data-axis="x"]');
+
+  // From the left ruler to just inside the button's right edge: it snaps to the edge.
+  const y = cta.y + cta.height / 2;
+  await page.mouse.move(10, y);
+  await page.mouse.down();
+  await page.mouse.move(cta.x + cta.width - 30, y, { steps: 4 });
+  await page.mouse.move(cta.x + cta.width - 3, y, { steps: 2 });
+  await expect(ui.locator('.guide-snap')).toHaveCount(1);
+  await page.mouse.up();
+  await expect(guide).toHaveCount(1);
+  await expect(ui.locator('.guide-snap')).toHaveCount(0);
+  const edge = Math.round(cta.x + cta.width);
+  await expect(guide.locator('.guide-label')).toHaveText(String(edge));
+
+  // Moved, then let go: it stays where it was let go, whatever the pointer does next.
+  await page.mouse.move(edge, 420);
+  await page.mouse.down();
+  await page.mouse.move(edge + 140, 420, { steps: 5 });
+  await page.mouse.up();
+  await expect(guide).not.toHaveAttribute('data-dragging');
+  const moved = await guide.locator('.guide-label').textContent();
+  await page.mouse.move(edge + 300, 300, { steps: 5 });
+  await expect(guide.locator('.guide-label')).toHaveText(moved!);
+
+  // × on its label removes it.
+  await guide.hover();
+  await guide.locator('.guide-remove').click();
+  await expect(guide).toHaveCount(0);
+  await page.close();
 });
 
 test('single-page apps: notes follow the URL', async () => {

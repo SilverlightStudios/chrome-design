@@ -95,6 +95,9 @@
 }
 .guide-label {
   position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 2px;
   padding: 0 6px;
   border-radius: 999px;
   background: var(--guide);
@@ -116,9 +119,55 @@
 .guide[data-dragging] .guide-label {
   opacity: 1;
 }
+/* × on a guide's label removes it (so does dragging it back onto its ruler, or a double-click). */
+.guide-remove {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin-right: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+}
+.guide-remove:hover {
+  background: hsl(0 0% 100% / 0.25);
+}
+.guide-remove svg {
+  width: 10px;
+  height: 10px;
+}
+/* What a dragged guide has snapped to. */
+.guide-snap {
+  position: fixed;
+  outline: 1px dashed var(--guide);
+  outline-offset: -0.5px;
+  pointer-events: none;
+}
 /* No hover on touch screens: guide positions are always shown. */
 @media (hover: none) {
   .guide-label {
     opacity: 1;
+  }
+  /* A finger needs a wider line to grab, and a bigger ×. */
+  .guide[data-axis="x"] {
+    width: 21px;
+    margin-left: -10px;
+  }
+  .guide[data-axis="x"]::before {
+    left: 10px;
+  }
+  .guide[data-axis="y"] {
+    height: 21px;
+    margin-top: -10px;
+  }
+  .guide[data-axis="y"]::before {
+    top: 10px;
+  }
+  .guide-remove {
+    width: 22px;
+    height: 22px;
   }
 }

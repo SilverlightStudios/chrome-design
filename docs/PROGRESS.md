@@ -7,6 +7,12 @@ verified unchanged by comparing every element's computed style under the old and
 (light and dark, toolbar and each panel).
 
 ## Rounds
+- R15.1: guides — a dragged guide stays the same element and its move/release are heard on the
+  window (it used to unmount on drag start, lose the pointer and never let go); snapping looks at
+  the elements under the pointer and 6 px either side, with their ancestors and the selected
+  element (edges before middles), and outlines what it snapped to; × on a guide's label removes
+  it; wider guides and a bigger × on touch. Flag comments follow the toolbar reopening
+  (`recorder.attach` / `detach`).
 - R15 (architecture): one store (`content/state.ts`: `Store` + `useStore`; the editor and the
   recorder are both one) and typed messages (`BackgroundApi` in shared/messages.ts, `askBackground`,
   one handler per request in the service worker). The recorder in parts (tape, activity, marks,

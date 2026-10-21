@@ -53,7 +53,7 @@ const SECTIONS: { title: string; rows: [string, string][] }[] = [
     title: 'View',
     rows: [
       ['F', 'Comments'],
-      ['M', 'Rulers'],
+      ['M', 'Rulers: drag from one for a guide (⌥ stops it snapping); × or drag back to remove'],
       ['G', 'Columns'],
       ['⌥⇧D', 'Open or close Chrome Design'],
     ],
