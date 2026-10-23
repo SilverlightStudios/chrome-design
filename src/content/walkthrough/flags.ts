@@ -11,8 +11,8 @@ import { targetOf } from './targets';
 
 /**
  * Flags (⌥⇧F, or ⚑ on the recording bar: click it then the page, or drag it onto the page):
- * "look here". A picture that's never dropped, and a Note comment pinned there, so the moment is in the feedback too. Once there's
- * a transcript the comment also says what was said then.
+ * "look here". A picture that's never dropped, and a Note comment pinned there, so the moment
+ * is in the feedback too. Once there's a transcript the comment also says what was said then.
  */
 
 /** A flag comment's own words (kept at the end when what was said is added). */
